@@ -7,19 +7,21 @@ import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../constants/colors';
 import Card from '../components/Card';
 import AdBanner from '../components/AdBanner';
+import DatePickerField from '../components/DatePickerField';
 import { AD_UNITS } from '../constants/adUnits';
 import { loadTodos, addTodo, toggleTodo, deleteTodo } from '../utils/storage';
-import { formatDate, formatDateKo, isValidDateString } from '../utils/dateUtils';
+import { formatDate, formatDateKo } from '../utils/dateUtils';
 
 const today = formatDate(new Date());
 
 export default function TodoScreen() {
-  const [todos, setTodos]             = useState([]);
-  const [filterDate, setFilterDate]   = useState('');
+  const [todos, setTodos]               = useState([]);
+  const [filterDate, setFilterDate]     = useState('');
+  const [showFilterPicker, setShowFilterPicker] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [formTitle, setFormTitle]     = useState('');
-  const [formDate, setFormDate]       = useState(today);
-  const [formNote, setFormNote]       = useState('');
+  const [formTitle, setFormTitle]       = useState('');
+  const [formDate, setFormDate]         = useState(today);
+  const [formNote, setFormNote]         = useState('');
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -27,9 +29,10 @@ export default function TodoScreen() {
 
   const handleAdd = async () => {
     if (!formTitle.trim()) { Alert.alert('오류', '할 일 내용을 입력해주세요.'); return; }
-    if (formDate && !isValidDateString(formDate)) { Alert.alert('오류', '날짜를 YYYY-MM-DD 형식으로 입력해주세요.'); return; }
     setTodos(await addTodo({ title: formTitle.trim(), date: formDate || today, note: formNote.trim() }));
-    setFormTitle(''); setFormDate(today); setFormNote('');
+    setFormTitle('');
+    setFormDate(today);
+    setFormNote('');
     setModalVisible(false);
   };
 
@@ -40,6 +43,13 @@ export default function TodoScreen() {
       { text: '취소', style: 'cancel' },
       { text: '삭제', style: 'destructive', onPress: async () => setTodos(await deleteTodo(id)) },
     ]);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setFormTitle('');
+    setFormDate(today);
+    setFormNote('');
   };
 
   const filtered = todos.filter((t) => !filterDate || t.date === filterDate);
@@ -62,16 +72,20 @@ export default function TodoScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.pageTitle}>일정 관리</Text>
 
         {/* 요약 */}
         <Card style={styles.summaryCard}>
           <View style={styles.summaryRow}>
             {[
-              { val: totalCount, label: '전체', color: COLORS.primary },
-              { val: doneCount, label: '완료', color: COLORS.success },
-              { val: totalCount - doneCount, label: '미완료', color: COLORS.accent },
+              { val: totalCount,              label: '전체',   color: COLORS.primary },
+              { val: doneCount,               label: '완료',   color: COLORS.success },
+              { val: totalCount - doneCount,  label: '미완료', color: COLORS.accent },
             ].map((item) => (
               <View key={item.label} style={styles.summaryItem}>
                 <Text style={[styles.summaryBig, { color: item.color }]}>{item.val}</Text>
@@ -79,16 +93,16 @@ export default function TodoScreen() {
               </View>
             ))}
           </View>
+
+          {/* 날짜 필터 (캘린더) */}
           <View style={styles.filterRow}>
-            <TextInput
-              style={styles.filterInput}
-              value={filterDate}
-              onChangeText={setFilterDate}
-              placeholder="날짜 필터 (YYYY-MM-DD)"
-              placeholderTextColor={COLORS.textLight}
-              keyboardType="numbers-and-punctuation"
-              maxLength={10}
-            />
+            <View style={{ flex: 1 }}>
+              <DatePickerField
+                value={filterDate}
+                onChange={setFilterDate}
+                placeholder="날짜로 필터링"
+              />
+            </View>
             {filterDate ? (
               <TouchableOpacity style={styles.filterClearBtn} onPress={() => setFilterDate('')}>
                 <Text style={styles.filterClearText}>전체</Text>
@@ -97,7 +111,6 @@ export default function TodoScreen() {
           </View>
         </Card>
 
-        {/* 추가 버튼 */}
         <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
           <Text style={styles.addBtnText}>+ 할 일 추가</Text>
         </TouchableOpacity>
@@ -107,7 +120,7 @@ export default function TodoScreen() {
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyEmoji}>📋</Text>
             <Text style={styles.emptyText}>
-              {filterDate ? `${filterDate}에 일정이 없어요.` : '할 일을 추가해보세요!'}
+              {filterDate ? `${formatDateKo(filterDate)}에 일정이 없어요.` : '할 일을 추가해보세요!'}
             </Text>
           </Card>
         ) : (
@@ -131,19 +144,20 @@ export default function TodoScreen() {
                 />
               ))}
 
-              {/* ── 광고: 두 번째 날짜 그룹 아래 ── */}
               {idx === 1 && <AdBanner unit={AD_UNITS.TODO_MIDDLE} />}
             </View>
           ))
         )}
 
-        {/* ── 광고: 목록 하단 ── */}
         <AdBanner unit={AD_UNITS.TODO_BOTTOM} style={{ marginBottom: 12 }} />
       </ScrollView>
 
       {/* 추가 모달 */}
-      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={closeModal}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>할 일 추가</Text>
 
@@ -156,16 +170,15 @@ export default function TodoScreen() {
               placeholderTextColor={COLORS.textLight}
               autoFocus
             />
-            <Text style={styles.formLabel}>날짜</Text>
-            <TextInput
-              style={styles.formInput}
+
+            {/* 캘린더 날짜 선택 */}
+            <DatePickerField
+              label="날짜"
               value={formDate}
-              onChangeText={setFormDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={COLORS.textLight}
-              keyboardType="numbers-and-punctuation"
-              maxLength={10}
+              onChange={setFormDate}
+              placeholder="날짜 선택"
             />
+
             <Text style={styles.formLabel}>메모 (선택)</Text>
             <TextInput
               style={[styles.formInput, styles.formTextarea]}
@@ -178,7 +191,7 @@ export default function TodoScreen() {
             />
 
             <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setModalVisible(false); setFormTitle(''); setFormDate(today); setFormNote(''); }}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={closeModal}>
                 <Text style={styles.modalCancelBtnText}>취소</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalSaveBtn} onPress={handleAdd}>
@@ -218,23 +231,16 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 24 },
   pageTitle: { fontSize: 26, fontWeight: '800', color: COLORS.primary, marginBottom: 18, marginTop: 6 },
   summaryCard: { paddingVertical: 16 },
-  summaryRow: {
-    flexDirection: 'row', marginBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingBottom: 14,
-  },
+  summaryRow: { flexDirection: 'row', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingBottom: 14 },
   summaryItem: { flex: 1, alignItems: 'center' },
   summaryBig: { fontSize: 26, fontWeight: '800' },
   summarySub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 3 },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  filterInput: {
-    flex: 1, backgroundColor: COLORS.background, borderWidth: 1.5,
-    borderColor: COLORS.border, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: COLORS.text,
-  },
   filterClearBtn: {
     paddingHorizontal: 14, paddingVertical: 10,
     backgroundColor: COLORS.background, borderRadius: 10,
     borderWidth: 1.5, borderColor: COLORS.primaryLight,
+    marginBottom: 14,
   },
   filterClearText: { fontSize: 14, color: COLORS.primaryLight, fontWeight: '600' },
   addBtn: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 16 },

@@ -7,19 +7,22 @@ import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../constants/colors';
 import Card from '../components/Card';
 import AdBanner from '../components/AdBanner';
+import DatePickerField from '../components/DatePickerField';
 import { AD_UNITS } from '../constants/adUnits';
 import {
   loadLeaveRecords, addLeaveRecord, deleteLeaveRecord,
   loadLeaveTotal, saveLeaveTotal,
 } from '../utils/storage';
-import { isValidDateString, formatDateKo } from '../utils/dateUtils';
+import { formatDateKo } from '../utils/dateUtils';
 
 export default function LeaveScreen() {
-  const [records, setRecords] = useState([]);
-  const [leaveTotal, setLeaveTotal] = useState(21);
+  const [records, setRecords]           = useState([]);
+  const [leaveTotal, setLeaveTotal]     = useState(21);
   const [editingTotal, setEditingTotal] = useState(false);
-  const [totalInput, setTotalInput] = useState('21');
+  const [totalInput, setTotalInput]     = useState('21');
   const [modalVisible, setModalVisible] = useState(false);
+
+  // 폼 상태
   const [formDate, setFormDate] = useState('');
   const [formDays, setFormDays] = useState('');
   const [formMemo, setFormMemo] = useState('');
@@ -49,8 +52,8 @@ export default function LeaveScreen() {
   };
 
   const handleAddRecord = async () => {
-    if (!isValidDateString(formDate)) {
-      Alert.alert('오류', 'YYYY-MM-DD 형식으로 날짜를 입력해주세요.');
+    if (!formDate) {
+      Alert.alert('오류', '휴가 시작일을 선택해주세요.');
       return;
     }
     const days = parseInt(formDays, 10);
@@ -60,7 +63,9 @@ export default function LeaveScreen() {
     }
     const updated = await addLeaveRecord({ date: formDate, days, memo: formMemo.trim() });
     setRecords(updated);
-    setFormDate(''); setFormDays(''); setFormMemo('');
+    setFormDate('');
+    setFormDays('');
+    setFormMemo('');
     setModalVisible(false);
   };
 
@@ -69,6 +74,13 @@ export default function LeaveScreen() {
       { text: '취소', style: 'cancel' },
       { text: '삭제', style: 'destructive', onPress: async () => setRecords(await deleteLeaveRecord(id)) },
     ]);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setFormDate('');
+    setFormDays('');
+    setFormMemo('');
   };
 
   // 광고를 3번째 항목 뒤에 삽입
@@ -80,7 +92,11 @@ export default function LeaveScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.pageTitle}>휴가 관리</Text>
 
         {/* 휴가 요약 */}
@@ -99,7 +115,6 @@ export default function LeaveScreen() {
             ))}
           </View>
 
-          {/* 총 휴가 편집 */}
           <View style={styles.totalEditRow}>
             {editingTotal ? (
               <>
@@ -125,7 +140,6 @@ export default function LeaveScreen() {
           </View>
         </Card>
 
-        {/* 추가 버튼 */}
         <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
           <Text style={styles.addBtnText}>+ 휴가 기록 추가</Text>
         </TouchableOpacity>
@@ -139,7 +153,6 @@ export default function LeaveScreen() {
         ) : (
           listData.map((item) =>
             item._isAd ? (
-              // ── 광고: 리스트 중간 ──
               <AdBanner key="ad_mid" unit={AD_UNITS.LEAVE_MIDDLE} />
             ) : (
               <Card key={item.id} style={styles.recordCard}>
@@ -158,26 +171,26 @@ export default function LeaveScreen() {
           )
         )}
 
-        {/* ── 광고: 리스트 하단 ── */}
         <AdBanner unit={AD_UNITS.LEAVE_BOTTOM} style={{ marginBottom: 12 }} />
       </ScrollView>
 
       {/* 추가 모달 */}
-      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={closeModal}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>휴가 기록 추가</Text>
 
-            <Text style={styles.formLabel}>휴가 시작일</Text>
-            <TextInput
-              style={styles.formInput}
+            {/* 캘린더 날짜 선택 */}
+            <DatePickerField
+              label="휴가 시작일"
               value={formDate}
-              onChangeText={setFormDate}
-              placeholder="YYYY-MM-DD (예: 2024-06-15)"
-              placeholderTextColor={COLORS.textLight}
-              keyboardType="numbers-and-punctuation"
-              maxLength={10}
+              onChange={setFormDate}
+              placeholder="날짜를 선택하세요"
             />
+
             <Text style={styles.formLabel}>사용 일수</Text>
             <TextInput
               style={styles.formInput}
@@ -188,6 +201,7 @@ export default function LeaveScreen() {
               keyboardType="number-pad"
               maxLength={3}
             />
+
             <Text style={styles.formLabel}>메모 (선택)</Text>
             <TextInput
               style={[styles.formInput, styles.formTextarea]}
@@ -200,7 +214,7 @@ export default function LeaveScreen() {
             />
 
             <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setModalVisible(false); setFormDate(''); setFormDays(''); setFormMemo(''); }}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={closeModal}>
                 <Text style={styles.modalCancelBtnText}>취소</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalSaveBtn} onPress={handleAddRecord}>
@@ -226,8 +240,8 @@ const styles = StyleSheet.create({
   summarySub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 3 },
   totalEditRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   totalInput: {
-    flex: 1, backgroundColor: COLORS.background,
-    borderWidth: 1.5, borderColor: COLORS.border, borderRadius: 8,
+    flex: 1, backgroundColor: COLORS.background, borderWidth: 1.5,
+    borderColor: COLORS.border, borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: COLORS.text,
   },
   totalSaveBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8 },
@@ -251,7 +265,7 @@ const styles = StyleSheet.create({
   deleteBtnText: { fontSize: 13, color: COLORS.danger, fontWeight: '700' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalBox: { backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44 },
-  modalTitle: { fontSize: 19, fontWeight: '800', color: COLORS.text, marginBottom: 22, textAlign: 'center' },
+  modalTitle: { fontSize: 19, fontWeight: '800', color: COLORS.text, marginBottom: 20, textAlign: 'center' },
   formLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 9 },
   formInput: {
     backgroundColor: COLORS.background, borderWidth: 1.5, borderColor: COLORS.border,
