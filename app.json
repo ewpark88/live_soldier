@@ -10,8 +10,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#2E5B4F"
     },
-    "assetBundlePatterns": ["**/*"],
-
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "android": {
       "package": "com.jeonryeokkami.app",
       "adaptiveIcon": {
@@ -24,7 +25,6 @@
         "com.google.android.gms.permission.AD_ID"
       ]
     },
-
     "ios": {
       "bundleIdentifier": "com.jeonryeokkami.app",
       "supportsTablet": false,
@@ -32,18 +32,24 @@
       "infoPlist": {
         "NSUserTrackingUsageDescription": "맞춤형 광고 제공을 위해 광고 식별자를 사용합니다. 동의하지 않아도 앱의 모든 기능을 이용할 수 있습니다.",
         "SKAdNetworkItems": [
-          { "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork" },
-          { "SKAdNetworkIdentifier": "4fzdc2evr5.skadnetwork" },
-          { "SKAdNetworkIdentifier": "2fnua5tdw4.skadnetwork" },
-          { "SKAdNetworkIdentifier": "ydx93a7ass.skadnetwork" }
+          {
+            "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
+          },
+          {
+            "SKAdNetworkIdentifier": "4fzdc2evr5.skadnetwork"
+          },
+          {
+            "SKAdNetworkIdentifier": "2fnua5tdw4.skadnetwork"
+          },
+          {
+            "SKAdNetworkIdentifier": "ydx93a7ass.skadnetwork"
+          }
         ]
       }
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "plugins": [
       "expo-asset",
       "expo-font",
@@ -62,6 +68,11 @@
           "delayAppMeasurementInit": true
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3a3a8b40-0f20-4ad5-b7a7-0635c8888388"
+      }
+    }
   }
 }
