@@ -10,25 +10,32 @@
       "resizeMode": "contain",
       "backgroundColor": "#2E5B4F"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.jeonryeokkami.app"
+      "bundleIdentifier": "com.jeonryeokkami.app",
+      "googleMobileAdsAppId": "ca-app-pub-8353634332299342~7516567553"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#2E5B4F"
       },
-      "package": "com.jeonryeokkami.app"
+      "package": "com.jeonryeokkami.app",
+      "googleMobileAdsAppId": "ca-app-pub-8353634332299342~7516567553"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-8353634332299342~7516567553",
+          "iosAppId": "ca-app-pub-8353634332299342~7516567553"
+        }
+      ]
     ]
   }
 }

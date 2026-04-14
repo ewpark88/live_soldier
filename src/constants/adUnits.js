@@ -1,84 +1,67 @@
 /**
- * 광고 단위 정의
- * - 각 위치마다 독립된 Ad Unit ID 사용 (구글 정책 필수)
- * - 실제 배포 시 AdMob 콘솔에서 발급받은 ID로 교체
- *
- * AdMob 콘솔: https://admob.google.com
- * 테스트 ID (개발 중 사용):
- *   Banner     → ca-app-pub-3940256099942544/6300978111
- *   Interstitial → ca-app-pub-3940256099942544/1033173712
+ * AdMob 광고 단위 ID
+ * App ID: ca-app-pub-8353634332299342~7516567553
  */
 
-const IS_ANDROID = true; // Platform.OS === 'android' 로 교체
-
 export const AD_UNITS = {
-  // ── 배너 광고 ─────────────────────────────────────────────────
+  // ── 배너 광고 (Banner) ──────────────────────────────────────────
   HOME_TOP: {
     id: 'home_top_banner',
     label: '홈 · 메인카드 하단',
-    // realId: IS_ANDROID ? 'ca-app-pub-XXXX/YYYY_home_top' : 'ca-app-pub-XXXX/YYYY_ios_home_top',
-    testId: 'ca-app-pub-3940256099942544/6300978111',
+    realId: 'ca-app-pub-8353634332299342/1949989068',
   },
   HOME_BOTTOM: {
     id: 'home_bottom_banner',
     label: '홈 · 화면 하단',
-    // realId: IS_ANDROID ? 'ca-app-pub-XXXX/YYYY_home_bottom' : 'ca-app-pub-XXXX/YYYY_ios_home_bottom',
-    testId: 'ca-app-pub-3940256099942544/6300978111',
+    realId: 'ca-app-pub-8353634332299342/9197314884',
   },
   DISCHARGE_MIDDLE: {
     id: 'discharge_middle_banner',
     label: '전역 · 입력폼/결과 사이',
-    // realId: IS_ANDROID ? 'ca-app-pub-XXXX/YYYY_discharge_mid' : 'ca-app-pub-XXXX/YYYY_ios_discharge_mid',
-    testId: 'ca-app-pub-3940256099942544/6300978111',
+    realId: 'ca-app-pub-8353634332299342/8323825721',
   },
   DISCHARGE_BOTTOM: {
     id: 'discharge_bottom_banner',
     label: '전역 · 통계 하단',
-    // realId: IS_ANDROID ? 'ca-app-pub-XXXX/YYYY_discharge_bot' : 'ca-app-pub-XXXX/YYYY_ios_discharge_bot',
-    testId: 'ca-app-pub-3940256099942544/6300978111',
+    realId: 'ca-app-pub-8353634332299342/5921023668',
   },
   LEAVE_MIDDLE: {
     id: 'leave_middle_banner',
     label: '휴가 · 리스트 중간',
-    // realId: IS_ANDROID ? 'ca-app-pub-XXXX/YYYY_leave_mid' : 'ca-app-pub-XXXX/YYYY_ios_leave_mid',
-    testId: 'ca-app-pub-3940256099942544/6300978111',
+    realId: 'ca-app-pub-8353634332299342/4935245050',
   },
   LEAVE_BOTTOM: {
     id: 'leave_bottom_banner',
     label: '휴가 · 하단',
-    // realId: IS_ANDROID ? 'ca-app-pub-XXXX/YYYY_leave_bot' : 'ca-app-pub-XXXX/YYYY_ios_leave_bot',
-    testId: 'ca-app-pub-3940256099942544/6300978111',
+    realId: 'ca-app-pub-8353634332299342/3622163389',
   },
   SALARY_MIDDLE: {
     id: 'salary_middle_banner',
     label: '급여 · 월급표 하단',
-    // realId: IS_ANDROID ? 'ca-app-pub-XXXX/YYYY_salary_mid' : 'ca-app-pub-XXXX/YYYY_ios_salary_mid',
-    testId: 'ca-app-pub-3940256099942544/6300978111',
+    realId: 'ca-app-pub-8353634332299342/7010744050',
   },
   SALARY_BOTTOM: {
     id: 'salary_bottom_banner',
     label: '급여 · 하단',
-    // realId: IS_ANDROID ? 'ca-app-pub-XXXX/YYYY_salary_bot' : 'ca-app-pub-XXXX/YYYY_ios_salary_bot',
-    testId: 'ca-app-pub-3940256099942544/6300978111',
+    realId: 'ca-app-pub-8353634332299342/3318911055',
   },
   TODO_MIDDLE: {
     id: 'todo_middle_banner',
     label: '일정 · 그룹 사이',
-    // realId: IS_ANDROID ? 'ca-app-pub-XXXX/YYYY_todo_mid' : 'ca-app-pub-XXXX/YYYY_ios_todo_mid',
-    testId: 'ca-app-pub-3940256099942544/6300978111',
+    realId: 'ca-app-pub-8353634332299342/8378011059',
   },
   TODO_BOTTOM: {
     id: 'todo_bottom_banner',
     label: '일정 · 하단',
-    // realId: IS_ANDROID ? 'ca-app-pub-XXXX/YYYY_todo_bot' : 'ca-app-pub-XXXX/YYYY_ios_todo_bot',
-    testId: 'ca-app-pub-3940256099942544/6300978111',
+    realId: 'ca-app-pub-8353634332299342/7884233215',
   },
 
-  // ── 전면 광고 ─────────────────────────────────────────────────
+  // ── 전면 광고 (Interstitial) ────────────────────────────────────
   INTERSTITIAL_TAB: {
     id: 'interstitial_tab_switch',
     label: '전면 · 탭 전환',
-    // realId: IS_ANDROID ? 'ca-app-pub-XXXX/YYYY_interstitial' : 'ca-app-pub-XXXX/YYYY_ios_interstitial',
-    testId: 'ca-app-pub-3940256099942544/1033173712',
+    realId: 'ca-app-pub-8353634332299342/1046315947',
   },
 };
+
+export const APP_ID = 'ca-app-pub-8353634332299342~7516567553';
