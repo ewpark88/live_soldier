@@ -26,6 +26,7 @@ export default function DatePickerField({
   minimumDate,
   maximumDate,
   placeholder = '날짜를 선택하세요',
+  disabled = false,
 }) {
   const [show, setShow] = useState(false);
 
@@ -52,12 +53,16 @@ export default function DatePickerField({
       {label ? <Text style={styles.label}>{label}</Text> : null}
 
       {/* 날짜 선택 버튼 */}
-      <TouchableOpacity style={styles.button} onPress={() => setShow(true)}>
-        <Text style={styles.calIcon}>📅</Text>
-        <Text style={[styles.valueText, !value && styles.placeholder]}>
+      <TouchableOpacity
+        style={[styles.button, disabled && styles.buttonDisabled]}
+        onPress={() => { if (!disabled) setShow(true); }}
+        activeOpacity={disabled ? 1 : 0.7}
+      >
+        <Text style={styles.calIcon}>{disabled ? '🔒' : '📅'}</Text>
+        <Text style={[styles.valueText, !value && styles.placeholder, disabled && styles.textDisabled]}>
           {value ? formatDateKo(value) : placeholder}
         </Text>
-        <Text style={styles.arrow}>›</Text>
+        {!disabled && <Text style={styles.arrow}>›</Text>}
       </TouchableOpacity>
 
       {/* Android: 네이티브 다이얼로그 (UI는 OS가 처리) */}
@@ -136,6 +141,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 10,
+  },
+  buttonDisabled: {
+    backgroundColor: '#F0F0F0',
+    borderColor: '#D0D0D0',
+  },
+  textDisabled: {
+    color: COLORS.textSecondary,
   },
   calIcon: {
     fontSize: 20,

@@ -2,7 +2,13 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { COLORS } from '../constants/colors';
 
-export default function ProgressBar({ progress = 0, showLabel = true }) {
+export default function ProgressBar({
+  progress = 0,
+  showLabel = true,
+  trackColor,
+  fillColor,
+  labelColor,
+}) {
   const animWidth = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -21,13 +27,15 @@ export default function ProgressBar({ progress = 0, showLabel = true }) {
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.track}>
+      <View style={[styles.track, trackColor && { backgroundColor: trackColor }]}>
         <Animated.View
-          style={[styles.fill, { width: widthInterpolated }]}
+          style={[styles.fill, { width: widthInterpolated }, fillColor && { backgroundColor: fillColor }]}
         />
       </View>
       {showLabel && (
-        <Text style={styles.label}>{Math.round(progress)}%</Text>
+        <Text style={[styles.label, labelColor && { color: labelColor }]}>
+          {Math.round(progress)}%
+        </Text>
       )}
     </View>
   );
@@ -55,7 +63,7 @@ const styles = StyleSheet.create({
     width: 42,
     fontSize: 13,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: COLORS.textSecondary,
     textAlign: 'right',
   },
 });

@@ -80,18 +80,7 @@ export default function TabNavigator() {
           tabBarItemStyle: {
             paddingVertical: 4,
           },
-          headerStyle: {
-            backgroundColor: COLORS.card,
-            elevation: 0,
-            shadowOpacity: 0,
-            borderBottomWidth: 1,
-            borderBottomColor: COLORS.border,
-          },
-          headerTitleStyle: {
-            fontWeight: '800',
-            color: COLORS.primary,
-            fontSize: 19,
-          },
+          headerShown: false,
         })}
         screenListeners={({ route }) => ({
           tabPress: () => handleTabPress(route.name),

@@ -84,14 +84,36 @@ export function isValidDateString(str) {
 
 /**
  * 현재 복무 중인 계급 계산 (병사 기준)
- * 0~2개월: 이병, 3~5: 일병, 6~9: 상병, 10~: 병장
+ * 전군 동일: 이병 0~2개월, 일병 2~8개월, 상병 8~14개월, 병장 14개월~
+ * (출처: 병역법 시행령 / SBS뉴스 2019)
+ * 해군·공군은 총 복무 기간이 길어 병장 기간이 더 길 뿐, 진급 기준은 동일
  */
 export function calcRank(servedDays) {
-  const months = Math.floor(servedDays / 30);
-  if (months < 3) return '이병';
-  if (months < 6) return '일병';
-  if (months < 10) return '상병';
+  // 30.44 = 평균 월일수 (365.25 / 12)
+  const months = servedDays / 30.44;
+  if (months < 2)  return '이병';
+  if (months < 8)  return '일병';
+  if (months < 14) return '상병';
   return '병장';
+}
+
+/**
+ * 진급일 기록을 기준으로 현재 계급 계산
+ * promotionDates: { 일병: 'YYYY-MM-DD', 상병: 'YYYY-MM-DD', 병장: 'YYYY-MM-DD' }
+ */
+export function calcRankFromPromotions(promotionDates) {
+  if (!promotionDates) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const toDate = (s) => {
+    const d = new Date(s);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+  if (promotionDates.병장 && now >= toDate(promotionDates.병장)) return '병장';
+  if (promotionDates.상병 && now >= toDate(promotionDates.상병)) return '상병';
+  if (promotionDates.일병 && now >= toDate(promotionDates.일병)) return '일병';
+  return '이병';
 }
 
 /**
