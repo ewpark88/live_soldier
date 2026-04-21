@@ -6,7 +6,8 @@
       "Bash(npx kill-port *)",
       "Bash(taskkill /F /IM ngrok.exe)",
       "Bash(npm list *)",
-      "Bash(npx expo *)"
+      "Bash(npx expo *)",
+      "Bash(dir \"D:\\\\ad\\\\workspace\\\\live_soldier\\\\doc\")"
     ]
   }
 }
