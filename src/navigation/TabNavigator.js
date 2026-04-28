@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, View } from 'react-native';
@@ -10,7 +10,6 @@ import DischargeScreen from '../screens/DischargeScreen';
 import LeaveScreen from '../screens/LeaveScreen';
 import SalaryScreen from '../screens/SalaryScreen';
 import TodoScreen from '../screens/TodoScreen';
-import AdInterstitial from '../components/AdInterstitial';
 
 const Tab = createBottomTabNavigator();
 
@@ -31,22 +30,10 @@ function getTabLabel(routeName) {
 }
 
 export default function TabNavigator() {
-  const [adVisible, setAdVisible] = React.useState(false);
-  const prevTab = useRef('home');
   const insets = useSafeAreaInsets();
 
   // 탭바 높이: 아이콘+라벨 기본 56px + 하단 safe area
   const TAB_BAR_HEIGHT = 56 + insets.bottom;
-
-  const handleTabPress = (currentTab) => {
-    if (prevTab.current !== currentTab) {
-      // 자연스러운 전환 시점에만 전면 광고 (10% 확률, 구글 정책 준수)
-      if (Math.random() < 0.1) {
-        setTimeout(() => setAdVisible(true), 400); // 화면 전환 후 표시
-      }
-      prevTab.current = currentTab;
-    }
-  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -82,9 +69,6 @@ export default function TabNavigator() {
           },
           headerShown: false,
         })}
-        screenListeners={({ route }) => ({
-          tabPress: () => handleTabPress(route.name),
-        })}
       >
         <Tab.Screen name="home" component={HomeScreen} options={{ title: '전역까지', tabBarLabel: '홈' }} />
         <Tab.Screen name="discharge" component={DischargeScreen} options={{ title: '전역일 계산', tabBarLabel: '전역' }} />
@@ -93,7 +77,6 @@ export default function TabNavigator() {
         <Tab.Screen name="todo" component={TodoScreen} options={{ title: '일정 관리', tabBarLabel: '일정' }} />
       </Tab.Navigator>
 
-      <AdInterstitial visible={adVisible} onClose={() => setAdVisible(false)} />
     </View>
   );
 }

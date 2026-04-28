@@ -256,9 +256,6 @@ export default function SalaryScreen() {
           ))}
         </View>
 
-        {/* ── 광고 ── */}
-        <AdBanner unit={AD_UNITS.SALARY_MIDDLE} />
-
         {/* ━━ ⑤ 병사 월급 가이드 (접기/펼치기) ━━ */}
         <Card style={styles.guideCard}>
           <TouchableOpacity

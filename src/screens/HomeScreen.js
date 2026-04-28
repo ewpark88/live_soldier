@@ -284,11 +284,6 @@ export default function HomeScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* ── 광고 ── */}
-        <View style={s.padH}>
-          <AdBanner unit={AD_UNITS.HOME_TOP} />
-        </View>
-
         {/* ── 응원 메시지 카드 (풀 와이드) ── */}
         <View style={s.messageCard}>
           <Text style={s.messageEmoji}>💬</Text>

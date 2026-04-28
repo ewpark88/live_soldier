@@ -198,8 +198,6 @@ export default function DischargeScreen() {
           )}
         </Card>
 
-        {info && <AdBanner unit={AD_UNITS.DISCHARGE_MIDDLE} />}
-
         {/* 결과 */}
         {info && (
           <>

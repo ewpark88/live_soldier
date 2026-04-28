@@ -35,7 +35,6 @@ export default function LeaveScreen() {
   const [editingBase,  setEditingBase]  = useState(false);
   const [baseInput,    setBaseInput]    = useState('21');
   const [modalType,    setModalType]    = useState(MODAL_NONE);
-
   // 공통 폼 상태 (사용 / 포상 모두 동일 필드)
   const [formDate, setFormDate] = useState('');
   const [formDays, setFormDays] = useState('');
@@ -116,13 +115,6 @@ export default function LeaveScreen() {
     setFormDays('');
     setFormMemo('');
   };
-
-  /* ─── 광고 삽입 (3번째 항목 뒤) ─────────────────────────────── */
-  const listData = [];
-  records.forEach((r, i) => {
-    listData.push(r);
-    if (i === 2) listData.push({ _isAd: true, id: 'ad_mid' });
-  });
 
   const isBonus = modalType === MODAL_BONUS;
 
@@ -255,24 +247,20 @@ export default function LeaveScreen() {
             <Text style={styles.emptyText}>아직 휴가 사용 기록이 없어요.</Text>
           </Card>
         ) : (
-          listData.map((item) =>
-            item._isAd ? (
-              <AdBanner key="ad_mid" unit={AD_UNITS.LEAVE_MIDDLE} />
-            ) : (
-              <Card key={item.id} style={styles.recordCard}>
-                <View style={styles.recordTop}>
-                  <View style={styles.recordLeft}>
-                    <Text style={styles.recordDate}>{formatDateKo(item.date)}</Text>
-                    <Text style={styles.recordDays}>{item.days}일 사용</Text>
-                  </View>
-                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteUse(item.id, item.date)}>
-                    <Text style={styles.deleteBtnText}>✕</Text>
-                  </TouchableOpacity>
+          records.map((item) => (
+            <Card key={item.id} style={styles.recordCard}>
+              <View style={styles.recordTop}>
+                <View style={styles.recordLeft}>
+                  <Text style={styles.recordDate}>{formatDateKo(item.date)}</Text>
+                  <Text style={styles.recordDays}>{item.days}일 사용</Text>
                 </View>
-                {!!item.memo && <Text style={styles.recordMemo}>📝 {item.memo}</Text>}
-              </Card>
-            )
-          )
+                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteUse(item.id, item.date)}>
+                  <Text style={styles.deleteBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              {!!item.memo && <Text style={styles.recordMemo}>📝 {item.memo}</Text>}
+            </Card>
+          ))
         )}
 
         <AdBanner unit={AD_UNITS.LEAVE_BOTTOM} style={{ marginBottom: 12 }} />
