@@ -18,6 +18,8 @@ import {
 } from '../utils/storage';
 import { formatDateKo } from '../utils/dateUtils';
 import SetupRequired from '../components/SetupRequired';
+import AdInterstitial from '../components/AdInterstitial';
+import useShowInterstitial from '../hooks/useShowInterstitial';
 
 /* ─── 모달 타입 ─────────────────────────────────────────────── */
 // 'use'   : 일반 휴가 사용 기록 추가
@@ -28,6 +30,7 @@ const MODAL_BONUS = 'bonus';
 
 export default function LeaveScreen() {
   const insets = useSafeAreaInsets();
+  const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
   const [militaryInfo, setMilitaryInfo] = useState(undefined); // undefined=로딩중
   const [records,      setRecords]      = useState([]);
   const [bonusRecords, setBonusRecords] = useState([]);
@@ -81,6 +84,7 @@ export default function LeaveScreen() {
     const updated = await addLeaveRecord({ date: formDate, days, memo: formMemo.trim() });
     setRecords(updated);
     closeModal();
+    showAd();
   };
 
   /* ─── 포상휴가 추가 ─────────────────────────────────────────── */
@@ -91,6 +95,7 @@ export default function LeaveScreen() {
     const updated = await addLeaveBonusRecord({ date: formDate, days, memo: formMemo.trim() });
     setBonusRecords(updated);
     closeModal();
+    showAd();
   };
 
   /* ─── 삭제 ─────────────────────────────────────────────────── */
@@ -123,6 +128,7 @@ export default function LeaveScreen() {
 
   return (
     <View style={styles.container}>
+      <AdInterstitial visible={adVisible} onClose={closeAd} />
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10 }]}
         showsVerticalScrollIndicator={false}

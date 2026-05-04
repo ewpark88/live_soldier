@@ -15,6 +15,8 @@ import {
   loadMilitaryInfo, saveMilitaryInfo,
   loadRankPromotions, saveRankPromotions, resetRankPromotions, calcDefaultPromotions,
 } from '../utils/storage';
+import AdInterstitial from '../components/AdInterstitial';
+import useShowInterstitial from '../hooks/useShowInterstitial';
 import {
   calcDischargeDate, calcDaysLeft, calcProgress,
   calcServedDays, formatDate, formatDateKo,
@@ -35,6 +37,7 @@ export default function DischargeScreen() {
   const [branch,       setBranch]       = useState('army');
   const [info,         setInfo]         = useState(null);
   const [saved,        setSaved]        = useState(false);
+  const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
 
   /* 진급일 관련 */
   const [promotions,   setPromotions]   = useState(null);
@@ -86,6 +89,7 @@ export default function DischargeScreen() {
     setInfo(mi);
     setSaved(true);
     Alert.alert('저장 완료', '입대 정보가 저장되었습니다!');
+    showAd();
   };
 
   /* 진급일 수정 시작 */
@@ -139,6 +143,7 @@ export default function DischargeScreen() {
 
   return (
     <View style={styles.container}>
+      <AdInterstitial visible={adVisible} onClose={closeAd} />
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10 }]}
         showsVerticalScrollIndicator={false}

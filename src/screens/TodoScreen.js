@@ -13,6 +13,8 @@ import { AD_UNITS } from '../constants/adUnits';
 import { loadTodos, addTodo, toggleTodo, deleteTodo, loadMilitaryInfo } from '../utils/storage';
 import { formatDate, formatDateKo } from '../utils/dateUtils';
 import SetupRequired from '../components/SetupRequired';
+import AdInterstitial from '../components/AdInterstitial';
+import useShowInterstitial from '../hooks/useShowInterstitial';
 
 function getToday() { return formatDate(new Date()); }
 
@@ -131,6 +133,7 @@ export default function TodoScreen() {
   const today = getToday();
 
   const insets = useSafeAreaInsets();
+  const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
   const [militaryInfo, setMilitaryInfo] = useState(undefined);
   const [todos,        setTodos]        = useState([]);
   const [filterDate,   setFilterDate]   = useState('');
@@ -184,6 +187,7 @@ export default function TodoScreen() {
       note: formNote.trim(),
     }));
     closeModal();
+    showAd();
   };
 
   const handleToggle = async (id) => setTodos(await toggleTodo(id));
@@ -237,6 +241,7 @@ export default function TodoScreen() {
 
   return (
     <View style={styles.container}>
+      <AdInterstitial visible={adVisible} onClose={closeAd} />
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10 }]}
         showsVerticalScrollIndicator={false}

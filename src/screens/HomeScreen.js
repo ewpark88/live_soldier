@@ -14,6 +14,8 @@ import {
   loadMilitaryInfo, loadLeaveRecords, loadLeaveTotal,
   loadLeaveBonusRecords, loadRankPromotions,
 } from '../utils/storage';
+import AdInterstitial from '../components/AdInterstitial';
+import useShowInterstitial from '../hooks/useShowInterstitial';
 import {
   calcDaysLeft, calcProgress, calcServedDays,
   calcRank, calcRankFromPromotions, getRandomMessage, formatDateKo,
@@ -155,11 +157,18 @@ export default function HomeScreen({ navigation }) {
   const [leaveTotal, setLeaveTotal] = useState(21);
   const [promotions, setPromotions] = useState(null);
   const [message,    setMessage]    = useState(getRandomMessage());
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim   = useRef(new Animated.Value(1)).current;
+  const sessionShown = useRef(false); // 세션 당 1회만 시도
+  const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
 
   useFocusEffect(useCallback(() => {
     loadData();
     setMessage(getRandomMessage());
+    // 앱 실행 후 첫 홈 진입 시 하루 1회 광고 (빈도 제한은 adManager가 관리)
+    if (!sessionShown.current) {
+      sessionShown.current = true;
+      setTimeout(() => showAd(), 2000); // 화면 로딩 후 2초 뒤
+    }
   }, []));
 
   const loadData = async () => {
@@ -211,6 +220,7 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={[s.container, { backgroundColor: phaseCfg.screenBg }]}>
+      <AdInterstitial visible={adVisible} onClose={closeAd} />
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
