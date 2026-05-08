@@ -7,7 +7,10 @@
       "Bash(taskkill /F /IM ngrok.exe)",
       "Bash(npm list *)",
       "Bash(npx expo *)",
-      "Bash(dir \"D:\\\\ad\\\\workspace\\\\live_soldier\\\\doc\")"
+      "Bash(dir \"D:\\\\ad\\\\workspace\\\\live_soldier\\\\doc\")",
+      "Bash(xargs grep *)",
+      "Bash(node -e \"const lock = require\\('./package-lock.json'\\); const pkgs = ['react-native-google-mobile-ads','react-native-screens','react-native-safe-area-context','@react-native-async-storage/async-storage','@react-native-community/datetimepicker']; pkgs.forEach\\(p => console.log\\(p, lock.packages['node_modules/'+p]?.version || 'NOT FOUND'\\)\\)\")",
+      "Bash(xargs cat *)"
     ]
   }
 }

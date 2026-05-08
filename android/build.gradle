@@ -20,5 +20,20 @@ allprojects {
   }
 }
 
+// AGP 8.11+에서 라이브러리 모듈이 consumable variant를 명시적으로 선언해야 하는 요구사항 충족.
+// withId('com.android.library') 사용: 클래스 참조 없이 플러그인 적용 시점에 정확히 실행됨.
+// afterEvaluate 또는 withType(LibraryPlugin) 방식은 AGP 8.11+에서 타이밍/클래스로더 문제로 동작 안 함.
+subprojects { subproject ->
+  subproject.plugins.withId('com.android.library') {
+    subproject.android {
+      publishing {
+        multipleVariants {
+          allVariants()
+        }
+      }
+    }
+  }
+}
+
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
