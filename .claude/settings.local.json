@@ -10,7 +10,14 @@
       "Bash(dir \"D:\\\\ad\\\\workspace\\\\live_soldier\\\\doc\")",
       "Bash(xargs grep *)",
       "Bash(node -e \"const lock = require\\('./package-lock.json'\\); const pkgs = ['react-native-google-mobile-ads','react-native-screens','react-native-safe-area-context','@react-native-async-storage/async-storage','@react-native-community/datetimepicker']; pkgs.forEach\\(p => console.log\\(p, lock.packages['node_modules/'+p]?.version || 'NOT FOUND'\\)\\)\")",
-      "Bash(xargs cat *)"
+      "Bash(xargs cat *)",
+      "Bash(node -e \"const path = require.resolve\\('expo-modules-autolinking/package.json'\\); console.log\\(require\\(path\\).version\\)\")",
+      "Bash(npm install *)",
+      "Bash(npx patch-package *)",
+      "Bash(node -e ' *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(node scripts/patch-android-libs.js)"
     ]
   }
 }
