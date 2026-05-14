@@ -145,8 +145,8 @@ function MilestoneBanner({ cfg }) {
 }
 const mb = StyleSheet.create({
   wrap:  { marginHorizontal: 16, marginTop: 10, borderRadius: 14, paddingVertical: 11, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  emoji: { fontSize: 20 },
-  text:  { fontSize: 14, fontWeight: '800', flex: 1 },
+  emoji: { fontSize: 22 },
+  text:  { fontSize: 15, fontWeight: '800', flex: 1 },
 });
 
 export default function HomeScreen({ navigation }) {
@@ -343,8 +343,8 @@ const s = StyleSheet.create({
   headerLeft: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   appIcon: { width: 28, height: 28, borderRadius: 7 },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: COLORS.primary },
-  headerSub: { fontSize: 17, fontWeight: '700', color: COLORS.textSecondary, marginTop: 2 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.primary },
+  headerSub: { fontSize: 16, fontWeight: '700', color: COLORS.textSecondary, marginTop: 2 },
 
   /* 계급 이미지 태그 */
   rankImgWrap: {
@@ -357,7 +357,7 @@ const s = StyleSheet.create({
     height: 64,
   },
   rankTagText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '800',
   },
 
@@ -368,11 +368,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     backgroundColor: COLORS.primary,
   },
-  mainLabel: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
-  dday: { fontSize: 68, fontWeight: '900', color: COLORS.white, letterSpacing: -2 },
-  dischargeDate: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 4, marginBottom: 20 },
+  mainLabel: { fontSize: 15, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
+  dday: { fontSize: 72, fontWeight: '900', color: COLORS.white, letterSpacing: -2 },
+  dischargeDate: { fontSize: 15, color: 'rgba(255,255,255,0.8)', marginTop: 4, marginBottom: 20 },
   progressSection: { width: '100%', marginBottom: 20 },
-  progressLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 10 },
+  progressLabel: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 10 },
   statsRow: {
     flexDirection: 'row',
     width: '100%',
@@ -381,8 +381,8 @@ const s = StyleSheet.create({
     paddingTop: 18,
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 24, fontWeight: '800', color: COLORS.white },
-  statLabel: { fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 3 },
+  statValue: { fontSize: 26, fontWeight: '800', color: COLORS.white },
+  statLabel: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 3 },
   statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
 
   /* 응원 메시지 — 풀 와이드 */
@@ -392,8 +392,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     backgroundColor: COLORS.card,
   },
-  messageEmoji: { fontSize: 28, marginBottom: 10 },
-  messageText: { fontSize: 15, color: COLORS.text, textAlign: 'center', lineHeight: 23, fontWeight: '500' },
+  messageEmoji: { fontSize: 30, marginBottom: 10 },
+  messageText: { fontSize: 16, color: COLORS.text, textAlign: 'center', lineHeight: 25, fontWeight: '500' },
   refreshBtn: {
     marginTop: 12,
     paddingHorizontal: 16,
@@ -401,7 +401,7 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.background,
     borderRadius: 20,
   },
-  refreshText: { fontSize: 13, color: COLORS.primaryLight, fontWeight: '600' },
+  refreshText: { fontSize: 14, color: COLORS.primaryLight, fontWeight: '600' },
 
   /* 가로 패딩이 필요한 영역 */
   padH: { paddingHorizontal: 16 },
@@ -409,9 +409,9 @@ const s = StyleSheet.create({
   /* 빠른 요약 */
   quickRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
   quickCard: { flex: 1, alignItems: 'center', paddingVertical: 20, marginBottom: 12 },
-  quickEmoji: { fontSize: 28, marginBottom: 8 },
-  quickValue: { fontSize: 22, fontWeight: '800', color: COLORS.primary },
-  quickLabel: { fontSize: 13, color: COLORS.textSecondary, marginTop: 3 },
+  quickEmoji: { fontSize: 30, marginBottom: 8 },
+  quickValue: { fontSize: 24, fontWeight: '800', color: COLORS.primary },
+  quickLabel: { fontSize: 14, color: COLORS.textSecondary, marginTop: 3 },
 
   /* 빈 화면 */
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
