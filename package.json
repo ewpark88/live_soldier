@@ -7,7 +7,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "icon": "node generate-icon.js"
+    "icon": "node generate-icon.js",
+    "postinstall": "node scripts/patch-android-libs.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -30,6 +31,7 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "babel-preset-expo": "~54.0.10",
+    "patch-package": "^8.0.1",
     "sharp": "^0.33.5"
   },
   "private": true
