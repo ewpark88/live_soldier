@@ -2,12 +2,14 @@
  * 입대 정보 미입력 시 표시하는 안내 화면
  * LeaveScreen / SalaryScreen / TodoScreen 에서 공통 사용
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { COLORS } from '../constants/colors';
+import { useThemeColors } from '../theme/ThemeContext';
 
 export default function SetupRequired() {
+  const tc = useThemeColors();
+  const styles = useMemo(() => makeStyles(tc), [tc]);
   const navigation = useNavigation();
 
   return (
@@ -28,10 +30,10 @@ export default function SetupRequired() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (tc) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: tc.background,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 36,
@@ -40,22 +42,22 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: COLORS.primary,
+    color: tc.primary,
     marginBottom: 12,
     textAlign: 'center',
   },
   desc: {
     fontSize: 15,
-    color: COLORS.textSecondary,
+    color: tc.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 36,
   },
   btn: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: tc.primary,
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 30,
   },
-  btnText: { color: COLORS.white, fontWeight: '700', fontSize: 16 },
+  btnText: { color: tc.white, fontWeight: '700', fontSize: 16 },
 });

@@ -1,34 +1,55 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Animated, Image,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '../constants/colors';
+import { useThemeColors } from '../theme/ThemeContext';
 import Card from '../components/Card';
 import ProgressBar from '../components/ProgressBar';
 import AdBanner from '../components/AdBanner';
+import ProfileBar from '../components/ProfileBar';
+import OnboardingScreen from '../components/OnboardingScreen';
 import { AD_UNITS } from '../constants/adUnits';
 import {
   loadMilitaryInfo, loadLeaveRecords, loadLeaveTotal,
-  loadLeaveBonusRecords, loadRankPromotions,
+  loadLeaveBonusRecords, loadRankPromotions, listProfiles,
+  loadPersonnelType, savePersonnelType,
 } from '../utils/storage';
+import { nextHobongInfo } from '../utils/officerUtils';
 import AdInterstitial from '../components/AdInterstitial';
 import useShowInterstitial from '../hooks/useShowInterstitial';
 import {
   calcDaysLeft, calcProgress, calcServedDays,
-  calcRank, calcRankFromPromotions, getRandomMessage, formatDateKo,
+  calcRank, calcRankFromPromotions, getMessageForPhase, nextPromotion, formatDateKo,
 } from '../utils/dateUtils';
+import { isOfficer, personnelLabel } from '../constants/serviceTerms';
 
 const BRANCH_LABEL = { army: '육군', navy: '해군', airforce: '공군', marines: '해병대' };
 
 /* ─── 계급 이미지 (static require) ────────────────────────── */
+/* 파일명은 ASCII로 고정 — Metro가 한글 파일명을 동일 안드로이드 리소스로
+   충돌시켜(중위→대령 등) 잘못 매칭되는 문제 방지. 키는 한글 계급명 유지. */
 const RANK_IMAGES = {
-  '이병': require('../../assets/ranks/이병.png'),
-  '일병': require('../../assets/ranks/일병.png'),
-  '상병': require('../../assets/ranks/상병.png'),
-  '병장': require('../../assets/ranks/병장.png'),
+  '이병': require('../../assets/ranks/ibyeong.png'),
+  '일병': require('../../assets/ranks/ilbyeong.png'),
+  '상병': require('../../assets/ranks/sangbyeong.png'),
+  '병장': require('../../assets/ranks/byeongjang.png'),
+};
+
+/* ─── 간부 계급 이미지 (부사관·장교) ───────────────────────── */
+const OFFICER_RANK_IMAGES = {
+  '하사': require('../../assets/ranks/hasa.png'),
+  '중사': require('../../assets/ranks/jungsa.png'),
+  '상사': require('../../assets/ranks/sangsa.png'),
+  '원사': require('../../assets/ranks/wonsa.png'),
+  '소위': require('../../assets/ranks/sowi.png'),
+  '중위': require('../../assets/ranks/jungwi.png'),
+  '대위': require('../../assets/ranks/daewi.png'),
+  '소령': require('../../assets/ranks/soryeong.png'),
+  '중령': require('../../assets/ranks/jungryeong.png'),
+  '대령': require('../../assets/ranks/daeryeong.png'),
 };
 
 /* ─── 계급별 색상 (텍스트용) ───────────────────────────────── */
@@ -76,7 +97,7 @@ const PHASE_CFG = {
     particles: [],
   },
   normal: {
-    cardBg: '#2E5B4F', screenBg: COLORS.background, accent: '#F5C842', glow: false,
+    cardBg: '#2E5B4F', screenBg: null, accent: '#F5C842', glow: false,
     milestone: null,
     particles: [],
   },
@@ -151,19 +172,23 @@ const mb = StyleSheet.create({
 
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const tc = useThemeColors();
+  const s = useMemo(() => makeStyles(tc), [tc]);
 
   const [info,       setInfo]       = useState(null);
   const [leaveUsed,  setLeaveUsed]  = useState(0);
   const [leaveTotal, setLeaveTotal] = useState(21);
   const [promotions, setPromotions] = useState(null);
-  const [message,    setMessage]    = useState(getRandomMessage());
+  const [profileName,  setProfileName]  = useState('');
+  const [profilePhoto, setProfilePhoto] = useState(null);
+  const [personnelType, setPersonnelType] = useState(undefined); // undefined=로딩중, null=미설정
+  const [message,    setMessage]    = useState(() => getMessageForPhase('normal'));
   const pulseAnim   = useRef(new Animated.Value(1)).current;
   const sessionShown = useRef(false); // 세션 당 1회만 시도
   const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
 
   useFocusEffect(useCallback(() => {
     loadData();
-    setMessage(getRandomMessage());
     // 앱 실행 후 첫 홈 진입 시 하루 1회 광고 (빈도 제한은 adManager가 관리)
     if (!sessionShown.current) {
       sessionShown.current = true;
@@ -172,6 +197,11 @@ export default function HomeScreen({ navigation }) {
   }, []));
 
   const loadData = async () => {
+    const { activeId, profiles } = await listProfiles();
+    const active = profiles.find((p) => p.id === activeId);
+    setProfileName(active?.name ?? '');
+    setProfilePhoto(active?.photo ?? null);
+    setPersonnelType(await loadPersonnelType());
     const mi        = await loadMilitaryInfo();
     setInfo(mi);
     const records   = await loadLeaveRecords();
@@ -182,6 +212,8 @@ export default function HomeScreen({ navigation }) {
     setLeaveTotal(base + bonusDays);
     const promo     = await loadRankPromotions(mi?.enlistDate);
     setPromotions(promo);
+    // 남은 일수(phase)에 맞는 응원 메시지
+    setMessage(getMessageForPhase(mi ? getPhase(calcDaysLeft(mi.dischargeDate)) : 'normal'));
   };
 
   const startPulse = () => {
@@ -191,13 +223,40 @@ export default function HomeScreen({ navigation }) {
     ]).start();
   };
 
-  /* ── 미입력 상태 ── */
-  if (!info) {
+  /* ── 신분 미선택(온보딩) 상태 ── */
+  const handleSelectType = async (type) => {
+    await savePersonnelType(type);
+    setPersonnelType(type);
+    navigation.navigate('discharge');
+  };
+
+  // 신분 로딩 중에는 깜빡임 방지를 위해 아무것도 렌더하지 않음
+  if (!info && personnelType === undefined) {
+    return <View style={s.container} />;
+  }
+
+  // 입대정보 없고 신분도 미설정 → 온보딩
+  if (!info && !personnelType) {
     return (
       <View style={s.container}>
+        <View style={{ paddingTop: insets.top + 8 }}>
+          <ProfileBar onChange={loadData} />
+        </View>
+        <OnboardingScreen name={profileName} onSelect={handleSelectType} />
+      </View>
+    );
+  }
+
+  /* ── 신분은 정했으나 입대정보 미입력 상태 ── */
+  if (!info) {
+    return (
+      <View style={[s.container, { paddingTop: insets.top + 10 }]}>
+        <ProfileBar onChange={loadData} />
         <View style={s.emptyWrap}>
           <Text style={s.emptyEmoji}>🪖</Text>
-          <Text style={s.emptyTitle}>환영합니다!</Text>
+          <Text style={s.emptyTitle}>
+            {profileName ? `${profileName} 님, 환영합니다!` : '환영합니다!'}
+          </Text>
           <Text style={s.emptyText}>
             입대 정보를 입력하면{'\n'}전역까지 얼마나 남았는지 알 수 있어요.
           </Text>
@@ -212,21 +271,30 @@ export default function HomeScreen({ navigation }) {
   const daysLeft   = calcDaysLeft(info.dischargeDate);
   const progress   = calcProgress(info.enlistDate, info.dischargeDate);
   const servedDays = calcServedDays(info.enlistDate);
-  const rank       = calcRankFromPromotions(promotions) ?? calcRank(servedDays);
+  const officer    = isOfficer(info.personnelType);
+  const rank       = officer ? (info.officerRank ?? personnelLabel(info.personnelType))
+                             : (calcRankFromPromotions(promotions) ?? calcRank(servedDays));
   const leaveLeft  = leaveTotal - leaveUsed;
-  const rankColor  = RANK_COLOR[rank] ?? COLORS.primary;
+  const rankColor  = officer ? tc.primary : (RANK_COLOR[rank] ?? tc.primary);
   const phase      = getPhase(daysLeft);
   const phaseCfg   = PHASE_CFG[phase];
+  const promo      = officer ? null : nextPromotion(promotions);
+  const hobong     = officer ? nextHobongInfo(info.enlistDate) : null;
 
   return (
-    <View style={[s.container, { backgroundColor: phaseCfg.screenBg }]}>
+    <View style={[s.container, { backgroundColor: phaseCfg.screenBg ?? tc.background }]}>
       <AdInterstitial visible={adVisible} onClose={closeAd} />
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
       >
+        {/* ── 프로필 스위처 ── */}
+        <View style={{ paddingTop: insets.top + 8, marginBottom: 6 }}>
+          <ProfileBar onChange={loadData} />
+        </View>
+
         {/* ── 컴팩트 헤더 ── */}
-        <View style={[s.header, { paddingTop: insets.top + 10 }]}>
+        <View style={[s.header, { paddingTop: 4 }]}>
           <View style={s.headerLeft}>
             <View style={s.titleRow}>
               <Image source={require('../../assets/icon.png')} style={s.appIcon} />
@@ -235,13 +303,21 @@ export default function HomeScreen({ navigation }) {
             <Text style={s.headerSub}>{BRANCH_LABEL[info.branch]}</Text>
           </View>
 
-          {/* 계급 태그 (이미지) */}
+          {/* 계급/구분 태그 — 병사·간부 모두 계급 이미지, 미지정 간부는 이모지 */}
           <View style={s.rankImgWrap}>
-            <Image
-              source={RANK_IMAGES[rank]}
-              style={s.rankImg}
-              resizeMode="contain"
-            />
+            {officer ? (
+              OFFICER_RANK_IMAGES[rank] ? (
+                <Image source={OFFICER_RANK_IMAGES[rank]} style={s.rankImg} resizeMode="contain" />
+              ) : (
+                <Text style={s.rankEmoji}>{info.personnelType === 'officer' ? '⭐' : '🎖️'}</Text>
+              )
+            ) : (
+              <Image
+                source={RANK_IMAGES[rank]}
+                style={s.rankImg}
+                resizeMode="contain"
+              />
+            )}
             <Text style={[s.rankTagText, { color: rankColor }]}>{rank}</Text>
           </View>
         </View>
@@ -253,6 +329,14 @@ export default function HomeScreen({ navigation }) {
         <TouchableOpacity activeOpacity={0.88} onPress={startPulse}>
           <View style={[s.mainCard, { backgroundColor: phaseCfg.cardBg }]}>
             {phaseCfg.particles.length > 0 && <FloatingParticles emojis={phaseCfg.particles} />}
+            {(profilePhoto || profileName) ? (
+              <View style={s.profileTag}>
+                {profilePhoto ? (
+                  <Image source={{ uri: profilePhoto }} style={s.profileTagAvatar} />
+                ) : null}
+                <Text style={s.profileTagName}>{profileName}</Text>
+              </View>
+            ) : null}
             <Text style={s.mainLabel}>전역까지</Text>
             <Animated.Text style={[
               s.dday,
@@ -287,7 +371,7 @@ export default function HomeScreen({ navigation }) {
               </View>
               <View style={s.statDivider} />
               <View style={s.statItem}>
-                <Text style={[s.statValue, { color: COLORS.accentLight }]}>{progress}%</Text>
+                <Text style={[s.statValue, { color: tc.accentLight }]}>{progress}%</Text>
                 <Text style={s.statLabel}>진행률</Text>
               </View>
             </View>
@@ -298,10 +382,38 @@ export default function HomeScreen({ navigation }) {
         <View style={s.messageCard}>
           <Text style={s.messageEmoji}>💬</Text>
           <Text style={s.messageText}>{message}</Text>
-          <TouchableOpacity onPress={() => setMessage(getRandomMessage())} style={s.refreshBtn}>
+          <TouchableOpacity onPress={() => setMessage(getMessageForPhase(phase))} style={s.refreshBtn}>
             <Text style={s.refreshText}>다른 메시지 보기 ↻</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── 다음 진급 카운트다운 (병사) ── */}
+        {promo && (
+          <View style={s.padH}>
+            <Card style={s.nextPromoCard}>
+              <Text style={s.nextPromoEmoji}>🎖️</Text>
+              <View style={s.nextPromoInfo}>
+                <Text style={s.nextPromoLabel}>다음 진급 · {promo.rank}</Text>
+                <Text style={s.nextPromoSub}>{formatDateKo(promo.date)}</Text>
+              </View>
+              <Text style={s.nextPromoDday}>D-{promo.daysLeft}</Text>
+            </Card>
+          </View>
+        )}
+
+        {/* ── 다음 호봉 카운트다운 (간부) ── */}
+        {hobong && (
+          <View style={s.padH}>
+            <Card style={s.nextPromoCard}>
+              <Text style={s.nextPromoEmoji}>📈</Text>
+              <View style={s.nextPromoInfo}>
+                <Text style={s.nextPromoLabel}>현재 {hobong.current}호봉 · 다음 {hobong.next}호봉</Text>
+                <Text style={s.nextPromoSub}>{formatDateKo(hobong.nextDate)} 승급 예정</Text>
+              </View>
+              <Text style={s.nextPromoDday}>D-{hobong.daysLeft}</Text>
+            </Card>
+          </View>
+        )}
 
         {/* ── 빠른 요약 ── */}
         <View style={[s.quickRow, s.padH]}>
@@ -326,8 +438,8 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (tc) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: tc.background },
 
   /* ScrollView: 가로 패딩 없음 → 카드 풀 와이드 */
   scroll: { paddingBottom: 24 },
@@ -343,8 +455,8 @@ const s = StyleSheet.create({
   headerLeft: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   appIcon: { width: 28, height: 28, borderRadius: 7 },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.primary },
-  headerSub: { fontSize: 16, fontWeight: '700', color: COLORS.textSecondary, marginTop: 2 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: tc.primary },
+  headerSub: { fontSize: 16, fontWeight: '700', color: tc.textSecondary, marginTop: 2 },
 
   /* 계급 이미지 태그 */
   rankImgWrap: {
@@ -356,6 +468,12 @@ const s = StyleSheet.create({
     width: 64,
     height: 64,
   },
+  rankEmoji: {
+    fontSize: 46,
+    height: 64,
+    lineHeight: 64,
+    textAlign: 'center',
+  },
   rankTagText: {
     fontSize: 14,
     fontWeight: '800',
@@ -366,10 +484,13 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 28,
     paddingHorizontal: 20,
-    backgroundColor: COLORS.primary,
+    backgroundColor: tc.primary,
   },
+  profileTag: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  profileTagAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)' },
+  profileTagName: { fontSize: 15, fontWeight: '700', color: 'rgba(255,255,255,0.92)' },
   mainLabel: { fontSize: 15, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
-  dday: { fontSize: 72, fontWeight: '900', color: COLORS.white, letterSpacing: -2 },
+  dday: { fontSize: 72, fontWeight: '900', color: tc.white, letterSpacing: -2 },
   dischargeDate: { fontSize: 15, color: 'rgba(255,255,255,0.8)', marginTop: 4, marginBottom: 20 },
   progressSection: { width: '100%', marginBottom: 20 },
   progressLabel: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 10 },
@@ -381,7 +502,7 @@ const s = StyleSheet.create({
     paddingTop: 18,
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 26, fontWeight: '800', color: COLORS.white },
+  statValue: { fontSize: 26, fontWeight: '800', color: tc.white },
   statLabel: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 3 },
   statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
 
@@ -390,34 +511,50 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 22,
     paddingHorizontal: 20,
-    backgroundColor: COLORS.card,
+    backgroundColor: tc.card,
   },
   messageEmoji: { fontSize: 30, marginBottom: 10 },
-  messageText: { fontSize: 16, color: COLORS.text, textAlign: 'center', lineHeight: 25, fontWeight: '500' },
+  messageText: { fontSize: 16, color: tc.text, textAlign: 'center', lineHeight: 25, fontWeight: '500' },
   refreshBtn: {
     marginTop: 12,
     paddingHorizontal: 16,
     paddingVertical: 7,
-    backgroundColor: COLORS.background,
+    backgroundColor: tc.background,
     borderRadius: 20,
   },
-  refreshText: { fontSize: 14, color: COLORS.primaryLight, fontWeight: '600' },
+  refreshText: { fontSize: 14, color: tc.primaryLight, fontWeight: '600' },
 
   /* 가로 패딩이 필요한 영역 */
   padH: { paddingHorizontal: 16 },
+
+  /* 다음 진급 카운트다운 */
+  nextPromoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    marginTop: 12,
+    marginBottom: 0,
+    gap: 12,
+  },
+  nextPromoEmoji: { fontSize: 26 },
+  nextPromoInfo: { flex: 1 },
+  nextPromoLabel: { fontSize: 15, fontWeight: '700', color: tc.text },
+  nextPromoSub: { fontSize: 13, color: tc.textSecondary, marginTop: 2 },
+  nextPromoDday: { fontSize: 22, fontWeight: '900', color: tc.primary, letterSpacing: -0.5 },
 
   /* 빠른 요약 */
   quickRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
   quickCard: { flex: 1, alignItems: 'center', paddingVertical: 20, marginBottom: 12 },
   quickEmoji: { fontSize: 30, marginBottom: 8 },
-  quickValue: { fontSize: 24, fontWeight: '800', color: COLORS.primary },
-  quickLabel: { fontSize: 14, color: COLORS.textSecondary, marginTop: 3 },
+  quickValue: { fontSize: 24, fontWeight: '800', color: tc.primary },
+  quickLabel: { fontSize: 14, color: tc.textSecondary, marginTop: 3 },
 
   /* 빈 화면 */
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   emptyEmoji: { fontSize: 64, marginBottom: 18 },
-  emptyTitle: { fontSize: 26, fontWeight: '800', color: COLORS.primary, marginBottom: 10 },
-  emptyText: { fontSize: 16, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 24, marginBottom: 32 },
-  setupBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 36, paddingVertical: 16, borderRadius: 30 },
-  setupBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 17 },
+  emptyTitle: { fontSize: 26, fontWeight: '800', color: tc.primary, marginBottom: 10 },
+  emptyText: { fontSize: 16, color: tc.textSecondary, textAlign: 'center', lineHeight: 24, marginBottom: 32 },
+  setupBtn: { backgroundColor: tc.primary, paddingHorizontal: 36, paddingVertical: 16, borderRadius: 30 },
+  setupBtnText: { color: tc.white, fontWeight: '700', fontSize: 17 },
 });

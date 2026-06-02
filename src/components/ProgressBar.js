@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { COLORS } from '../constants/colors';
+import { useThemeColors } from '../theme/ThemeContext';
 
 export default function ProgressBar({
   progress = 0,
@@ -9,6 +9,8 @@ export default function ProgressBar({
   fillColor,
   labelColor,
 }) {
+  const tc = useThemeColors();
+  const styles = useMemo(() => makeStyles(tc), [tc]);
   const animWidth = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function ProgressBar({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (tc) => StyleSheet.create({
   wrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -50,20 +52,20 @@ const styles = StyleSheet.create({
   track: {
     flex: 1,
     height: 14,
-    backgroundColor: COLORS.progressBg,
+    backgroundColor: tc.progressBg,
     borderRadius: 7,
     overflow: 'hidden',
   },
   fill: {
     height: '100%',
-    backgroundColor: COLORS.progressFill,
+    backgroundColor: tc.progressFill,
     borderRadius: 7,
   },
   label: {
     width: 42,
     fontSize: 13,
     fontWeight: '700',
-    color: COLORS.textSecondary,
+    color: tc.textSecondary,
     textAlign: 'right',
   },
 });

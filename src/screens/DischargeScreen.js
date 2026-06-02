@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Alert,
+  TouchableOpacity, Alert, TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '../constants/colors';
+import { useThemeColors } from '../theme/ThemeContext';
 import Card from '../components/Card';
 import ProgressBar from '../components/ProgressBar';
 import AdBanner from '../components/AdBanner';
@@ -14,7 +14,9 @@ import { AD_UNITS } from '../constants/adUnits';
 import {
   loadMilitaryInfo, saveMilitaryInfo,
   loadRankPromotions, saveRankPromotions, resetRankPromotions, calcDefaultPromotions,
+  savePersonnelType, loadPersonnelType,
 } from '../utils/storage';
+import { ranksFor } from '../constants/militaryRanks';
 import AdInterstitial from '../components/AdInterstitial';
 import useShowInterstitial from '../hooks/useShowInterstitial';
 import {
@@ -22,21 +24,21 @@ import {
   calcServedDays, formatDate, formatDateKo,
   calcRankFromPromotions,
 } from '../utils/dateUtils';
-
-const BRANCHES = [
-  { key: 'army',     label: '육군',   months: 18, emoji: '🪖' },
-  { key: 'navy',     label: '해군',   months: 20, emoji: '⚓' },
-  { key: 'airforce', label: '공군',   months: 21, emoji: '✈️' },
-  { key: 'marines',  label: '해병대', months: 18, emoji: '🦅' },
-];
+import { BRANCHES, PERSONNEL_TYPES, isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { updateDischargeWidget } from '../widget/updateWidget';
 
 export default function DischargeScreen() {
+  const tc = useThemeColors();
+  const styles = useMemo(() => makeStyles(tc), [tc]);
   const insets = useSafeAreaInsets();
 
-  const [enlistDate,   setEnlistDate]   = useState('');
-  const [branch,       setBranch]       = useState('army');
-  const [info,         setInfo]         = useState(null);
-  const [saved,        setSaved]        = useState(false);
+  const [enlistDate,    setEnlistDate]    = useState('');
+  const [branch,        setBranch]        = useState('army');
+  const [personnelType, setPersonnelType] = useState('soldier'); // soldier | nco | officer
+  const [monthsInput,   setMonthsInput]   = useState('');         // 간부 복무개월 직접입력
+  const [officerRank,   setOfficerRank]   = useState(null);       // 간부 현재 계급
+  const [info,          setInfo]          = useState(null);
+  const [saved,         setSaved]         = useState(false);
   const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
 
   /* 진급일 관련 */
@@ -53,13 +55,29 @@ export default function DischargeScreen() {
       setInfo(mi);
       setEnlistDate(mi.enlistDate);
       setBranch(mi.branch);
+      setPersonnelType(mi.personnelType ?? 'soldier');
+      setOfficerRank(mi.officerRank ?? null);
+      setMonthsInput(String(mi.months ?? ''));
       setSaved(true);
       const promo = await loadRankPromotions(mi.enlistDate);
       setPromotions(promo);
+    } else {
+      // 입대정보 없는(새/빈) 프로필로 전환 시 폼 초기화 — 이전 프로필 데이터 잔존 방지
+      // 단, 온보딩에서 정한 신분(personnelType)은 유지
+      const pt = await loadPersonnelType();
+      setInfo(null);
+      setEnlistDate('');
+      setBranch('army');
+      setPersonnelType(pt ?? 'soldier');
+      setOfficerRank(null);
+      setMonthsInput('');
+      setSaved(false);
+      setPromotions(null);
     }
   };
 
   const selectedBranch = BRANCHES.find((b) => b.key === branch);
+  const officer = isOfficer(personnelType);
 
   const handleSave = async () => {
     if (!enlistDate) {
@@ -70,17 +88,35 @@ export default function DischargeScreen() {
       Alert.alert('오류', '입대일이 오늘보다 미래일 수 없습니다.');
       return;
     }
-    const dischargeDate = calcDischargeDate(enlistDate, selectedBranch.months);
+    // 병사는 군별 의무복무기간 자동, 간부는 복무개월 직접입력
+    let months;
+    if (officer) {
+      months = parseInt(monthsInput, 10);
+      if (isNaN(months) || months < 1 || months > 240) {
+        Alert.alert('오류', '복무 개월 수를 올바르게 입력해주세요 (1~240).');
+        return;
+      }
+    } else {
+      months = selectedBranch.months;
+    }
+
+    const dischargeDate = calcDischargeDate(enlistDate, months);
     const mi = {
       enlistDate,
       branch,
+      personnelType,
+      officerRank: officer ? (officerRank ?? null) : null,
       dischargeDate: formatDate(dischargeDate),
-      months: selectedBranch.months,
+      months,
     };
     await saveMilitaryInfo(mi);
+    await savePersonnelType(personnelType); // 신분 브리지 동기화
 
-    /* 입대일 변경 시 진급일 자동 재계산 */
-    if (!info || info.enlistDate !== enlistDate) {
+    /* 병사만 진급일 체계 적용. 입대일 변경 시 진급일 자동 재계산 */
+    if (officer) {
+      await resetRankPromotions();
+      setPromotions(null);
+    } else if (!info || info.enlistDate !== enlistDate || info.personnelType !== personnelType) {
       await resetRankPromotions();
       const newPromo = calcDefaultPromotions(enlistDate);
       setPromotions(newPromo);
@@ -88,6 +124,7 @@ export default function DischargeScreen() {
 
     setInfo(mi);
     setSaved(true);
+    updateDischargeWidget(); // 홈 위젯 갱신 (안드로이드)
     Alert.alert('저장 완료', '입대 정보가 저장되었습니다!');
     showAd();
   };
@@ -111,6 +148,7 @@ export default function DischargeScreen() {
     await saveRankPromotions(editPromo);
     setPromotions(editPromo);
     setEditingPromo(false);
+    updateDischargeWidget(); // 계급 변동 가능 → 위젯 갱신
     Alert.alert('저장 완료', '진급일이 저장되었습니다!');
   };
 
@@ -137,7 +175,13 @@ export default function DischargeScreen() {
   const daysLeft   = info ? calcDaysLeft(info.dischargeDate)                  : 0;
   const progress   = info ? calcProgress(info.enlistDate, info.dischargeDate) : 0;
   const servedDays = info ? calcServedDays(info.enlistDate)                    : 0;
-  const rank       = info ? (calcRankFromPromotions(promotions) ?? '이병')     : '';
+  const infoOfficer = info ? isOfficer(info.personnelType) : false;
+  // 병사는 진급 계급, 간부는 구분(부사관/장교) 라벨
+  const rank       = !info
+    ? ''
+    : infoOfficer
+      ? personnelLabel(info.personnelType)
+      : (calcRankFromPromotions(promotions) ?? '이병');
 
   const activePromo = editingPromo ? editPromo : promotions;
 
@@ -168,7 +212,28 @@ export default function DischargeScreen() {
             <Text style={styles.savedHint}>🔒 수정하려면 아래 '수정하기'를 눌러주세요</Text>
           )}
 
-          <Text style={[styles.label, { marginTop: 6 }]}>군별 선택</Text>
+          <Text style={[styles.label, { marginTop: 6 }]}>구분</Text>
+          <View style={styles.typeRow}>
+            {PERSONNEL_TYPES.map((t) => (
+              <TouchableOpacity
+                key={t.key}
+                style={[
+                  styles.typeBtn,
+                  personnelType === t.key && styles.typeBtnActive,
+                  saved && styles.branchBtnDisabled,
+                ]}
+                onPress={() => { if (!saved) { setPersonnelType(t.key); setOfficerRank(null); } }}
+                disabled={saved}
+              >
+                <Text style={styles.typeEmoji}>{t.emoji}</Text>
+                <Text style={[styles.typeLabel, personnelType === t.key && styles.typeLabelActive]}>
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[styles.label, { marginTop: 14 }]}>군별 선택</Text>
           <View style={styles.branchRow}>
             {BRANCHES.map((b) => (
               <TouchableOpacity
@@ -185,12 +250,57 @@ export default function DischargeScreen() {
                 <Text style={[styles.branchLabel, branch === b.key && styles.branchLabelActive]}>
                   {b.label}
                 </Text>
-                <Text style={[styles.branchMonths, branch === b.key && styles.branchMonthsActive]}>
-                  {b.months}개월
-                </Text>
+                {!officer && (
+                  <Text style={[styles.branchMonths, branch === b.key && styles.branchMonthsActive]}>
+                    {b.months}개월
+                  </Text>
+                )}
               </TouchableOpacity>
             ))}
           </View>
+
+          {officer ? (
+            <>
+              <Text style={[styles.label, { marginTop: 14 }]}>현재 계급</Text>
+              <View style={styles.rankWrap}>
+                {ranksFor(personnelType).map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[
+                      styles.rankChip,
+                      officerRank === r && styles.rankChipActive,
+                      saved && styles.branchBtnDisabled,
+                    ]}
+                    onPress={() => !saved && setOfficerRank(r)}
+                    disabled={saved}
+                  >
+                    <Text style={[styles.rankChipText, officerRank === r && styles.rankChipTextActive]}>
+                      {r}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.label, { marginTop: 14 }]}>의무복무 개월 수</Text>
+              <TextInput
+                style={[styles.monthsInput, saved && styles.branchBtnDisabled]}
+                value={monthsInput}
+                onChangeText={(t) => setMonthsInput(t.replace(/[^0-9]/g, ''))}
+                placeholder="예) 부사관 48, 장교 36"
+                placeholderTextColor={tc.textLight}
+                keyboardType="number-pad"
+                maxLength={3}
+                editable={!saved}
+              />
+              <Text style={styles.termNote}>
+                ⓘ 간부는 의무복무기간이 다양해 직접 입력합니다. 병사 진급·계급 체계는 적용되지 않습니다.
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.termNote}>
+              ⓘ 군복무 단축이 반영된 현행 복무기간 기준입니다.
+            </Text>
+          )}
 
           {saved ? (
             <TouchableOpacity style={styles.editBtn} onPress={() => setSaved(false)}>
@@ -215,7 +325,7 @@ export default function DischargeScreen() {
                 </View>
                 <View style={styles.resultItem}>
                   <Text style={styles.resultLabel}>전역일</Text>
-                  <Text style={[styles.resultValue, { color: COLORS.accent }]}>
+                  <Text style={[styles.resultValue, { color: tc.accent }]}>
                     {formatDateKo(info.dischargeDate)}
                   </Text>
                 </View>
@@ -236,7 +346,7 @@ export default function DischargeScreen() {
               {[
                 { emoji: '⚔️', val: `${servedDays}일`, sub: '복무 일수' },
                 { emoji: '📅', val: daysLeft > 0 ? `${daysLeft}일` : '완료', sub: '남은 일수' },
-                { emoji: '🎖️', val: rank, sub: '현재 계급' },
+                { emoji: '🎖️', val: rank, sub: infoOfficer ? '구분' : '현재 계급' },
                 { emoji: '🏁', val: `${progress}%`, sub: '진행률' },
               ].map((item) => (
                 <Card key={item.sub} style={styles.statCard}>
@@ -247,7 +357,8 @@ export default function DischargeScreen() {
               ))}
             </View>
 
-            {/* ── 진급일 관리 ── */}
+            {/* ── 진급일 관리 (병사 전용) ── */}
+            {!infoOfficer && (
             <Card style={styles.promoCard}>
               <TouchableOpacity
                 style={styles.promoHeaderRow}
@@ -316,6 +427,7 @@ export default function DischargeScreen() {
                 </View>
               )}
             </Card>
+            )}
 
             <AdBanner unit={AD_UNITS.DISCHARGE_BOTTOM} style={{ marginBottom: 12 }} />
           </>
@@ -325,60 +437,74 @@ export default function DischargeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container:  { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (tc) => StyleSheet.create({
+  container:  { flex: 1, backgroundColor: tc.background },
   scroll:     { padding: 16, paddingBottom: 24 },
-  pageTitle:  { fontSize: 26, fontWeight: '800', color: COLORS.primary, marginBottom: 18 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
-  label:      { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 9 },
-  savedHint:  { fontSize: 12, color: COLORS.textLight, marginTop: -8, marginBottom: 12, marginLeft: 2 },
+  pageTitle:  { fontSize: 26, fontWeight: '800', color: tc.primary, marginBottom: 18 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: tc.text, marginBottom: 4 },
+  label:      { fontSize: 14, fontWeight: '600', color: tc.textSecondary, marginBottom: 9 },
+  savedHint:  { fontSize: 12, color: tc.textLight, marginTop: -8, marginBottom: 12, marginLeft: 2 },
+  termNote:   { fontSize: 12, color: tc.textLight, marginTop: 10, marginLeft: 2 },
+
+  typeRow:            { flexDirection: 'row', gap: 8, marginTop: 8 },
+  typeBtn:            { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: tc.border, backgroundColor: tc.background },
+  typeBtnActive:      { borderColor: tc.primary, backgroundColor: `${tc.primary}15` },
+  typeEmoji:          { fontSize: 20, marginBottom: 4 },
+  typeLabel:          { fontSize: 14, fontWeight: '700', color: tc.textSecondary },
+  typeLabelActive:    { color: tc.primary },
+  monthsInput:        { backgroundColor: tc.background, borderWidth: 1.5, borderColor: tc.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16, color: tc.text, marginTop: 4 },
+  rankWrap:           { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  rankChip:           { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1.5, borderColor: tc.border, backgroundColor: tc.background },
+  rankChipActive:     { borderColor: tc.primary, backgroundColor: `${tc.primary}15` },
+  rankChipText:       { fontSize: 14, fontWeight: '700', color: tc.textSecondary },
+  rankChipTextActive: { color: tc.primary },
 
   branchRow:          { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4, marginTop: 8 },
-  branchBtn:          { width: '47.5%', alignItems: 'center', paddingVertical: 16, borderRadius: 12, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.background },
-  branchBtnActive:    { borderColor: COLORS.primary, backgroundColor: `${COLORS.primary}15` },
+  branchBtn:          { width: '47.5%', alignItems: 'center', paddingVertical: 16, borderRadius: 12, borderWidth: 1.5, borderColor: tc.border, backgroundColor: tc.background },
+  branchBtnActive:    { borderColor: tc.primary, backgroundColor: `${tc.primary}15` },
   branchBtnDisabled:  { opacity: 0.6 },
   branchEmoji:        { fontSize: 24, marginBottom: 5 },
-  branchLabel:        { fontSize: 15, fontWeight: '700', color: COLORS.textSecondary },
-  branchLabelActive:  { color: COLORS.primary },
-  branchMonths:       { fontSize: 12, color: COLORS.textLight, marginTop: 3 },
-  branchMonthsActive: { color: COLORS.primaryLight },
+  branchLabel:        { fontSize: 15, fontWeight: '700', color: tc.textSecondary },
+  branchLabelActive:  { color: tc.primary },
+  branchMonths:       { fontSize: 12, color: tc.textLight, marginTop: 3 },
+  branchMonthsActive: { color: tc.primaryLight },
 
-  saveBtn:     { marginTop: 20, backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
-  saveBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 17 },
-  editBtn:     { marginTop: 20, backgroundColor: COLORS.background, borderRadius: 12, paddingVertical: 16, alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.primary },
-  editBtnText: { color: COLORS.primary, fontWeight: '700', fontSize: 17 },
+  saveBtn:     { marginTop: 20, backgroundColor: tc.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
+  saveBtnText: { color: tc.white, fontWeight: '700', fontSize: 17 },
+  editBtn:     { marginTop: 20, backgroundColor: tc.background, borderRadius: 12, paddingVertical: 16, alignItems: 'center', borderWidth: 1.5, borderColor: tc.primary },
+  editBtnText: { color: tc.primary, fontWeight: '700', fontSize: 17 },
 
   resultCard:    { paddingVertical: 20 },
   resultRow:     { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   resultItem:    { flex: 1 },
-  resultLabel:   { fontSize: 13, color: COLORS.textSecondary, marginBottom: 5 },
-  resultValue:   { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  ddayBox:       { alignItems: 'center', paddingVertical: 22, backgroundColor: COLORS.primary, borderRadius: 12, marginBottom: 20 },
+  resultLabel:   { fontSize: 13, color: tc.textSecondary, marginBottom: 5 },
+  resultValue:   { fontSize: 16, fontWeight: '700', color: tc.text },
+  ddayBox:       { alignItems: 'center', paddingVertical: 22, backgroundColor: tc.primary, borderRadius: 12, marginBottom: 20 },
   ddayLabel:     { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
-  ddayValue:     { fontSize: 54, fontWeight: '900', color: COLORS.white, letterSpacing: -1 },
-  progressLabel: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 10 },
+  ddayValue:     { fontSize: 54, fontWeight: '900', color: tc.white, letterSpacing: -1 },
+  progressLabel: { fontSize: 14, color: tc.textSecondary, marginBottom: 10 },
 
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   statCard:  { width: '47%', alignItems: 'center', paddingVertical: 20, marginBottom: 0 },
   statEmoji: { fontSize: 28, marginBottom: 7 },
-  statBig:   { fontSize: 21, fontWeight: '800', color: COLORS.primary },
-  statSub:   { fontSize: 13, color: COLORS.textSecondary, marginTop: 3 },
+  statBig:   { fontSize: 21, fontWeight: '800', color: tc.primary },
+  statSub:   { fontSize: 13, color: tc.textSecondary, marginTop: 3 },
 
   /* 진급일 관리 */
   promoCard:        { marginTop: 4, paddingBottom: 8 },
   promoHeaderRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  promoDesc:        { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  promoToggle:      { fontSize: 16, color: COLORS.textSecondary, fontWeight: '700', marginTop: 2 },
+  promoDesc:        { fontSize: 12, color: tc.textSecondary, marginTop: 2 },
+  promoToggle:      { fontSize: 16, color: tc.textSecondary, fontWeight: '700', marginTop: 2 },
   promoBody:        { marginTop: 16 },
-  promoHint:        { backgroundColor: `${COLORS.primary}12`, borderRadius: 10, padding: 12, marginBottom: 14 },
-  promoHintText:    { fontSize: 12, color: COLORS.primary, fontWeight: '600', lineHeight: 18 },
+  promoHint:        { backgroundColor: `${tc.primary}12`, borderRadius: 10, padding: 12, marginBottom: 14 },
+  promoHintText:    { fontSize: 12, color: tc.primary, fontWeight: '600', lineHeight: 18 },
   promoBtnRow:      { flexDirection: 'row', gap: 8, marginTop: 8 },
   promoResetBtn:    { flex: 1.2, paddingVertical: 13, borderRadius: 10, borderWidth: 1.5, borderColor: '#E53935', alignItems: 'center' },
   promoResetBtnText:{ color: '#E53935', fontWeight: '700', fontSize: 12 },
-  promoCancelBtn:   { flex: 1, paddingVertical: 13, borderRadius: 10, borderWidth: 1.5, borderColor: COLORS.border, alignItems: 'center' },
-  promoCancelBtnText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 14 },
-  promoSaveBtn:     { flex: 1.2, paddingVertical: 13, borderRadius: 10, backgroundColor: COLORS.primary, alignItems: 'center' },
-  promoSaveBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
-  promoEditBtn:     { marginTop: 8, paddingVertical: 14, borderRadius: 10, borderWidth: 1.5, borderColor: COLORS.primary, alignItems: 'center' },
-  promoEditBtnText: { color: COLORS.primary, fontWeight: '700', fontSize: 15 },
+  promoCancelBtn:   { flex: 1, paddingVertical: 13, borderRadius: 10, borderWidth: 1.5, borderColor: tc.border, alignItems: 'center' },
+  promoCancelBtnText: { color: tc.textSecondary, fontWeight: '600', fontSize: 14 },
+  promoSaveBtn:     { flex: 1.2, paddingVertical: 13, borderRadius: 10, backgroundColor: tc.primary, alignItems: 'center' },
+  promoSaveBtnText: { color: tc.white, fontWeight: '700', fontSize: 14 },
+  promoEditBtn:     { marginTop: 8, paddingVertical: 14, borderRadius: 10, borderWidth: 1.5, borderColor: tc.primary, alignItems: 'center' },
+  promoEditBtnText: { color: tc.primary, fontWeight: '700', fontSize: 15 },
 });

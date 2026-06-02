@@ -222,14 +222,16 @@ if (militaryInfo === null) {
 
 | 함수 | 인자 | 반환 | 설명 |
 |------|------|------|------|
-| `calcDischargeDate(enlistDate, months)` | string, number | Date | 입대일 + 복무개월 → 전역일 |
+| `calcDischargeDate(enlistDate, months)` | string, number | Date | 입대일 + 복무개월 - 1일 → 전역일(만료일) |
 | `calcDaysLeft(targetDate)` | Date/string | number | 오늘 기준 남은 일수 (음수 가능) |
 | `calcProgress(enlistDate, dischargeDate)` | string, Date | number 0~100 | 복무 진행률 |
 | `calcServedDays(enlistDate)` | string | number | 복무한 일수 |
 | `calcServedMonths(enlistDate)` | string | number | 복무한 개월수 |
 | `calcRank(servedDays)` | number | string | 복무일 기준 계급 |
 | `calcRankFromPromotions(promotionDates)` | Object | string/null | 진급일 기준 계급 |
+| `nextPromotion(promotionDates)` | Object | `{rank,date,daysLeft}`/null | 다음 진급 D-Day (병장 완료 시 null) |
 | `formatDate(date)` | Date | string | `'YYYY-MM-DD'` 포맷 |
 | `formatDateKo(date)` | Date | string | `'YYYY년 MM월 DD일'` 포맷 |
 | `isValidDateString(str)` | string | boolean | 날짜 문자열 유효성 검사 |
-| `getRandomMessage()` | - | string | 랜덤 응원 메시지 (15개 중 1개) |
+| `getMessageForPhase(phase)` | string | string | 복무 단계별 맞춤 응원 메시지 |
+| `getRandomMessage()` | - | string | 랜덤 응원 메시지 (normal 풀에서 1개) |

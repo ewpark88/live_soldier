@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, Modal,
   StyleSheet, Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { COLORS } from '../constants/colors';
+import { useThemeColors } from '../theme/ThemeContext';
 import { formatDate, formatDateKo } from '../utils/dateUtils';
 
 /**
@@ -28,6 +28,8 @@ export default function DatePickerField({
   placeholder = '날짜를 선택하세요',
   disabled = false,
 }) {
+  const tc = useThemeColors();
+  const styles = useMemo(() => makeStyles(tc), [tc]);
   const [show, setShow] = useState(false);
 
   // value가 있으면 해당 날짜, 없으면 오늘
@@ -121,22 +123,22 @@ export default function DatePickerField({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (tc) => StyleSheet.create({
   container: {
     marginBottom: 14,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: tc.textSecondary,
     marginBottom: 8,
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
+    backgroundColor: tc.background,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: tc.border,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 14,
@@ -147,7 +149,7 @@ const styles = StyleSheet.create({
     borderColor: '#D0D0D0',
   },
   textDisabled: {
-    color: COLORS.textSecondary,
+    color: tc.textSecondary,
   },
   calIcon: {
     fontSize: 20,
@@ -156,15 +158,15 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text,
+    color: tc.text,
   },
   placeholder: {
-    color: COLORS.textLight,
+    color: tc.textLight,
     fontWeight: '400',
   },
   arrow: {
     fontSize: 20,
-    color: COLORS.textLight,
+    color: tc.textLight,
   },
   // iOS 모달
   modalOverlay: {
@@ -172,7 +174,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   modalBox: {
-    backgroundColor: COLORS.card,
+    backgroundColor: tc.card,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 32,
@@ -184,21 +186,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: tc.border,
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.text,
+    color: tc.text,
   },
   cancelBtn: {
     fontSize: 16,
-    color: COLORS.textSecondary,
+    color: tc.textSecondary,
   },
   doneBtn: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: tc.primary,
   },
   spinner: {
     height: 200,

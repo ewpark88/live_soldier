@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Modal, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '../constants/colors';
+import { useThemeColors } from '../theme/ThemeContext';
 import Card from '../components/Card';
 import AdBanner from '../components/AdBanner';
 import DatePickerField from '../components/DatePickerField';
@@ -130,6 +130,8 @@ const TRAINING_PRESETS = [
 ];
 
 export default function TodoScreen() {
+  const tc = useThemeColors();
+  const styles = useMemo(() => makeStyles(tc), [tc]);
   const today = getToday();
 
   const insets = useSafeAreaInsets();
@@ -253,9 +255,9 @@ export default function TodoScreen() {
         <Card style={styles.summaryCard}>
           <View style={styles.summaryRow}>
             {[
-              { val: totalCount,             label: '전체',   color: COLORS.primary },
-              { val: doneCount,              label: '완료',   color: COLORS.success },
-              { val: totalCount - doneCount, label: '미완료', color: COLORS.accent },
+              { val: totalCount,             label: '전체',   color: tc.primary },
+              { val: doneCount,              label: '완료',   color: tc.success },
+              { val: totalCount - doneCount, label: '미완료', color: tc.accent },
             ].map((item) => (
               <View key={item.label} style={styles.summaryItem}>
                 <Text style={[styles.summaryBig, { color: item.color }]}>{item.val}</Text>
@@ -373,7 +375,7 @@ export default function TodoScreen() {
               value={formTitle}
               onChangeText={setFormTitle}
               placeholder="예) 혹한기 훈련, 면회 신청..."
-              placeholderTextColor={COLORS.textLight}
+              placeholderTextColor={tc.textLight}
               autoFocus
             />
 
@@ -414,7 +416,7 @@ export default function TodoScreen() {
               value={formNote}
               onChangeText={setFormNote}
               placeholder="추가 메모..."
-              placeholderTextColor={COLORS.textLight}
+              placeholderTextColor={tc.textLight}
               multiline
               numberOfLines={2}
             />
@@ -436,6 +438,8 @@ export default function TodoScreen() {
 
 /* ─── 할 일 아이템 ───────────────────────────────────────── */
 function TodoItem({ item, onToggle, onDelete }) {
+  const tc = useThemeColors();
+  const styles = useMemo(() => makeStyles(tc), [tc]);
   const duration = calcDuration(item.date, item.endDate);
 
   return (
@@ -470,43 +474,43 @@ function TodoItem({ item, onToggle, onDelete }) {
 /* ─── 스타일 ─────────────────────────────────────────────── */
 const CHIP_W = '30%';
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (tc) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: tc.background },
   scroll: { padding: 16, paddingBottom: 8 },
-  pageTitle: { fontSize: 26, fontWeight: '800', color: COLORS.primary, marginBottom: 18 },
+  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary, marginBottom: 18 },
 
   summaryCard: { paddingVertical: 16 },
-  summaryRow: { flexDirection: 'row', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingBottom: 14 },
+  summaryRow: { flexDirection: 'row', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: tc.border, paddingBottom: 14 },
   summaryItem: { flex: 1, alignItems: 'center' },
   summaryBig: { fontSize: 26, fontWeight: '800' },
-  summarySub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 3 },
+  summarySub: { fontSize: 13, color: tc.textSecondary, marginTop: 3 },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   filterClearBtn: {
     paddingHorizontal: 14, paddingVertical: 10,
-    backgroundColor: COLORS.background, borderRadius: 10,
-    borderWidth: 1.5, borderColor: COLORS.primaryLight, marginBottom: 14,
+    backgroundColor: tc.background, borderRadius: 10,
+    borderWidth: 1.5, borderColor: tc.primaryLight, marginBottom: 14,
   },
-  filterClearText: { fontSize: 14, color: COLORS.primaryLight, fontWeight: '600' },
+  filterClearText: { fontSize: 14, color: tc.primaryLight, fontWeight: '600' },
 
   /* 버튼 행 */
   actionRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   addBtn: {
-    flex: 1, backgroundColor: COLORS.primary,
+    flex: 1, backgroundColor: tc.primary,
     borderRadius: 12, paddingVertical: 15, alignItems: 'center',
   },
-  addBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
+  addBtnText: { color: tc.white, fontWeight: '700', fontSize: 15 },
   presetToggleBtn: {
     flex: 1, borderRadius: 12, paddingVertical: 15, alignItems: 'center',
-    borderWidth: 1.5, borderColor: COLORS.primary, backgroundColor: COLORS.card,
+    borderWidth: 1.5, borderColor: tc.primary, backgroundColor: tc.card,
   },
-  presetToggleBtnOn: { backgroundColor: COLORS.primary },
-  presetToggleBtnText: { color: COLORS.primary, fontWeight: '700', fontSize: 15 },
-  presetToggleBtnTextOn: { color: COLORS.white },
+  presetToggleBtnOn: { backgroundColor: tc.primary },
+  presetToggleBtnText: { color: tc.primary, fontWeight: '700', fontSize: 15 },
+  presetToggleBtnTextOn: { color: tc.white },
 
   /* 훈련 프리셋 패널 */
   presetCard: { marginBottom: 14, paddingBottom: 16 },
-  presetCardTitle: { fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 3 },
-  presetCardSub: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 14 },
+  presetCardTitle: { fontSize: 16, fontWeight: '800', color: tc.text, marginBottom: 3 },
+  presetCardSub: { fontSize: 12, color: tc.textSecondary, marginBottom: 14 },
   presetGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -538,7 +542,7 @@ const styles = StyleSheet.create({
   presetName: {
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.text,
+    color: tc.text,
     textAlign: 'center',
     paddingHorizontal: 6,
     paddingVertical: 7,
@@ -548,46 +552,46 @@ const styles = StyleSheet.create({
   /* 할 일 목록 */
   emptyCard: { alignItems: 'center', paddingVertical: 36 },
   emptyEmoji: { fontSize: 38, marginBottom: 12 },
-  emptyText: { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center' },
+  emptyText: { fontSize: 15, color: tc.textSecondary, textAlign: 'center' },
   dateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4 },
-  dateHeaderText: { fontSize: 15, fontWeight: '700', color: COLORS.primary },
-  dateHeaderCount: { fontSize: 13, color: COLORS.textSecondary },
+  dateHeaderText: { fontSize: 15, fontWeight: '700', color: tc.primary },
+  dateHeaderCount: { fontSize: 13, color: tc.textSecondary },
   todoCard: { paddingVertical: 14, paddingHorizontal: 14, marginBottom: 8 },
-  todoCardDone: { opacity: 0.55, backgroundColor: COLORS.background },
+  todoCardDone: { opacity: 0.55, backgroundColor: tc.background },
   todoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  checkbox: { width: 26, height: 26, borderRadius: 7, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  checkboxDone: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  checkmark: { color: COLORS.white, fontSize: 14, fontWeight: '900' },
+  checkbox: { width: 26, height: 26, borderRadius: 7, borderWidth: 2, borderColor: tc.border, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  checkboxDone: { backgroundColor: tc.primary, borderColor: tc.primary },
+  checkmark: { color: tc.white, fontSize: 14, fontWeight: '900' },
   todoContent: { flex: 1 },
-  todoTitle: { fontSize: 16, fontWeight: '600', color: COLORS.text, lineHeight: 22 },
-  todoTitleDone: { textDecorationLine: 'line-through', color: COLORS.textSecondary },
+  todoTitle: { fontSize: 16, fontWeight: '600', color: tc.text, lineHeight: 22 },
+  todoTitleDone: { textDecorationLine: 'line-through', color: tc.textSecondary },
   durationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 },
   durationIcon: { fontSize: 12 },
-  durationText: { fontSize: 12, color: COLORS.primaryLight, fontWeight: '600' },
-  todoNote: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
-  deleteBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center' },
-  deleteBtnText: { fontSize: 12, color: COLORS.danger, fontWeight: '800' },
+  durationText: { fontSize: 12, color: tc.primaryLight, fontWeight: '600' },
+  todoNote: { fontSize: 13, color: tc.textSecondary, marginTop: 4 },
+  deleteBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: tc.background, alignItems: 'center', justifyContent: 'center' },
+  deleteBtnText: { fontSize: 12, color: tc.danger, fontWeight: '800' },
 
   /* 모달 */
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalBox: { backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44 },
-  modalHandle: { width: 40, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
-  modalTitle: { fontSize: 19, fontWeight: '800', color: COLORS.text, marginBottom: 22, textAlign: 'center' },
-  formLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 9 },
+  modalBox: { backgroundColor: tc.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44 },
+  modalHandle: { width: 40, height: 4, backgroundColor: tc.border, borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
+  modalTitle: { fontSize: 19, fontWeight: '800', color: tc.text, marginBottom: 22, textAlign: 'center' },
+  formLabel: { fontSize: 14, fontWeight: '600', color: tc.textSecondary, marginBottom: 9 },
   formInput: {
-    backgroundColor: COLORS.background, borderWidth: 1.5, borderColor: COLORS.border,
+    backgroundColor: tc.background, borderWidth: 1.5, borderColor: tc.border,
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13,
-    fontSize: 16, color: COLORS.text, marginBottom: 14,
+    fontSize: 16, color: tc.text, marginBottom: 14,
   },
   formTextarea: { height: 76, textAlignVertical: 'top' },
   rangeToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14, paddingVertical: 4 },
-  rangeCheckbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  rangeCheckboxOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  rangeCheckmark: { color: COLORS.white, fontSize: 12, fontWeight: '900' },
-  rangeToggleText: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
+  rangeCheckbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: tc.border, alignItems: 'center', justifyContent: 'center' },
+  rangeCheckboxOn: { backgroundColor: tc.primary, borderColor: tc.primary },
+  rangeCheckmark: { color: tc.white, fontSize: 12, fontWeight: '900' },
+  rangeToggleText: { fontSize: 14, color: tc.text, fontWeight: '600' },
   modalBtnRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
-  modalCancelBtn: { flex: 1, paddingVertical: 15, borderRadius: 12, borderWidth: 1.5, borderColor: COLORS.border, alignItems: 'center' },
-  modalCancelBtnText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 16 },
-  modalSaveBtn: { flex: 2, paddingVertical: 15, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
-  modalSaveBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 16 },
+  modalCancelBtn: { flex: 1, paddingVertical: 15, borderRadius: 12, borderWidth: 1.5, borderColor: tc.border, alignItems: 'center' },
+  modalCancelBtnText: { color: tc.textSecondary, fontWeight: '600', fontSize: 16 },
+  modalSaveBtn: { flex: 2, paddingVertical: 15, borderRadius: 12, backgroundColor: tc.primary, alignItems: 'center' },
+  modalSaveBtnText: { color: tc.white, fontWeight: '700', fontSize: 16 },
 });

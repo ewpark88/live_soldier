@@ -3,13 +3,14 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '../constants/colors';
+import { useThemeColors } from '../theme/ThemeContext';
 
 import HomeScreen from '../screens/HomeScreen';
 import DischargeScreen from '../screens/DischargeScreen';
 import LeaveScreen from '../screens/LeaveScreen';
 import SalaryScreen from '../screens/SalaryScreen';
 import TodoScreen from '../screens/TodoScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -20,17 +21,19 @@ function getTabIcon(routeName, focused) {
     leave: focused ? 'calendar' : 'calendar-outline',
     salary: focused ? 'cash' : 'cash-outline',
     todo: focused ? 'checkbox' : 'checkbox-outline',
+    settings: focused ? 'settings' : 'settings-outline',
   };
   return icons[routeName] || 'ellipse-outline';
 }
 
 function getTabLabel(routeName) {
-  const labels = { home: '홈', discharge: '전역', leave: '휴가', salary: '급여', todo: '일정' };
+  const labels = { home: '홈', discharge: '전역', leave: '휴가', salary: '급여', todo: '일정', settings: '설정' };
   return labels[routeName] || routeName;
 }
 
 export default function TabNavigator() {
   const insets = useSafeAreaInsets();
+  const COLORS = useThemeColors();
 
   // 탭바 높이: 아이콘+라벨 기본 56px + 하단 safe area
   const TAB_BAR_HEIGHT = 56 + insets.bottom;
@@ -75,6 +78,7 @@ export default function TabNavigator() {
         <Tab.Screen name="leave" component={LeaveScreen} options={{ title: '휴가 관리', tabBarLabel: '휴가' }} />
         <Tab.Screen name="salary" component={SalaryScreen} options={{ title: '급여 계산', tabBarLabel: '급여' }} />
         <Tab.Screen name="todo" component={TodoScreen} options={{ title: '일정 관리', tabBarLabel: '일정' }} />
+        <Tab.Screen name="settings" component={SettingsScreen} options={{ title: '설정', tabBarLabel: '설정' }} />
       </Tab.Navigator>
 
     </View>

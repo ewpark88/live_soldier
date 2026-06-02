@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import { COLORS } from '../constants/colors';
+import { useThemeColors } from '../theme/ThemeContext';
 
 // Expo Go에서는 네이티브 모듈 없음 → 플레이스홀더로 대체
 let BannerAd = null;
@@ -20,6 +20,8 @@ try {
  * - Expo Go : 플레이스홀더 표시
  */
 export default function AdBanner({ unit, style }) {
+  const tc = useThemeColors();
+  const styles = useMemo(() => makeStyles(tc), [tc]);
   if (!unit?.realId) return null;
 
   // 실제 AdMob 광고 (개발 빌드 / 릴리즈 빌드)
@@ -54,14 +56,14 @@ export default function AdBanner({ unit, style }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (tc) => StyleSheet.create({
   wrapper: {
     marginVertical: 8,
     alignItems: 'center',
   },
   adTag: {
     fontSize: 10,
-    color: COLORS.textLight,
+    color: tc.textLight,
     alignSelf: 'flex-start',
     marginBottom: 3,
     marginLeft: 2,
@@ -71,9 +73,9 @@ const styles = StyleSheet.create({
   },
   placeholderBox: {
     height: 62,
-    backgroundColor: COLORS.adBackground,
+    backgroundColor: tc.adBackground,
     borderWidth: 1,
-    borderColor: COLORS.adBorder,
+    borderColor: tc.adBorder,
     borderRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
@@ -86,11 +88,11 @@ const styles = StyleSheet.create({
   placeholderText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: tc.textSecondary,
   },
   placeholderUnit: {
     fontSize: 11,
-    color: COLORS.textLight,
+    color: tc.textLight,
     marginTop: 2,
   },
 });
