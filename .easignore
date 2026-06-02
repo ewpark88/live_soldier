@@ -1,0 +1,34 @@
+# EAS Build 업로드 제외 목록 (.gitignore 대신 EAS가 이 파일을 사용)
+# 클라우드에서 npm install + 클린 네이티브 빌드를 새로 수행하므로
+# 의존성/빌드 산출물은 업로드하지 않는다.
+
+# 의존성 (EAS가 재설치 + postinstall 패치 재적용)
+node_modules/
+
+# VCS / 캐시
+.git/
+.expo/
+.metro-health-check*
+
+# 네이티브 빌드 산출물 (머신 종속 — 업로드 시 클라우드 Gradle 충돌)
+android/build/
+android/.gradle/
+android/app/build/
+android/app/.cxx/
+android/.kotlin/
+ios/build/
+ios/Pods/
+ios/DerivedData/
+
+# 산출물/임시
+dist/
+web-build/
+*.apk
+*.aab
+.rank_tmp/
+
+# OS
+.DS_Store
+*.log
+
+# 주의: android/app/debug.keystore 는 build.gradle 서명 설정이 참조하므로 제외하지 않는다.
