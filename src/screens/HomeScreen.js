@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../theme/ThemeContext';
 import Card from '../components/Card';
 import ProgressBar from '../components/ProgressBar';
+import LiveServiceGauge from '../components/LiveServiceGauge';
 import AdBanner from '../components/AdBanner';
 import ProfileBar from '../components/ProfileBar';
 import OnboardingScreen from '../components/OnboardingScreen';
@@ -358,6 +359,12 @@ export default function HomeScreen({ navigation }) {
                 fillColor="#F5C842"
                 labelColor="rgba(255,255,255,0.8)"
               />
+              {progress < 100 && (
+                <LiveServiceGauge
+                  enlistDate={info.enlistDate}
+                  dischargeDate={info.dischargeDate}
+                />
+              )}
             </View>
             <View style={s.statsRow}>
               <View style={s.statItem}>
