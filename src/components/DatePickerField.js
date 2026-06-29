@@ -4,6 +4,7 @@ import {
   StyleSheet, Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
 import { formatDate, formatDateKo } from '../utils/dateUtils';
 
@@ -60,7 +61,12 @@ export default function DatePickerField({
         onPress={() => { if (!disabled) setShow(true); }}
         activeOpacity={disabled ? 1 : 0.7}
       >
-        <Text style={styles.calIcon}>{disabled ? '🔒' : '📅'}</Text>
+        <Ionicons
+          name={disabled ? 'lock-closed' : 'calendar'}
+          size={18}
+          color={disabled ? tc.textSecondary : tc.primary}
+          style={styles.calIcon}
+        />
         <Text style={[styles.valueText, !value && styles.placeholder, disabled && styles.textDisabled]}>
           {value ? formatDateKo(value) : placeholder}
         </Text>

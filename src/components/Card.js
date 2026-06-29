@@ -11,13 +11,15 @@ export default function Card({ children, style }) {
 const makeStyles = (tc) => StyleSheet.create({
   card: {
     backgroundColor: tc.card,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: tc.border,
     shadowColor: tc.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    elevation: 3,
     marginBottom: 12,
   },
 });

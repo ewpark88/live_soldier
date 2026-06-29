@@ -7,11 +7,16 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../theme/ThemeContext';
 import Card from '../components/Card';
-import ProgressBar from '../components/ProgressBar';
+import SectionTitle from '../components/SectionTitle';
 import LiveServiceGauge from '../components/LiveServiceGauge';
+import RoadmapTimeline from '../components/RoadmapTimeline';
 import AdBanner from '../components/AdBanner';
 import ProfileBar from '../components/ProfileBar';
 import OnboardingScreen from '../components/OnboardingScreen';
+import { buildRoadmap } from '../utils/roadmapUtils';
+import { shareDischarge } from '../utils/shareUtils';
+import { refreshScheduledNotifications } from '../utils/notifications';
+import { Ionicons } from '@expo/vector-icons';
 import { AD_UNITS } from '../constants/adUnits';
 import {
   loadMilitaryInfo, loadLeaveRecords, loadLeaveTotal,
@@ -71,34 +76,36 @@ function getPhase(daysLeft) {
   return 'normal';
 }
 
+// 딥 그린 히어로 카드를 유지하면서, 전역이 가까워질수록 카드를 살짝 더 깊게 +
+// 골드 액센트를 점점 밝게 + 글로우/마일스톤으로 고조시킨다. (촌스러운 갈색 배경 제거)
 const PHASE_CFG = {
   done:  {
-    cardBg: '#9A6D00', screenBg: '#FFFDE7', accent: '#FFD700', glow: true,
-    milestone: { emoji: '🎆', text: '드디어 전역이다!!', bg: '#C97D00', tc: '#fff' },
+    cardBg: '#1A4D42', screenBg: '#FAF6EA', accent: '#FFD24A', glow: true,
+    milestone: { emoji: '🎆', text: '드디어 전역이다!!', bg: '#CFA13A', tc: '#15231E' },
     particles: ['🎆','🎊','🎉','🥳','🎖️','⭐'],
   },
   d3:    {
-    cardBg: '#7B5500', screenBg: '#FFFDE7', accent: '#FFD700', glow: true,
-    milestone: { emoji: '🎖️', text: '전역 3일 전!! 거의 다 왔다!', bg: '#B8860B', tc: '#fff' },
+    cardBg: '#1B4E43', screenBg: '#FAF4E6', accent: '#FFCF45', glow: true,
+    milestone: { emoji: '🎖️', text: '전역 3일 전!! 거의 다 왔다!', bg: '#CFA13A', tc: '#15231E' },
     particles: ['🎖️','✨','⭐','🔥','🎊'],
   },
   d7:    {
-    cardBg: '#6B4700', screenBg: '#FFF8EC', accent: '#F5E570', glow: true,
-    milestone: { emoji: '🏆', text: '전역까지 일주일!', bg: '#8B5E00', tc: '#fff' },
+    cardBg: '#1E5246', screenBg: '#F8F4EA', accent: '#F7C53C', glow: true,
+    milestone: { emoji: '🏆', text: '전역까지 일주일!', bg: '#C9962E', tc: '#15231E' },
     particles: [],
   },
   d30:   {
-    cardBg: '#5B3D1A', screenBg: '#FFF5E8', accent: '#F5C842', glow: false,
-    milestone: { emoji: '🔥', text: '전역 한 달 전! 조금만 더!', bg: '#8B5E2F', tc: '#fff' },
+    cardBg: '#215649', screenBg: '#F6F6EF', accent: '#F4C04A', glow: false,
+    milestone: { emoji: '🔥', text: '전역 한 달 전! 조금만 더!', bg: '#2B6457', tc: '#fff' },
     particles: [],
   },
   d100:  {
-    cardBg: '#3A5A40', screenBg: '#F4F8F5', accent: '#F5C842', glow: false,
-    milestone: { emoji: '💪', text: '전역 100일 전! 보인다!', bg: '#4A7A55', tc: '#fff' },
+    cardBg: '#234E44', screenBg: '#F4F8F5', accent: '#F0C45E', glow: false,
+    milestone: { emoji: '💪', text: '전역 100일 전! 보인다!', bg: '#2B6457', tc: '#fff' },
     particles: [],
   },
   normal: {
-    cardBg: '#2E5B4F', screenBg: null, accent: '#F5C842', glow: false,
+    cardBg: '#234E44', screenBg: null, accent: '#F0C45E', glow: false,
     milestone: null,
     particles: [],
   },
@@ -215,6 +222,8 @@ export default function HomeScreen({ navigation }) {
     setPromotions(promo);
     // 남은 일수(phase)에 맞는 응원 메시지
     setMessage(getMessageForPhase(mi ? getPhase(calcDaysLeft(mi.dischargeDate)) : 'normal'));
+    // 알림이 켜져 있으면 최신 데이터(프로필 전환·정보 수정 포함)로 리마인더 재예약
+    refreshScheduledNotifications().catch(() => {});
   };
 
   const startPulse = () => {
@@ -254,7 +263,7 @@ export default function HomeScreen({ navigation }) {
       <View style={[s.container, { paddingTop: insets.top + 10 }]}>
         <ProfileBar onChange={loadData} />
         <View style={s.emptyWrap}>
-          <Text style={s.emptyEmoji}>🪖</Text>
+          <Ionicons name="shield-half" size={52} color={tc.primaryLight} style={s.emptyEmoji} />
           <Text style={s.emptyTitle}>
             {profileName ? `${profileName} 님, 환영합니다!` : '환영합니다!'}
           </Text>
@@ -281,6 +290,8 @@ export default function HomeScreen({ navigation }) {
   const phaseCfg   = PHASE_CFG[phase];
   const promo      = officer ? null : nextPromotion(promotions);
   const hobong     = officer ? nextHobongInfo(info.enlistDate) : null;
+  const roadmap    = buildRoadmap(info, promotions);
+  const onShare    = () => shareDischarge(info, rank, profileName);
 
   return (
     <View style={[s.container, { backgroundColor: phaseCfg.screenBg ?? tc.background }]}>
@@ -352,19 +363,10 @@ export default function HomeScreen({ navigation }) {
             </Animated.Text>
             <Text style={s.dischargeDate}>{formatDateKo(info.dischargeDate)}</Text>
             <View style={s.progressSection}>
-              <Text style={s.progressLabel}>복무 진행률</Text>
-              <ProgressBar
-                progress={progress}
-                trackColor="rgba(255,255,255,0.18)"
-                fillColor="#F5C842"
-                labelColor="rgba(255,255,255,0.8)"
+              <LiveServiceGauge
+                enlistDate={info.enlistDate}
+                dischargeDate={info.dischargeDate}
               />
-              {progress < 100 && (
-                <LiveServiceGauge
-                  enlistDate={info.enlistDate}
-                  dischargeDate={info.dischargeDate}
-                />
-              )}
             </View>
             <View style={s.statsRow}>
               <View style={s.statItem}>
@@ -373,13 +375,8 @@ export default function HomeScreen({ navigation }) {
               </View>
               <View style={s.statDivider} />
               <View style={s.statItem}>
-                <Text style={s.statValue}>{daysLeft > 0 ? daysLeft : 0}</Text>
-                <Text style={s.statLabel}>남은 일수</Text>
-              </View>
-              <View style={s.statDivider} />
-              <View style={s.statItem}>
-                <Text style={[s.statValue, { color: tc.accentLight }]}>{progress}%</Text>
-                <Text style={s.statLabel}>진행률</Text>
+                <Text style={[s.statValue, { color: tc.accentLight }]}>{leaveLeft}</Text>
+                <Text style={s.statLabel}>남은 휴가</Text>
               </View>
             </View>
           </View>
@@ -387,10 +384,19 @@ export default function HomeScreen({ navigation }) {
 
         {/* ── 응원 메시지 카드 (풀 와이드) ── */}
         <View style={s.messageCard}>
-          <Text style={s.messageEmoji}>💬</Text>
+          <Ionicons name="chatbubble-ellipses" size={26} color={tc.primaryLight} style={s.messageEmoji} />
           <Text style={s.messageText}>{message}</Text>
           <TouchableOpacity onPress={() => setMessage(getMessageForPhase(phase))} style={s.refreshBtn}>
-            <Text style={s.refreshText}>다른 메시지 보기 ↻</Text>
+            <Ionicons name="refresh" size={14} color={tc.primaryLight} />
+            <Text style={s.refreshText}>다른 메시지 보기</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── 전역일 공유 버튼 ── */}
+        <View style={s.padH}>
+          <TouchableOpacity style={s.shareBtn} activeOpacity={0.85} onPress={onShare}>
+            <Ionicons name="share-social" size={19} color={tc.primary} />
+            <Text style={s.shareBtnText}>내 전역일 자랑하기</Text>
           </TouchableOpacity>
         </View>
 
@@ -398,7 +404,7 @@ export default function HomeScreen({ navigation }) {
         {promo && (
           <View style={s.padH}>
             <Card style={s.nextPromoCard}>
-              <Text style={s.nextPromoEmoji}>🎖️</Text>
+              <Ionicons name="medal" size={24} color={tc.primary} style={s.nextPromoEmoji} />
               <View style={s.nextPromoInfo}>
                 <Text style={s.nextPromoLabel}>다음 진급 · {promo.rank}</Text>
                 <Text style={s.nextPromoSub}>{formatDateKo(promo.date)}</Text>
@@ -412,7 +418,7 @@ export default function HomeScreen({ navigation }) {
         {hobong && (
           <View style={s.padH}>
             <Card style={s.nextPromoCard}>
-              <Text style={s.nextPromoEmoji}>📈</Text>
+              <Ionicons name="trending-up" size={24} color={tc.primary} style={s.nextPromoEmoji} />
               <View style={s.nextPromoInfo}>
                 <Text style={s.nextPromoLabel}>현재 {hobong.current}호봉 · 다음 {hobong.next}호봉</Text>
                 <Text style={s.nextPromoSub}>{formatDateKo(hobong.nextDate)} 승급 예정</Text>
@@ -422,23 +428,22 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-        {/* ── 빠른 요약 ── */}
-        <View style={[s.quickRow, s.padH]}>
-          <Card style={s.quickCard}>
-            <Text style={s.quickEmoji}>🏖️</Text>
-            <Text style={s.quickValue}>{leaveLeft}일</Text>
-            <Text style={s.quickLabel}>남은 휴가</Text>
-          </Card>
-          <Card style={s.quickCard}>
-            <Text style={s.quickEmoji}>⚔️</Text>
-            <Text style={s.quickValue}>{servedDays}일</Text>
-            <Text style={s.quickLabel}>복무 일수</Text>
-          </Card>
-        </View>
+        {/* ── 전역 로드맵 타임라인 ── */}
+        {roadmap.length > 0 && (
+          <View style={s.padH}>
+            <Card style={s.roadmapCard}>
+              <SectionTitle icon="map-outline" size={16}>전역 로드맵</SectionTitle>
+              <Text style={s.roadmapSub}>입대부터 전역까지 주요 순간</Text>
+              <View style={{ marginTop: 14 }}>
+                <RoadmapTimeline roadmap={roadmap} />
+              </View>
+            </Card>
+          </View>
+        )}
 
         {/* ── 광고 ── */}
         <View style={s.padH}>
-          <AdBanner unit={AD_UNITS.HOME_BOTTOM} style={{ marginBottom: 12 }} />
+          <AdBanner unit={AD_UNITS.HOME_BOTTOM} style={{ marginTop: 16, marginBottom: 12 }} />
         </View>
       </ScrollView>
     </View>
@@ -500,7 +505,6 @@ const makeStyles = (tc) => StyleSheet.create({
   dday: { fontSize: 72, fontWeight: '900', color: tc.white, letterSpacing: -2 },
   dischargeDate: { fontSize: 15, color: 'rgba(255,255,255,0.8)', marginTop: 4, marginBottom: 20 },
   progressSection: { width: '100%', marginBottom: 20 },
-  progressLabel: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 10 },
   statsRow: {
     flexDirection: 'row',
     width: '100%',
@@ -523,6 +527,9 @@ const makeStyles = (tc) => StyleSheet.create({
   messageEmoji: { fontSize: 30, marginBottom: 10 },
   messageText: { fontSize: 16, color: tc.text, textAlign: 'center', lineHeight: 25, fontWeight: '500' },
   refreshBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginTop: 12,
     paddingHorizontal: 16,
     paddingVertical: 7,
@@ -533,6 +540,19 @@ const makeStyles = (tc) => StyleSheet.create({
 
   /* 가로 패딩이 필요한 영역 */
   padH: { paddingHorizontal: 16 },
+
+  /* 전역일 공유 버튼 */
+  shareBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: 12, paddingVertical: 15, borderRadius: 16,
+    backgroundColor: tc.highlightBg, borderWidth: StyleSheet.hairlineWidth, borderColor: tc.border,
+  },
+  shareBtnText: { fontSize: 15, fontWeight: '700', color: tc.primary },
+
+  /* 전역 로드맵 */
+  roadmapCard: { marginTop: 12 },
+  roadmapTitle: { fontSize: 16, fontWeight: '800', color: tc.text },
+  roadmapSub: { fontSize: 12.5, color: tc.textSecondary, marginTop: 2 },
 
   /* 다음 진급 카운트다운 */
   nextPromoCard: {
@@ -549,13 +569,6 @@ const makeStyles = (tc) => StyleSheet.create({
   nextPromoLabel: { fontSize: 15, fontWeight: '700', color: tc.text },
   nextPromoSub: { fontSize: 13, color: tc.textSecondary, marginTop: 2 },
   nextPromoDday: { fontSize: 22, fontWeight: '900', color: tc.primary, letterSpacing: -0.5 },
-
-  /* 빠른 요약 */
-  quickRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  quickCard: { flex: 1, alignItems: 'center', paddingVertical: 20, marginBottom: 12 },
-  quickEmoji: { fontSize: 30, marginBottom: 8 },
-  quickValue: { fontSize: 24, fontWeight: '800', color: tc.primary },
-  quickLabel: { fontSize: 14, color: tc.textSecondary, marginTop: 3 },
 
   /* 빈 화면 */
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },

@@ -1,12 +1,17 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, TextInput, Alert,
+  TouchableOpacity, TextInput, Alert, Animated, Easing,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../theme/ThemeContext';
 import Card from '../components/Card';
+import SectionTitle from '../components/SectionTitle';
+import FadeInView from '../components/FadeInView';
+import SavingsCalculator from '../components/SavingsCalculator';
+import BenefitsList from '../components/BenefitsList';
 import AdBanner from '../components/AdBanner';
 import { AD_UNITS } from '../constants/adUnits';
 import { loadMilitaryInfo, loadSalaryInfo, saveSalaryInfo, loadRankPromotions } from '../utils/storage';
@@ -28,6 +33,25 @@ const MAX_SALARY = 1250000;
 
 function formatMoney(n) {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/* 수령 진행률 바 — 퍼센트 변화 시 부드럽게 차오름 */
+function AnimatedProgressFill({ percent, color }) {
+  const w = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.timing(w, {
+      toValue: percent,
+      duration: 750,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    a.start();
+    return () => a.stop();
+  }, [percent, w]);
+  const width = w.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'], extrapolate: 'clamp' });
+  return (
+    <Animated.View style={{ width, height: '100%', backgroundColor: color, borderRadius: 6 }} />
+  );
 }
 
 /* 계급명으로 월급 반환 */
@@ -63,6 +87,8 @@ export default function SalaryScreen() {
   const [customSalary,  setCustomSalary]  = useState('');
   const [totalMonths,   setTotalMonths]   = useState('');
   const [guideOpen,     setGuideOpen]     = useState(false);
+  const [savingsOpen,   setSavingsOpen]   = useState(false);
+  const [benefitsOpen,  setBenefitsOpen]  = useState(false);
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -155,6 +181,7 @@ export default function SalaryScreen() {
         <Text style={styles.pageTitle}>급여 계산</Text>
 
         {/* ━━ ① 이번 달 예상 급여 (메인 카드) ━━ */}
+        <FadeInView>
         <Card style={styles.mainCard}>
           {/* 계급 뱃지 행 */}
           <View style={styles.mainTop}>
@@ -189,10 +216,12 @@ export default function SalaryScreen() {
             </Text>
           )}
         </Card>
+        </FadeInView>
 
         {/* ━━ ② 급여 현황 ━━ */}
+        <FadeInView delay={90}>
         <Card style={styles.statusCard}>
-          <Text style={styles.sectionTitle}>💰 급여 현황</Text>
+          <SectionTitle icon="wallet-outline" size={16} style={{ marginBottom: 4 }}>급여 현황</SectionTitle>
 
           {/* 총 수령 예정 */}
           <View style={styles.totalRow}>
@@ -208,7 +237,7 @@ export default function SalaryScreen() {
               <Text style={styles.progressPct}>{earnedPercent}%</Text>
             </View>
             <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${earnedPercent}%` }]} />
+              <AnimatedProgressFill percent={earnedPercent} color={tc.primary} />
             </View>
             <View style={styles.progressFooter}>
               <Text style={styles.earnedText}>{formatMoney(earnedSalary)}원 수령</Text>
@@ -218,10 +247,11 @@ export default function SalaryScreen() {
             </View>
           </View>
         </Card>
+        </FadeInView>
 
         {/* ━━ ③ 급여 설정 ━━ */}
         <Card>
-          <Text style={styles.sectionTitle}>⚙️ 급여 설정</Text>
+          <SectionTitle icon="options-outline" size={16} style={{ marginBottom: 4 }}>급여 설정</SectionTitle>
 
           {!customMode ? (
             <View style={styles.settingInfo}>
@@ -235,10 +265,13 @@ export default function SalaryScreen() {
               </View>
               <View style={styles.settingBtnRow}>
                 <TouchableOpacity
-                  style={styles.editBtn}
+                  style={[styles.editBtn, { flexDirection: 'row' }]}
                   onPress={() => setCustomMode(true)}
                 >
-                  <Text style={styles.editBtnText}>{isCustom ? '수정 ✏️' : '직접 입력하기'}</Text>
+                  {isCustom && (
+                    <Ionicons name="create-outline" size={15} color={tc.primary} style={{ marginRight: 5 }} />
+                  )}
+                  <Text style={styles.editBtnText}>{isCustom ? '수정' : '직접 입력하기'}</Text>
                 </TouchableOpacity>
                 {isCustom && (
                   <TouchableOpacity style={styles.resetBtn} onPress={handleResetToStandard}>
@@ -280,22 +313,7 @@ export default function SalaryScreen() {
           )}
         </Card>
 
-        {/* ━━ ④ 복무 개월 요약 ━━ */}
-        <View style={styles.monthsRow}>
-          {[
-            { emoji: '📆', val: `${servedMonths}개월`, label: '복무 기간' },
-            { emoji: '🎯', val: `${displayTotalMonths}개월`, label: '총 복무' },
-            { emoji: '⏳', val: `${Math.max(0, displayTotalMonths - servedMonths)}개월`, label: '남은 기간' },
-          ].map((item) => (
-            <Card key={item.label} style={styles.monthCard}>
-              <Text style={styles.monthEmoji}>{item.emoji}</Text>
-              <Text style={styles.monthValue}>{item.val}</Text>
-              <Text style={styles.monthLabel}>{item.label}</Text>
-            </Card>
-          ))}
-        </View>
-
-        {/* ━━ ⑤ 병사 월급 가이드 (병사 전용, 접기/펼치기) ━━ */}
+        {/* ━━ ④ 병사 월급 가이드 (병사 전용, 접기/펼치기) ━━ */}
         {!officer && (
         <Card style={styles.guideCard}>
           <TouchableOpacity
@@ -304,7 +322,7 @@ export default function SalaryScreen() {
             activeOpacity={0.7}
           >
             <View>
-              <Text style={styles.sectionTitle}>📋 2024년 병사 월급 가이드</Text>
+              <SectionTitle icon="list-outline" size={16} style={{ marginBottom: 4 }}>2024년 병사 월급 가이드</SectionTitle>
               <Text style={styles.guideSub}>계급별 표준 월급 참고표</Text>
             </View>
             <Text style={styles.guideToggleIcon}>{guideOpen ? '▲' : '▼'}</Text>
@@ -367,7 +385,7 @@ export default function SalaryScreen() {
               activeOpacity={0.7}
             >
               <View>
-                <Text style={styles.sectionTitle}>📋 간부봉급참고</Text>
+                <SectionTitle icon="list-outline" size={16} style={{ marginBottom: 4 }}>간부봉급참고</SectionTitle>
                 <Text style={styles.guideSub}>초임(1호봉) 월 기본급 · 참고용</Text>
               </View>
               <Text style={styles.guideToggleIcon}>{guideOpen ? '▲' : '▼'}</Text>
@@ -408,6 +426,30 @@ export default function SalaryScreen() {
             )}
           </Card>
         )}
+
+        {/* ━━ ⑥ 장병내일준비적금 계산기 (접기/펼치기) ━━ */}
+        <Card style={[styles.guideCard, savingsOpen && { paddingBottom: 16 }]}>
+          <TouchableOpacity style={styles.guideHeader} onPress={() => setSavingsOpen((v) => !v)} activeOpacity={0.7}>
+            <View>
+              <SectionTitle icon="calculator-outline" size={16} style={{ marginBottom: 4 }}>장병내일준비적금 계산기</SectionTitle>
+              <Text style={styles.guideSub}>전역 시 받을 목돈을 미리 계산</Text>
+            </View>
+            <Text style={styles.guideToggleIcon}>{savingsOpen ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+          {savingsOpen && <SavingsCalculator militaryInfo={militaryInfo} />}
+        </Card>
+
+        {/* ━━ ⑦ 군인 혜택 모음 (접기/펼치기) ━━ */}
+        <Card style={[styles.guideCard, benefitsOpen && { paddingBottom: 16 }]}>
+          <TouchableOpacity style={styles.guideHeader} onPress={() => setBenefitsOpen((v) => !v)} activeOpacity={0.7}>
+            <View>
+              <SectionTitle icon="gift-outline" size={16} style={{ marginBottom: 4 }}>군인 혜택 모음</SectionTitle>
+              <Text style={styles.guideSub}>금융·교통·문화·자기계발 등 할인·지원</Text>
+            </View>
+            <Text style={styles.guideToggleIcon}>{benefitsOpen ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+          {benefitsOpen && <BenefitsList />}
+        </Card>
 
         <AdBanner unit={AD_UNITS.SALARY_BOTTOM} style={{ marginBottom: 12 }} />
       </ScrollView>
@@ -459,7 +501,6 @@ const makeStyles = (tc) => StyleSheet.create({
   progressLabel: { fontSize: 13, color: tc.textSecondary, fontWeight: '600' },
   progressPct: { fontSize: 13, color: tc.primary, fontWeight: '700' },
   progressTrack: { height: 12, backgroundColor: tc.border, borderRadius: 6, overflow: 'hidden', marginBottom: 8 },
-  progressFill: { height: '100%', backgroundColor: tc.primary, borderRadius: 6 },
   progressFooter: { flexDirection: 'row', justifyContent: 'space-between' },
   earnedText: { fontSize: 13, color: tc.primary, fontWeight: '600' },
   remainText: { fontSize: 13, color: tc.accent, fontWeight: '600' },
@@ -497,14 +538,7 @@ const makeStyles = (tc) => StyleSheet.create({
   saveBtn: { flex: 2, paddingVertical: 14, borderRadius: 10, backgroundColor: tc.primary, alignItems: 'center' },
   saveBtnText: { color: tc.white, fontWeight: '700', fontSize: 16 },
 
-  /* ④ 복무 요약 */
-  monthsRow: { flexDirection: 'row', gap: 10, marginTop: 6, marginBottom: 14 },
-  monthCard: { flex: 1, alignItems: 'center', paddingVertical: 18, marginBottom: 0 },
-  monthEmoji: { fontSize: 24, marginBottom: 7 },
-  monthValue: { fontSize: 16, fontWeight: '800', color: tc.primary },
-  monthLabel: { fontSize: 12, color: tc.textSecondary, marginTop: 3 },
-
-  /* ⑤ 가이드 */
+  /* ④ 가이드 */
   guideCard: { paddingBottom: 0, overflow: 'hidden' },
   guideHeader: {
     flexDirection: 'row', justifyContent: 'space-between',

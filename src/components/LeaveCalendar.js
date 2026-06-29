@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useThemeColors } from '../theme/ThemeContext';
-import { formatDate } from '../utils/dateUtils';
+import { formatDate, spanDates } from '../utils/dateUtils';
 
 /**
  * 의존성 없는 경량 월간 휴가 캘린더.
@@ -10,19 +10,6 @@ import { formatDate } from '../utils/dateUtils';
  */
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-
-/* 'YYYY-MM-DD' 시작일에서 days일 만큼의 날짜 문자열 배열 */
-function spanDates(startStr, days) {
-  const out = [];
-  const d = new Date(startStr);
-  if (isNaN(d.getTime())) return out;
-  const n = Math.max(1, days || 1);
-  for (let i = 0; i < n; i++) {
-    out.push(formatDate(d));
-    d.setDate(d.getDate() + 1);
-  }
-  return out;
-}
 
 export default function LeaveCalendar({ records = [], bonusRecords = [] }) {
   const tc = useThemeColors();

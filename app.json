@@ -2,7 +2,7 @@
   "expo": {
     "name": "전역까지",
     "slug": "jeonryeokkami",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -72,6 +72,12 @@
       ],
       "@react-native-community/datetimepicker",
       [
+        "expo-notifications",
+        {
+          "color": "#2E5B4F"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "전역일계산기에 프로필 사진을 등록하기 위해 사진 접근 권한이 필요합니다."
@@ -84,8 +90,10 @@
             {
               "name": "Discharge",
               "label": "전역까지 D-Day",
-              "minWidth": "180dp",
-              "minHeight": "110dp",
+              "minWidth": "140dp",
+              "minHeight": "90dp",
+              "maxResizeWidth": "360dp",
+              "maxResizeHeight": "240dp",
               "targetCellWidth": 3,
               "targetCellHeight": 2,
               "description": "전역 D-Day·복무 진행률을 홈 화면에서 바로 확인",

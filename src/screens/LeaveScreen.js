@@ -5,11 +5,15 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
+import SectionTitle from '../components/SectionTitle';
 import Card from '../components/Card';
 import AdBanner from '../components/AdBanner';
 import DatePickerField from '../components/DatePickerField';
 import LeaveCalendar from '../components/LeaveCalendar';
+import RangeCalendar from '../components/RangeCalendar';
+import FadeInView from '../components/FadeInView';
 import { AD_UNITS } from '../constants/adUnits';
 import {
   loadLeaveRecords, addLeaveRecord, deleteLeaveRecord,
@@ -17,7 +21,7 @@ import {
   loadLeaveBonusRecords, addLeaveBonusRecord, deleteLeaveBonusRecord,
   loadMilitaryInfo,
 } from '../utils/storage';
-import { formatDateKo } from '../utils/dateUtils';
+import { formatDateKo, daysBetweenInclusive } from '../utils/dateUtils';
 import SetupRequired from '../components/SetupRequired';
 import AdInterstitial from '../components/AdInterstitial';
 import useShowInterstitial from '../hooks/useShowInterstitial';
@@ -43,9 +47,10 @@ export default function LeaveScreen() {
   const [modalType,    setModalType]    = useState(MODAL_NONE);
   const [viewMode,     setViewMode]     = useState('list'); // 'list' | 'calendar'
   // 공통 폼 상태 (사용 / 포상 모두 동일 필드)
-  const [formDate, setFormDate] = useState('');
-  const [formDays, setFormDays] = useState('');
-  const [formMemo, setFormMemo] = useState('');
+  const [formDate,    setFormDate]    = useState('');
+  const [formEndDate, setFormEndDate] = useState(''); // 휴가 사용 기간 종료일 (단일이면 '')
+  const [formDays,    setFormDays]    = useState('');
+  const [formMemo,    setFormMemo]    = useState('');
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -83,8 +88,9 @@ export default function LeaveScreen() {
   /* ─── 휴가 사용 추가 ─────────────────────────────────────────── */
   const handleAddUse = async () => {
     if (!formDate) { Alert.alert('오류', '휴가 시작일을 선택해주세요.'); return; }
-    const days = parseInt(formDays, 10);
-    if (isNaN(days) || days < 1) { Alert.alert('오류', '사용 일수를 올바르게 입력해주세요.'); return; }
+    // 기간 캘린더에서 시작~종료를 선택 → 일수 자동 계산 (단일이면 1일)
+    const days = daysBetweenInclusive(formDate, formEndDate || formDate);
+    if (days < 1) { Alert.alert('오류', '휴가 날짜를 다시 선택해주세요.'); return; }
     const updated = await addLeaveRecord({ date: formDate, days, memo: formMemo.trim() });
     setRecords(updated);
     closeModal();
@@ -121,6 +127,7 @@ export default function LeaveScreen() {
   const closeModal = () => {
     setModalType(MODAL_NONE);
     setFormDate('');
+    setFormEndDate('');
     setFormDays('');
     setFormMemo('');
   };
@@ -141,6 +148,7 @@ export default function LeaveScreen() {
         <Text style={styles.pageTitle}>휴가 관리</Text>
 
         {/* ── 요약 카드 ── */}
+        <FadeInView>
         <Card style={styles.summaryCard}>
           {/* 상단: 기본 + 포상 = 총 가용 */}
           <View style={styles.calcRow}>
@@ -166,13 +174,13 @@ export default function LeaveScreen() {
           {/* 하단: 사용 / 잔여 */}
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryEmoji}>✅</Text>
+              <Ionicons name="checkmark-circle" size={26} color={tc.primary} style={styles.summaryEmoji} />
               <Text style={[styles.summaryBig, { color: tc.primary }]}>{usedDays}일</Text>
               <Text style={styles.summarySub}>사용</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryEmoji}>📋</Text>
+              <Ionicons name="documents-outline" size={24} color={tc.primary} style={styles.summaryEmoji} />
               <Text style={[
                 styles.summaryBig,
                 { color: leftDays < 0 ? tc.danger : tc.primary },
@@ -202,28 +210,32 @@ export default function LeaveScreen() {
                 </TouchableOpacity>
               </>
             ) : (
-              <TouchableOpacity style={styles.baseEditBtn} onPress={() => setEditingBase(true)}>
-                <Text style={styles.baseEditBtnText}>기본 휴가 수정 ({leaveBase}일) ✏️</Text>
+              <TouchableOpacity style={[styles.baseEditBtn, { flexDirection: 'row', gap: 5 }]} onPress={() => setEditingBase(true)}>
+                <Text style={styles.baseEditBtnText}>기본 휴가 수정 ({leaveBase}일)</Text>
+                <Ionicons name="create-outline" size={14} color={tc.primaryLight} />
               </TouchableOpacity>
             )}
           </View>
         </Card>
+        </FadeInView>
 
         {/* ── 버튼 행 ── */}
         <View style={styles.btnRow}>
-          <TouchableOpacity style={styles.addUseBtn} onPress={() => setModalType(MODAL_USE)}>
-            <Text style={styles.addUseBtnText}>＋ 휴가 사용</Text>
+          <TouchableOpacity style={[styles.addUseBtn, { flexDirection: 'row', gap: 6 }]} onPress={() => setModalType(MODAL_USE)}>
+            <Ionicons name="add-circle-outline" size={16} color={tc.white} />
+            <Text style={styles.addUseBtnText}>휴가 사용</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.addBonusBtn} onPress={() => setModalType(MODAL_BONUS)}>
-            <Text style={styles.addBonusBtnText}>🎖 포상휴가 추가</Text>
+          <TouchableOpacity style={[styles.addBonusBtn, { flexDirection: 'row', gap: 6 }]} onPress={() => setModalType(MODAL_BONUS)}>
+            <Ionicons name="add-circle-outline" size={16} color={tc.white} />
+            <Text style={styles.addBonusBtnText}>포상휴가 추가</Text>
           </TouchableOpacity>
         </View>
 
         {/* ── 리스트 / 캘린더 토글 ── */}
         <View style={styles.segment}>
           {[
-            { key: 'list', label: '📋 목록' },
-            { key: 'calendar', label: '📅 캘린더' },
+            { key: 'list', label: '목록' },
+            { key: 'calendar', label: '캘린더' },
           ].map((t) => (
             <TouchableOpacity
               key={t.key}
@@ -248,7 +260,7 @@ export default function LeaveScreen() {
         {viewMode === 'list' && bonusRecords.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>🎖 포상휴가</Text>
+              <SectionTitle icon="medal-outline" size={16}>포상휴가</SectionTitle>
               <Text style={styles.sectionTotal}>총 {bonusDays}일 추가됨</Text>
             </View>
             {bonusRecords.map((item) => (
@@ -264,7 +276,12 @@ export default function LeaveScreen() {
                     <Text style={styles.deleteBtnText}>✕</Text>
                   </TouchableOpacity>
                 </View>
-                {!!item.memo && <Text style={styles.recordMemo}>📝 {item.memo}</Text>}
+                {!!item.memo && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="document-text-outline" size={12} color={tc.textSecondary} />
+                    <Text style={styles.recordMemo}>{item.memo}</Text>
+                  </View>
+                )}
               </Card>
             ))}
           </>
@@ -274,13 +291,13 @@ export default function LeaveScreen() {
         {viewMode === 'list' && (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>📋 사용 기록</Text>
+              <SectionTitle icon="list-outline" size={16}>사용 기록</SectionTitle>
               <Text style={styles.sectionTotal}>총 {usedDays}일 사용</Text>
             </View>
 
             {records.length === 0 ? (
               <Card style={styles.emptyCard}>
-                <Text style={styles.emptyEmoji}>📭</Text>
+                <Ionicons name="file-tray-outline" size={50} color={tc.textLight} style={styles.emptyEmoji} />
                 <Text style={styles.emptyText}>아직 휴가 사용 기록이 없어요.</Text>
               </Card>
             ) : (
@@ -295,7 +312,12 @@ export default function LeaveScreen() {
                       <Text style={styles.deleteBtnText}>✕</Text>
                     </TouchableOpacity>
                   </View>
-                  {!!item.memo && <Text style={styles.recordMemo}>📝 {item.memo}</Text>}
+                  {!!item.memo && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="document-text-outline" size={12} color={tc.textSecondary} />
+                      <Text style={styles.recordMemo}>{item.memo}</Text>
+                    </View>
+                  )}
                 </Card>
               ))
             )}
@@ -314,59 +336,77 @@ export default function LeaveScreen() {
           <View style={styles.modalBox}>
             {/* 상단 인디케이터 */}
             <View style={styles.modalHandle} />
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.modalScroll}
+            >
+              <Text style={styles.modalTitle}>
+                {isBonus ? '포상휴가 추가' : '휴가 사용 기록'}
+              </Text>
 
-            <Text style={styles.modalTitle}>
-              {isBonus ? '🎖 포상휴가 추가' : '휴가 사용 기록'}
-            </Text>
+              {isBonus ? (
+                <>
+                  <View style={styles.bonusNotice}>
+                    <Text style={styles.bonusNoticeText}>
+                      포상휴가는 총 가용 휴가에 자동으로 합산됩니다.
+                    </Text>
+                  </View>
 
-            {isBonus && (
-              <View style={styles.bonusNotice}>
-                <Text style={styles.bonusNoticeText}>
-                  포상휴가는 총 가용 휴가에 자동으로 합산됩니다.
-                </Text>
+                  <DatePickerField
+                    label="포상휴가 부여일"
+                    value={formDate}
+                    onChange={setFormDate}
+                    placeholder="날짜를 선택하세요"
+                  />
+
+                  <Text style={styles.formLabel}>포상 일수</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={formDays}
+                    onChangeText={setFormDays}
+                    placeholder="숫자만 입력 (예: 3)"
+                    placeholderTextColor={tc.textLight}
+                    keyboardType="number-pad"
+                    maxLength={3}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.formLabel}>휴가 기간 (시작 ~ 종료)</Text>
+                  <View style={styles.calendarBox}>
+                    <RangeCalendar
+                      startDate={formDate}
+                      endDate={formEndDate}
+                      onChange={(start, end) => { setFormDate(start); setFormEndDate(end); }}
+                    />
+                  </View>
+                </>
+              )}
+
+              <Text style={styles.formLabel}>메모 (선택)</Text>
+              <TextInput
+                style={[styles.formInput, styles.formTextarea]}
+                value={formMemo}
+                onChangeText={setFormMemo}
+                placeholder={isBonus ? '예) 분대장 포상, GOP 포상' : '예) 1박 2일 귀향'}
+                placeholderTextColor={tc.textLight}
+                multiline
+                numberOfLines={2}
+              />
+
+              <View style={styles.modalBtnRow}>
+                <TouchableOpacity style={styles.modalCancelBtn} onPress={closeModal}>
+                  <Text style={styles.modalCancelBtnText}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSaveBtn, isBonus && styles.modalSaveBtnBonus]}
+                  onPress={isBonus ? handleAddBonus : handleAddUse}
+                >
+                  <Text style={styles.modalSaveBtnText}>저장</Text>
+                </TouchableOpacity>
               </View>
-            )}
-
-            <DatePickerField
-              label={isBonus ? '포상휴가 부여일' : '휴가 시작일'}
-              value={formDate}
-              onChange={setFormDate}
-              placeholder="날짜를 선택하세요"
-            />
-
-            <Text style={styles.formLabel}>{isBonus ? '포상 일수' : '사용 일수'}</Text>
-            <TextInput
-              style={styles.formInput}
-              value={formDays}
-              onChangeText={setFormDays}
-              placeholder="숫자만 입력 (예: 3)"
-              placeholderTextColor={tc.textLight}
-              keyboardType="number-pad"
-              maxLength={3}
-            />
-
-            <Text style={styles.formLabel}>메모 (선택)</Text>
-            <TextInput
-              style={[styles.formInput, styles.formTextarea]}
-              value={formMemo}
-              onChangeText={setFormMemo}
-              placeholder={isBonus ? '예) 분대장 포상, GOP 포상' : '예) 1박 2일 귀향'}
-              placeholderTextColor={tc.textLight}
-              multiline
-              numberOfLines={2}
-            />
-
-            <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={closeModal}>
-                <Text style={styles.modalCancelBtnText}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalSaveBtn, isBonus && styles.modalSaveBtnBonus]}
-                onPress={isBonus ? handleAddBonus : handleAddUse}
-              >
-                <Text style={styles.modalSaveBtnText}>저장</Text>
-              </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -475,13 +515,16 @@ const makeStyles = (tc) => StyleSheet.create({
   modalBox: {
     backgroundColor: tc.card,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, paddingBottom: 44,
+    paddingHorizontal: 24, paddingTop: 14, paddingBottom: 34,
+    maxHeight: '90%',
   },
+  modalScroll: { paddingBottom: 10 },
   modalHandle: {
     width: 40, height: 4, backgroundColor: tc.border,
-    borderRadius: 2, alignSelf: 'center', marginBottom: 18,
+    borderRadius: 2, alignSelf: 'center', marginBottom: 16,
   },
   modalTitle: { fontSize: 19, fontWeight: '800', color: tc.text, marginBottom: 16, textAlign: 'center' },
+  calendarBox: { backgroundColor: tc.background, borderRadius: 14, borderWidth: 1.5, borderColor: tc.border, paddingHorizontal: 8, paddingVertical: 6, marginBottom: 14 },
   bonusNotice: {
     backgroundColor: '#FFF8E1', borderRadius: 8, padding: 10,
     marginBottom: 14, borderLeftWidth: 3, borderLeftColor: tc.accent,

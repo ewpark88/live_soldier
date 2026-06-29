@@ -14,7 +14,7 @@ import { calcDischargeDate, formatDate } from './dateUtils';
 
 const STORE_KEY = '@profiles_v1';
 const THEME_KEY = '@theme_mode';
-export const MAX_PROFILES = 6;
+export const MAX_PROFILES = 12;
 
 /* 구버전(단일 프로필) 키 — 최초 1회 마이그레이션 시에만 읽음 */
 const LEGACY = {
@@ -48,6 +48,7 @@ function _emptyData() {
     salaryInfo:     null,
     todos:          [],
     rankPromotions: null,
+    savingsPlan:    null,   // { monthly, months } 장병내일준비적금 입력값
   };
 }
 
@@ -259,6 +260,15 @@ export async function saveSalaryInfo(info) {
 
 export async function loadSalaryInfo() {
   return (await _getField('salaryInfo')) ?? null;
+}
+
+// ─── 적금 플랜 (장병내일준비적금 입력값) ──────────────────────────────
+export async function loadSavingsPlan() {
+  return (await _getField('savingsPlan')) ?? null;
+}
+
+export async function saveSavingsPlan(plan) {
+  await _setField('savingsPlan', plan);
 }
 
 // ─── Todos ────────────────────────────────────────────────────────────

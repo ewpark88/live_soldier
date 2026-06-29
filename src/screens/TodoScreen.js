@@ -1,17 +1,22 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Modal, KeyboardAvoidingView, Platform, Alert,
+  Animated,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../theme/ThemeContext';
 import Card from '../components/Card';
+import SectionTitle from '../components/SectionTitle';
 import AdBanner from '../components/AdBanner';
 import DatePickerField from '../components/DatePickerField';
+import RangeCalendar from '../components/RangeCalendar';
+import FadeInView from '../components/FadeInView';
 import { AD_UNITS } from '../constants/adUnits';
 import { loadTodos, addTodo, toggleTodo, deleteTodo, loadMilitaryInfo } from '../utils/storage';
-import { formatDate, formatDateKo } from '../utils/dateUtils';
+import { formatDate, formatDateKo, endDateFromSpan, daysBetweenInclusive } from '../utils/dateUtils';
 import SetupRequired from '../components/SetupRequired';
 import AdInterstitial from '../components/AdInterstitial';
 import useShowInterstitial from '../hooks/useShowInterstitial';
@@ -31,14 +36,7 @@ function formatRange(startDate, endDate) {
 
 function calcDuration(startDate, endDate) {
   if (!endDate || endDate === startDate) return null;
-  return Math.round((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
-}
-
-/* 시작일 기준으로 N일 후 날짜 문자열 반환 */
-function addDays(dateStr, n) {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + n - 1);
-  return formatDate(d);
+  return daysBetweenInclusive(startDate, endDate);
 }
 
 /* ─── 훈련 프리셋 ─────────────────────────────────────────── */
@@ -142,12 +140,11 @@ export default function TodoScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [showPresets,  setShowPresets]  = useState(false); // 프리셋 패널 토글
 
-  // 폼 상태
+  // 폼 상태 (formEndDate='' → 단일 일정, 값 있으면 기간)
   const [formTitle,   setFormTitle]   = useState('');
   const [formDate,    setFormDate]    = useState(today);
   const [formEndDate, setFormEndDate] = useState('');
   const [formNote,    setFormNote]    = useState('');
-  const [useRange,    setUseRange]    = useState(false);
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -163,13 +160,8 @@ export default function TodoScreen() {
     setFormTitle(preset.name);
     setFormNote(preset.note);
     setFormDate(today);
-    if (preset.days > 1) {
-      setUseRange(true);
-      setFormEndDate(addDays(today, preset.days));
-    } else {
-      setUseRange(false);
-      setFormEndDate('');
-    }
+    // 여러 날 훈련은 오늘부터 기간이 자동 지정됨 (캘린더에서 바로 조정 가능)
+    setFormEndDate(preset.days > 1 ? endDateFromSpan(today, preset.days) : '');
     setShowPresets(false);
     setModalVisible(true);
   };
@@ -177,14 +169,12 @@ export default function TodoScreen() {
   /* ─── 할 일 추가 ─────────────────────────────────────────── */
   const handleAdd = async () => {
     if (!formTitle.trim()) { Alert.alert('오류', '할 일 내용을 입력해주세요.'); return; }
-    const endDate = useRange && formEndDate && formEndDate > formDate ? formEndDate : '';
-    if (useRange && formEndDate && formEndDate < formDate) {
-      Alert.alert('오류', '종료일은 시작일보다 이후여야 합니다.');
-      return;
-    }
+    if (!formDate) { Alert.alert('오류', '날짜를 선택해주세요.'); return; }
+    // formEndDate가 시작일보다 뒤일 때만 기간으로 저장 (그 외엔 단일 일정)
+    const endDate = formEndDate && formEndDate > formDate ? formEndDate : '';
     setTodos(await addTodo({
       title: formTitle.trim(),
-      date: formDate || today,
+      date: formDate,
       endDate,
       note: formNote.trim(),
     }));
@@ -206,7 +196,6 @@ export default function TodoScreen() {
     setFormDate(today);
     setFormEndDate('');
     setFormNote('');
-    setUseRange(false);
     setModalVisible(true);
   };
 
@@ -216,7 +205,6 @@ export default function TodoScreen() {
     setFormDate(today);
     setFormEndDate('');
     setFormNote('');
-    setUseRange(false);
   };
 
   /* ─── 필터링 & 그룹핑 ─────────────────────────────────────── */
@@ -290,9 +278,10 @@ export default function TodoScreen() {
             style={[styles.presetToggleBtn, showPresets && styles.presetToggleBtnOn]}
             onPress={() => setShowPresets((v) => !v)}
           >
-            <Text style={[styles.presetToggleBtnText, showPresets && styles.presetToggleBtnTextOn]}>
-              🎖 훈련 빠른 추가
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Ionicons name="flash-outline" size={15} color={showPresets ? tc.white : tc.primary} />
+              <Text style={[styles.presetToggleBtnText, showPresets && styles.presetToggleBtnTextOn]}>훈련 빠른 추가</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -327,18 +316,21 @@ export default function TodoScreen() {
         {/* 날짜별 그룹 */}
         {sortedDates.length === 0 ? (
           <Card style={styles.emptyCard}>
-            <Text style={styles.emptyEmoji}>📋</Text>
+            <Ionicons name="calendar-clear-outline" size={50} color={tc.textLight} style={styles.emptyEmoji} />
             <Text style={styles.emptyText}>
               {filterDate ? `${formatDateKo(filterDate)}에 일정이 없어요.` : '할 일을 추가해보세요!'}
             </Text>
           </Card>
         ) : (
           sortedDates.map((date, idx) => (
-            <View key={date}>
+            <FadeInView key={date} delay={Math.min(idx, 6) * 55}>
               <View style={styles.dateHeader}>
-                <Text style={styles.dateHeaderText}>
-                  {date === today ? '📅 오늘' : `📅 ${formatDateKo(date)}`}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="calendar-outline" size={14} color={tc.primary} />
+                  <Text style={styles.dateHeaderText}>
+                    {date === today ? '오늘' : `${formatDateKo(date)}`}
+                  </Text>
+                </View>
                 <Text style={styles.dateHeaderCount}>
                   {grouped[date].filter((t) => t.done).length}/{grouped[date].length}
                 </Text>
@@ -352,7 +344,7 @@ export default function TodoScreen() {
                 />
               ))}
               {idx === 1 && <AdBanner unit={AD_UNITS.TODO_MIDDLE} />}
-            </View>
+            </FadeInView>
           ))
         )}
 
@@ -367,68 +359,51 @@ export default function TodoScreen() {
         >
           <View style={styles.modalBox}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>할 일 추가</Text>
-
-            <Text style={styles.formLabel}>할 일 내용 *</Text>
-            <TextInput
-              style={styles.formInput}
-              value={formTitle}
-              onChangeText={setFormTitle}
-              placeholder="예) 혹한기 훈련, 면회 신청..."
-              placeholderTextColor={tc.textLight}
-              autoFocus
-            />
-
-            <DatePickerField
-              label={useRange ? '시작일' : '날짜'}
-              value={formDate}
-              onChange={(d) => {
-                setFormDate(d);
-                if (formEndDate && d > formEndDate) setFormEndDate('');
-              }}
-              placeholder="날짜 선택"
-            />
-
-            {/* 기간 설정 토글 */}
-            <TouchableOpacity
-              style={styles.rangeToggle}
-              onPress={() => { setUseRange((v) => !v); if (useRange) setFormEndDate(''); }}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.modalScroll}
             >
-              <View style={[styles.rangeCheckbox, useRange && styles.rangeCheckboxOn]}>
-                {useRange && <Text style={styles.rangeCheckmark}>✓</Text>}
-              </View>
-              <Text style={styles.rangeToggleText}>기간 설정 (혹한기·훈련 등 여러 날)</Text>
-            </TouchableOpacity>
+              <Text style={styles.modalTitle}>할 일 추가</Text>
 
-            {useRange && (
-              <DatePickerField
-                label="종료일"
-                value={formEndDate}
-                onChange={setFormEndDate}
-                minimumDate={formDate ? new Date(formDate) : undefined}
-                placeholder="종료일 선택"
+              <Text style={styles.formLabel}>할 일 내용 *</Text>
+              <TextInput
+                style={styles.formInput}
+                value={formTitle}
+                onChangeText={setFormTitle}
+                placeholder="예) 혹한기 훈련, 면회 신청..."
+                placeholderTextColor={tc.textLight}
               />
-            )}
 
-            <Text style={styles.formLabel}>메모 (선택)</Text>
-            <TextInput
-              style={[styles.formInput, styles.formTextarea]}
-              value={formNote}
-              onChangeText={setFormNote}
-              placeholder="추가 메모..."
-              placeholderTextColor={tc.textLight}
-              multiline
-              numberOfLines={2}
-            />
+              <Text style={styles.formLabel}>날짜 · 기간</Text>
+              <View style={styles.calendarBox}>
+                <RangeCalendar
+                  startDate={formDate}
+                  endDate={formEndDate}
+                  onChange={(start, end) => { setFormDate(start); setFormEndDate(end); }}
+                />
+              </View>
 
-            <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={closeModal}>
-                <Text style={styles.modalCancelBtnText}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleAdd}>
-                <Text style={styles.modalSaveBtnText}>추가</Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={styles.formLabel}>메모 (선택)</Text>
+              <TextInput
+                style={[styles.formInput, styles.formTextarea]}
+                value={formNote}
+                onChangeText={setFormNote}
+                placeholder="추가 메모..."
+                placeholderTextColor={tc.textLight}
+                multiline
+                numberOfLines={2}
+              />
+
+              <View style={styles.modalBtnRow}>
+                <TouchableOpacity style={styles.modalCancelBtn} onPress={closeModal}>
+                  <Text style={styles.modalCancelBtnText}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalSaveBtn} onPress={handleAdd}>
+                  <Text style={styles.modalSaveBtnText}>추가</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -441,20 +416,30 @@ function TodoItem({ item, onToggle, onDelete }) {
   const tc = useThemeColors();
   const styles = useMemo(() => makeStyles(tc), [tc]);
   const duration = calcDuration(item.date, item.endDate);
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handleToggle = () => {
+    // 체크 시 살짝 눌렸다 튀어오르는 팝 효과
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.8, duration: 90, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, friction: 4, tension: 160, useNativeDriver: true }),
+    ]).start();
+    onToggle();
+  };
 
   return (
     <Card style={[styles.todoCard, item.done && styles.todoCardDone]}>
-      <TouchableOpacity style={styles.todoRow} onPress={onToggle} activeOpacity={0.7}>
-        <View style={[styles.checkbox, item.done && styles.checkboxDone]}>
+      <TouchableOpacity style={styles.todoRow} onPress={handleToggle} activeOpacity={0.7}>
+        <Animated.View style={[styles.checkbox, item.done && styles.checkboxDone, { transform: [{ scale }] }]}>
           {item.done && <Text style={styles.checkmark}>✓</Text>}
-        </View>
+        </Animated.View>
         <View style={styles.todoContent}>
           <Text style={[styles.todoTitle, item.done && styles.todoTitleDone]} numberOfLines={2}>
             {item.title}
           </Text>
           {item.endDate && item.endDate !== item.date && (
             <View style={styles.durationRow}>
-              <Text style={styles.durationIcon}>📆</Text>
+              <Ionicons name="time-outline" size={13} color={tc.textSecondary} style={styles.durationIcon} />
               <Text style={styles.durationText}>
                 {formatRange(item.date, item.endDate)}
                 {duration ? `  (${duration}일)` : ''}
@@ -574,9 +559,11 @@ const makeStyles = (tc) => StyleSheet.create({
 
   /* 모달 */
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalBox: { backgroundColor: tc.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44 },
-  modalHandle: { width: 40, height: 4, backgroundColor: tc.border, borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
-  modalTitle: { fontSize: 19, fontWeight: '800', color: tc.text, marginBottom: 22, textAlign: 'center' },
+  modalBox: { backgroundColor: tc.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 14, paddingBottom: 34, maxHeight: '90%' },
+  modalScroll: { paddingBottom: 10 },
+  modalHandle: { width: 40, height: 4, backgroundColor: tc.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 19, fontWeight: '800', color: tc.text, marginBottom: 20, textAlign: 'center' },
+  calendarBox: { backgroundColor: tc.background, borderRadius: 14, borderWidth: 1.5, borderColor: tc.border, paddingHorizontal: 8, paddingVertical: 6, marginBottom: 14 },
   formLabel: { fontSize: 14, fontWeight: '600', color: tc.textSecondary, marginBottom: 9 },
   formInput: {
     backgroundColor: tc.background, borderWidth: 1.5, borderColor: tc.border,
@@ -584,11 +571,6 @@ const makeStyles = (tc) => StyleSheet.create({
     fontSize: 16, color: tc.text, marginBottom: 14,
   },
   formTextarea: { height: 76, textAlignVertical: 'top' },
-  rangeToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14, paddingVertical: 4 },
-  rangeCheckbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: tc.border, alignItems: 'center', justifyContent: 'center' },
-  rangeCheckboxOn: { backgroundColor: tc.primary, borderColor: tc.primary },
-  rangeCheckmark: { color: tc.white, fontSize: 12, fontWeight: '900' },
-  rangeToggleText: { fontSize: 14, color: tc.text, fontWeight: '600' },
   modalBtnRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
   modalCancelBtn: { flex: 1, paddingVertical: 15, borderRadius: 12, borderWidth: 1.5, borderColor: tc.border, alignItems: 'center' },
   modalCancelBtnText: { color: tc.textSecondary, fontWeight: '600', fontSize: 16 },

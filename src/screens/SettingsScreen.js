@@ -1,12 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Card from '../components/Card';
 import { useTheme, useThemeColors } from '../theme/ThemeContext';
 import { clearAllData } from '../utils/storage';
+import {
+  isNotifEnabled, enableNotifications, disableNotifications, isNotifAvailable,
+} from '../utils/notifications';
 import { expo as appInfo } from '../../app.json';
 
 const THEME_OPTIONS = [
@@ -20,6 +24,40 @@ export default function SettingsScreen({ navigation }) {
   const tc = useThemeColors();
   const { mode, setMode } = useTheme();
   const styles = useMemo(() => makeStyles(tc), [tc]);
+  const [notifOn, setNotifOn] = useState(false);
+  const [notifBusy, setNotifBusy] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    let alive = true;
+    isNotifEnabled().then((v) => { if (alive) setNotifOn(v); });
+    return () => { alive = false; };
+  }, []));
+
+  const handleToggleNotif = async (next) => {
+    if (notifBusy) return;
+    setNotifBusy(true);
+    try {
+      if (next) {
+        if (!isNotifAvailable()) {
+          Alert.alert('알림 사용 불가', 'Expo Go에서는 알림을 사용할 수 없어요. 빌드된 앱에서 이용해주세요.');
+          return;
+        }
+        const ok = await enableNotifications();
+        if (ok) {
+          setNotifOn(true);
+          Alert.alert('알림 켜짐', '전역 D-day·진급·일정 리마인더를 보내드릴게요.');
+        } else {
+          setNotifOn(false);
+          Alert.alert('권한 필요', '기기 설정에서 알림 권한을 허용해주세요.');
+        }
+      } else {
+        await disableNotifications();
+        setNotifOn(false);
+      }
+    } finally {
+      setNotifBusy(false);
+    }
+  };
 
   const handleClearData = () => {
     Alert.alert(
@@ -71,6 +109,26 @@ export default function SettingsScreen({ navigation }) {
             );
           })}
         </Card>
+
+        {/* ── 알림 ── */}
+        <Text style={styles.sectionLabel}>알림</Text>
+        <Card style={styles.groupCard}>
+          <View style={styles.row}>
+            <Ionicons name="notifications-outline" size={22} color={notifOn ? tc.primary : tc.textSecondary} style={styles.rowIcon} />
+            <View style={styles.rowTextWrap}>
+              <Text style={[styles.rowTitle, notifOn && { color: tc.primary, fontWeight: '700' }]}>전역 리마인더</Text>
+              <Text style={styles.rowDesc}>전역 D-100·D-7·진급일·일정을 미리 알려드려요</Text>
+            </View>
+            <Switch
+              value={notifOn}
+              onValueChange={handleToggleNotif}
+              disabled={notifBusy}
+              trackColor={{ false: tc.border, true: tc.primaryLight }}
+              thumbColor={Platform.OS === 'android' ? (notifOn ? tc.primary : tc.card) : undefined}
+            />
+          </View>
+        </Card>
+        <Text style={styles.hint}>* 알림은 이 기기에서만 예약되며, 현재 선택된 프로필 기준으로 발송됩니다.</Text>
 
         {/* ── 데이터 ── */}
         <Text style={styles.sectionLabel}>데이터</Text>

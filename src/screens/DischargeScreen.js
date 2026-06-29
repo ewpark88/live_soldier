@@ -5,11 +5,13 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
+import SectionTitle from '../components/SectionTitle';
 import Card from '../components/Card';
-import ProgressBar from '../components/ProgressBar';
 import AdBanner from '../components/AdBanner';
 import DatePickerField from '../components/DatePickerField';
+import FadeInView from '../components/FadeInView';
 import { AD_UNITS } from '../constants/adUnits';
 import {
   loadMilitaryInfo, saveMilitaryInfo,
@@ -20,11 +22,9 @@ import { ranksFor } from '../constants/militaryRanks';
 import AdInterstitial from '../components/AdInterstitial';
 import useShowInterstitial from '../hooks/useShowInterstitial';
 import {
-  calcDischargeDate, calcDaysLeft, calcProgress,
-  calcServedDays, formatDate, formatDateKo,
-  calcRankFromPromotions,
+  calcDischargeDate, calcDaysLeft, formatDate, formatDateKo,
 } from '../utils/dateUtils';
-import { BRANCHES, PERSONNEL_TYPES, isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { BRANCHES, PERSONNEL_TYPES, isOfficer } from '../constants/serviceTerms';
 import { updateDischargeWidget } from '../widget/updateWidget';
 
 export default function DischargeScreen() {
@@ -172,16 +172,8 @@ export default function DischargeScreen() {
     );
   };
 
-  const daysLeft   = info ? calcDaysLeft(info.dischargeDate)                  : 0;
-  const progress   = info ? calcProgress(info.enlistDate, info.dischargeDate) : 0;
-  const servedDays = info ? calcServedDays(info.enlistDate)                    : 0;
+  const daysLeft    = info ? calcDaysLeft(info.dischargeDate) : 0;
   const infoOfficer = info ? isOfficer(info.personnelType) : false;
-  // 병사는 진급 계급, 간부는 구분(부사관/장교) 라벨
-  const rank       = !info
-    ? ''
-    : infoOfficer
-      ? personnelLabel(info.personnelType)
-      : (calcRankFromPromotions(promotions) ?? '이병');
 
   const activePromo = editingPromo ? editPromo : promotions;
 
@@ -209,7 +201,10 @@ export default function DischargeScreen() {
             disabled={saved}
           />
           {saved && (
-            <Text style={styles.savedHint}>🔒 수정하려면 아래 '수정하기'를 눌러주세요</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="lock-closed" size={13} color={tc.textSecondary} />
+              <Text style={styles.savedHint}>수정하려면 아래 '수정하기'를 눌러주세요</Text>
+            </View>
           )}
 
           <Text style={[styles.label, { marginTop: 6 }]}>구분</Text>
@@ -303,8 +298,12 @@ export default function DischargeScreen() {
           )}
 
           {saved ? (
-            <TouchableOpacity style={styles.editBtn} onPress={() => setSaved(false)}>
-              <Text style={styles.editBtnText}>수정하기 ✏️</Text>
+            <TouchableOpacity
+              style={[styles.editBtn, { flexDirection: 'row', justifyContent: 'center', gap: 6 }]}
+              onPress={() => setSaved(false)}
+            >
+              <Ionicons name="create-outline" size={15} color={tc.primary} />
+              <Text style={styles.editBtnText}>수정하기</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
@@ -316,6 +315,7 @@ export default function DischargeScreen() {
         {/* 결과 */}
         {info && (
           <>
+            <FadeInView>
             <Card style={styles.resultCard}>
               <Text style={styles.sectionTitle}>전역 정보</Text>
               <View style={styles.resultRow}>
@@ -336,26 +336,10 @@ export default function DischargeScreen() {
                 <Text style={styles.ddayValue}>
                   {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-Day!' : '전역 완료!'}
                 </Text>
+                <Text style={styles.ddayHint}>자세한 진행률은 홈에서 확인하세요</Text>
               </View>
-
-              <Text style={styles.progressLabel}>복무 진행률</Text>
-              <ProgressBar progress={progress} />
             </Card>
-
-            <View style={styles.statsGrid}>
-              {[
-                { emoji: '⚔️', val: `${servedDays}일`, sub: '복무 일수' },
-                { emoji: '📅', val: daysLeft > 0 ? `${daysLeft}일` : '완료', sub: '남은 일수' },
-                { emoji: '🎖️', val: rank, sub: infoOfficer ? '구분' : '현재 계급' },
-                { emoji: '🏁', val: `${progress}%`, sub: '진행률' },
-              ].map((item) => (
-                <Card key={item.sub} style={styles.statCard}>
-                  <Text style={styles.statEmoji}>{item.emoji}</Text>
-                  <Text style={styles.statBig}>{item.val}</Text>
-                  <Text style={styles.statSub}>{item.sub}</Text>
-                </Card>
-              ))}
-            </View>
+            </FadeInView>
 
             {/* ── 진급일 관리 (병사 전용) ── */}
             {!infoOfficer && (
@@ -366,7 +350,7 @@ export default function DischargeScreen() {
                 activeOpacity={0.75}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionTitle}>🎖️ 진급일 관리</Text>
+                  <SectionTitle icon="medal-outline" size={16} style={{ marginBottom: 4 }}>진급일 관리</SectionTitle>
                   <Text style={styles.promoDesc}>
                     조기진급·부대 차이가 있을 경우 수정하세요
                   </Text>
@@ -376,9 +360,10 @@ export default function DischargeScreen() {
 
               {promoOpen && activePromo && (
                 <View style={styles.promoBody}>
-                  <View style={styles.promoHint}>
-                    <Text style={styles.promoHintText}>
-                      📌 기본값: 입대일 기준 +2개월(일병) / +8개월(상병) / +14개월(병장)
+                  <View style={[styles.promoHint, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                    <Ionicons name="information-circle-outline" size={13} color={tc.primary} />
+                    <Text style={[styles.promoHintText, { flex: 1 }]}>
+                      기본값: 입대일 기준 +2개월(일병) / +8개월(상병) / +14개월(병장)
                     </Text>
                   </View>
 
@@ -420,8 +405,12 @@ export default function DischargeScreen() {
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    <TouchableOpacity style={styles.promoEditBtn} onPress={handleStartEditPromo}>
-                      <Text style={styles.promoEditBtnText}>진급일 수정하기 ✏️</Text>
+                    <TouchableOpacity
+                      style={[styles.promoEditBtn, { flexDirection: 'row', justifyContent: 'center', gap: 6 }]}
+                      onPress={handleStartEditPromo}
+                    >
+                      <Ionicons name="create-outline" size={15} color={tc.primary} />
+                      <Text style={styles.promoEditBtnText}>진급일 수정하기</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -479,16 +468,10 @@ const makeStyles = (tc) => StyleSheet.create({
   resultItem:    { flex: 1 },
   resultLabel:   { fontSize: 13, color: tc.textSecondary, marginBottom: 5 },
   resultValue:   { fontSize: 16, fontWeight: '700', color: tc.text },
-  ddayBox:       { alignItems: 'center', paddingVertical: 22, backgroundColor: tc.primary, borderRadius: 12, marginBottom: 20 },
+  ddayBox:       { alignItems: 'center', paddingVertical: 22, backgroundColor: tc.primary, borderRadius: 12 },
   ddayLabel:     { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
   ddayValue:     { fontSize: 54, fontWeight: '900', color: tc.white, letterSpacing: -1 },
-  progressLabel: { fontSize: 14, color: tc.textSecondary, marginBottom: 10 },
-
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
-  statCard:  { width: '47%', alignItems: 'center', paddingVertical: 20, marginBottom: 0 },
-  statEmoji: { fontSize: 28, marginBottom: 7 },
-  statBig:   { fontSize: 21, fontWeight: '800', color: tc.primary },
-  statSub:   { fontSize: 13, color: tc.textSecondary, marginTop: 3 },
+  ddayHint:      { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 8 },
 
   /* 진급일 관리 */
   promoCard:        { marginTop: 4, paddingBottom: 8 },

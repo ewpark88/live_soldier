@@ -5,6 +5,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
 
 export default function SetupRequired() {
@@ -14,7 +15,7 @@ export default function SetupRequired() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.emoji}>🪖</Text>
+      <Ionicons name="shield-half" size={60} color={tc.primaryLight} style={styles.emoji} />
       <Text style={styles.title}>입대 정보가 필요해요</Text>
       <Text style={styles.desc}>
         이 기능을 사용하려면{'\n'}

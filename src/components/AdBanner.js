@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
 
 // Expo Go에서는 네이티브 모듈 없음 → 플레이스홀더로 대체
@@ -46,7 +47,7 @@ export default function AdBanner({ unit, style }) {
     <View style={[styles.placeholder, style]}>
       <Text style={styles.adTag}>광고</Text>
       <View style={styles.placeholderBox}>
-        <Text style={styles.placeholderIcon}>📢</Text>
+        <Ionicons name="megaphone-outline" size={20} color={tc.textSecondary} style={styles.placeholderIcon} />
         <View>
           <Text style={styles.placeholderText}>배너 광고</Text>
           <Text style={styles.placeholderUnit}>{unit.label}</Text>

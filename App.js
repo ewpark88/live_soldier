@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import TabNavigator from './src/navigation/TabNavigator';
 import { initStorage } from './src/utils/storage';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+import { configureNotificationHandler, refreshScheduledNotifications } from './src/utils/notifications';
 
 // Expo Go 호환 처리
 let requestTrackingPermissionsAsync = null;
@@ -48,7 +49,13 @@ export default function App() {
   useEffect(() => {
     initAds();
     // 저장소 초기화 + 레거시(단일 프로필) → 멀티 프로필 자동 마이그레이션
-    initStorage().catch(() => {});
+    initStorage()
+      .then(() => {
+        // 알림이 켜져 있으면 최신 데이터로 리마인더 재예약
+        configureNotificationHandler();
+        return refreshScheduledNotifications();
+      })
+      .catch(() => {});
   }, []);
 
   const initAds = async () => {

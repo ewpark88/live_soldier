@@ -51,15 +51,15 @@ const makeStyles = (tc) => StyleSheet.create({
   },
   track: {
     flex: 1,
-    height: 14,
+    height: 10,
     backgroundColor: tc.progressBg,
-    borderRadius: 7,
+    borderRadius: 5,
     overflow: 'hidden',
   },
   fill: {
     height: '100%',
     backgroundColor: tc.progressFill,
-    borderRadius: 7,
+    borderRadius: 5,
   },
   label: {
     width: 42,

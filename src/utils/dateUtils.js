@@ -74,6 +74,44 @@ export function formatDateKo(date) {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
+/* ─── 휴가/일정 기간(span) 계산 ─────────────────────────────────────────
+ * 모두 "시작일·종료일을 포함"하는 폐구간 기준이다.
+ * 예) 1/2 ~ 1/4 = 3일 (1/2, 1/3, 1/4 포함)
+ * LeaveCalendar·TodoScreen·RangeCalendar가 공유한다. */
+
+/** 시작일에서 days일 만큼(시작일 포함)의 'YYYY-MM-DD' 배열 */
+export function spanDates(startStr, days) {
+  const out = [];
+  const d = new Date(startStr);
+  if (isNaN(d.getTime())) return out;
+  const n = Math.max(1, Math.floor(days) || 1);
+  for (let i = 0; i < n; i++) {
+    out.push(formatDate(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+/** 시작일 + days(시작일 포함) → 종료일 'YYYY-MM-DD' (days=1이면 시작일과 동일) */
+export function endDateFromSpan(startStr, days) {
+  const d = new Date(startStr);
+  if (isNaN(d.getTime())) return startStr;
+  const n = Math.max(1, Math.floor(days) || 1);
+  d.setDate(d.getDate() + n - 1);
+  return formatDate(d);
+}
+
+/** 시작~종료(양끝 포함) 일수. 잘못된 입력이거나 종료<시작이면 0 */
+export function daysBetweenInclusive(startStr, endStr) {
+  if (!startStr || !endStr) return 0;
+  const s = new Date(startStr); s.setHours(0, 0, 0, 0);
+  const e = new Date(endStr);   e.setHours(0, 0, 0, 0);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return 0;
+  const diff = e - s;
+  if (diff < 0) return 0;
+  return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
+}
+
 /**
  * 'YYYY-MM-DD' 형식 유효성 검사
  */

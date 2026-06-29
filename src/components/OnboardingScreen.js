@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
 import { PERSONNEL_TYPES } from '../constants/serviceTerms';
 
@@ -22,7 +23,7 @@ export default function OnboardingScreen({ name, onSelect }) {
       contentContainerStyle={s.content}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={s.emoji}>🎖️</Text>
+      <Ionicons name="medal" size={58} color={tc.primary} style={s.emoji} />
       <Text style={s.title}>
         {name ? `${name} 님,` : '환영합니다!'}
       </Text>
