@@ -71,6 +71,14 @@ eas build --platform android --profile preview
 
 ## 4. AAB 빌드 (Google Play 제출용)
 
+> ⚠️ **기본 규칙: AAB는 반드시 EAS 클라우드 빌드로 만든다.**
+> `cd android && ./gradlew bundleRelease` 또는 `expo run:android --variant release` 같은
+> **로컬 Gradle 빌드로 만든 AAB를 Play에 업로드하지 말 것.**
+> `android/app/build.gradle`의 release 빌드는 `debug.keystore`로 서명되도록 설정돼 있어서,
+> 로컬 빌드 AAB는 디버그 키로 서명되고 Play가 "잘못된 키" 오류로 거부한다.
+> (debug 키 SHA1 `5E:8F:…`, Play 등록 업로드 키 SHA1 `4E:21:…`)
+> EAS 빌드는 EAS 서버의 관리 키스토어(`4E:21:…`)로 서명하므로 항상 EAS로 빌드한다.
+
 ```bash
 eas build --platform android --profile production
 ```
@@ -78,6 +86,7 @@ eas build --platform android --profile production
 - `autoIncrement: true` → EAS 서버에서 versionCode 자동 증가
 - 매 production 빌드마다 versionCode +1
 - `appVersionSource: "remote"` → 로컬 app.json의 versionCode 무시
+- 출시 이력과 versionCode가 어긋나면 `eas build:version:set --platform android`로 맞춘 뒤 빌드
 
 ### 버전 관리
 | 항목 | 위치 | 설명 |
