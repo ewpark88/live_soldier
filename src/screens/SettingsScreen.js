@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Card from '../components/Card';
+import AdBanner from '../components/AdBanner';
+import { AD_UNITS } from '../constants/adUnits';
 import { useTheme, useThemeColors } from '../theme/ThemeContext';
 import { clearAllData } from '../utils/storage';
 import {
@@ -158,6 +160,8 @@ export default function SettingsScreen({ navigation }) {
             <Text style={styles.rowValue}>{appInfo.version}</Text>
           </View>
         </Card>
+
+        <AdBanner unit={AD_UNITS.HOME_BOTTOM} />
       </ScrollView>
     </View>
   );

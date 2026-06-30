@@ -348,6 +348,8 @@ export default function TodoScreen() {
           ))
         )}
 
+        <AdBanner unit={AD_UNITS.TODO_BOTTOM} />
+
         <View style={{ height: 24 }} />
       </ScrollView>
 
