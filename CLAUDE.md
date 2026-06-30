@@ -18,8 +18,8 @@ eas build --platform android --profile production
 
 ## 버전 관리
 
-- `versionName`: `app.json > expo.version` — 출시 시 직접 올린다 (예: 1.0.1 → 1.0.2).
-- `versionCode`: `eas.json`이 `appVersionSource: "remote"` + `autoIncrement: true`라 EAS 서버가 자동 증가시킨다. app.json의 versionCode는 무시된다.
+- `versionName`: **`android/app/build.gradle`의 `versionName`이 실제 출시 버전이다.** 이 프로젝트는 `android` 디렉터리가 커밋된 bare 워크플로라, EAS 빌드가 app.json의 `expo.version`을 **무시하고** 네이티브 코드(build.gradle) 값을 쓴다. 출시 시 build.gradle의 versionName을 직접 올리고 app.json의 `expo.version`도 같은 값으로 맞춰둔다 (예: 1.0.1 → 1.0.2). app.json만 올리면 빌드에 반영되지 않으니 주의.
+- `versionCode`: `eas.json`이 `appVersionSource: "remote"` + `autoIncrement: true`라 EAS 서버가 자동 증가시킨다. app.json과 build.gradle의 versionCode는 모두 무시된다.
 - 출시 이력과 어긋나면 `eas build:version:get` 으로 확인하고 `eas build:version:set` 으로 맞춘다.
 
 자세한 배포 절차는 `doc/07_DEPLOY.md` 참고.
