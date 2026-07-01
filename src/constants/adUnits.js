@@ -15,6 +15,12 @@ export const AD_UNITS = {
     label: '홈 · 화면 하단',
     realId: 'ca-app-pub-8353634332299342/9197314884',
   },
+  ROADMAP_BOTTOM: {
+    id: 'roadmap_bottom_banner',
+    label: '전역로드맵 · 하단',
+    // 전용 광고 단위 발급 전까지 미사용 단위(홈 상단) 재활용
+    realId: 'ca-app-pub-8353634332299342/1949989068',
+  },
   DISCHARGE_MIDDLE: {
     id: 'discharge_middle_banner',
     label: '전역 · 입력폼/결과 사이',

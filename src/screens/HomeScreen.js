@@ -6,14 +6,11 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../theme/ThemeContext';
-import Card from '../components/Card';
-import SectionTitle from '../components/SectionTitle';
 import LiveServiceGauge from '../components/LiveServiceGauge';
-import RoadmapTimeline from '../components/RoadmapTimeline';
 import AdBanner from '../components/AdBanner';
 import ProfileBar from '../components/ProfileBar';
+import MenuButton from '../components/MenuButton';
 import OnboardingScreen from '../components/OnboardingScreen';
-import { buildRoadmap } from '../utils/roadmapUtils';
 import { shareDischarge } from '../utils/shareUtils';
 import { refreshScheduledNotifications } from '../utils/notifications';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,12 +20,11 @@ import {
   loadLeaveBonusRecords, loadRankPromotions, listProfiles,
   loadPersonnelType, savePersonnelType,
 } from '../utils/storage';
-import { nextHobongInfo } from '../utils/officerUtils';
 import AdInterstitial from '../components/AdInterstitial';
 import useShowInterstitial from '../hooks/useShowInterstitial';
 import {
   calcDaysLeft, calcProgress, calcServedDays,
-  calcRank, calcRankFromPromotions, getMessageForPhase, nextPromotion, formatDateKo,
+  calcRank, calcRankFromPromotions, getMessageForPhase, formatDateKo,
 } from '../utils/dateUtils';
 import { isOfficer, personnelLabel } from '../constants/serviceTerms';
 
@@ -249,8 +245,9 @@ export default function HomeScreen({ navigation }) {
   if (!info && !personnelType) {
     return (
       <View style={s.container}>
-        <View style={{ paddingTop: insets.top + 8 }}>
-          <ProfileBar onChange={loadData} />
+        <View style={[s.topRow, { paddingTop: insets.top + 8 }]}>
+          <View style={{ flex: 1 }}><ProfileBar onChange={loadData} /></View>
+          <MenuButton navigation={navigation} current="home" style={s.menuBtn} />
         </View>
         <OnboardingScreen name={profileName} onSelect={handleSelectType} />
       </View>
@@ -261,7 +258,10 @@ export default function HomeScreen({ navigation }) {
   if (!info) {
     return (
       <View style={[s.container, { paddingTop: insets.top + 10 }]}>
-        <ProfileBar onChange={loadData} />
+        <View style={s.topRow}>
+          <View style={{ flex: 1 }}><ProfileBar onChange={loadData} /></View>
+          <MenuButton navigation={navigation} current="home" style={s.menuBtn} />
+        </View>
         <View style={s.emptyWrap}>
           <Ionicons name="shield-half" size={52} color={tc.primaryLight} style={s.emptyEmoji} />
           <Text style={s.emptyTitle}>
@@ -288,9 +288,6 @@ export default function HomeScreen({ navigation }) {
   const rankColor  = officer ? tc.primary : (RANK_COLOR[rank] ?? tc.primary);
   const phase      = getPhase(daysLeft);
   const phaseCfg   = PHASE_CFG[phase];
-  const promo      = officer ? null : nextPromotion(promotions);
-  const hobong     = officer ? nextHobongInfo(info.enlistDate) : null;
-  const roadmap    = buildRoadmap(info, promotions);
   const onShare    = () => shareDischarge(info, rank, profileName);
 
   return (
@@ -300,9 +297,10 @@ export default function HomeScreen({ navigation }) {
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── 프로필 스위처 ── */}
-        <View style={{ paddingTop: insets.top + 8, marginBottom: 6 }}>
-          <ProfileBar onChange={loadData} />
+        {/* ── 프로필 스위처 + 햄버거 메뉴 ── */}
+        <View style={[s.topRow, { paddingTop: insets.top + 8, marginBottom: 6 }]}>
+          <View style={{ flex: 1 }}><ProfileBar onChange={loadData} /></View>
+          <MenuButton navigation={navigation} current="home" style={s.menuBtn} />
         </View>
 
         {/* ── 컴팩트 헤더 ── */}
@@ -382,17 +380,7 @@ export default function HomeScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* ── 응원 메시지 카드 (풀 와이드) ── */}
-        <View style={s.messageCard}>
-          <Ionicons name="chatbubble-ellipses" size={26} color={tc.primaryLight} style={s.messageEmoji} />
-          <Text style={s.messageText}>{message}</Text>
-          <TouchableOpacity onPress={() => setMessage(getMessageForPhase(phase))} style={s.refreshBtn}>
-            <Ionicons name="refresh" size={14} color={tc.primaryLight} />
-            <Text style={s.refreshText}>다른 메시지 보기</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── 전역일 공유 버튼 ── */}
+        {/* ── 전역일 공유 버튼 (한 화면에 보이도록 상단 배치) ── */}
         <View style={s.padH}>
           <TouchableOpacity style={s.shareBtn} activeOpacity={0.85} onPress={onShare}>
             <Ionicons name="share-social" size={19} color={tc.primary} />
@@ -400,46 +388,32 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── 다음 진급 카운트다운 (병사) ── */}
-        {promo && (
-          <View style={s.padH}>
-            <Card style={s.nextPromoCard}>
-              <Ionicons name="medal" size={24} color={tc.primary} style={s.nextPromoEmoji} />
-              <View style={s.nextPromoInfo}>
-                <Text style={s.nextPromoLabel}>다음 진급 · {promo.rank}</Text>
-                <Text style={s.nextPromoSub}>{formatDateKo(promo.date)}</Text>
-              </View>
-              <Text style={s.nextPromoDday}>D-{promo.daysLeft}</Text>
-            </Card>
-          </View>
-        )}
+        {/* ── 전역 로드맵 바로가기 ── */}
+        <View style={s.padH}>
+          <TouchableOpacity
+            style={s.roadmapLinkBtn}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('roadmap')}
+          >
+            <View style={s.roadmapLinkIcon}>
+              <Ionicons name="map" size={20} color={tc.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.roadmapLinkTitle}>전역 로드맵</Text>
+              <Text style={s.roadmapLinkSub}>다음 진급·호봉과 주요 순간을 한눈에</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={tc.textSecondary} />
+          </TouchableOpacity>
+        </View>
 
-        {/* ── 다음 호봉 카운트다운 (간부) ── */}
-        {hobong && (
-          <View style={s.padH}>
-            <Card style={s.nextPromoCard}>
-              <Ionicons name="trending-up" size={24} color={tc.primary} style={s.nextPromoEmoji} />
-              <View style={s.nextPromoInfo}>
-                <Text style={s.nextPromoLabel}>현재 {hobong.current}호봉 · 다음 {hobong.next}호봉</Text>
-                <Text style={s.nextPromoSub}>{formatDateKo(hobong.nextDate)} 승급 예정</Text>
-              </View>
-              <Text style={s.nextPromoDday}>D-{hobong.daysLeft}</Text>
-            </Card>
-          </View>
-        )}
-
-        {/* ── 전역 로드맵 타임라인 ── */}
-        {roadmap.length > 0 && (
-          <View style={s.padH}>
-            <Card style={s.roadmapCard}>
-              <SectionTitle icon="map-outline" size={16}>전역 로드맵</SectionTitle>
-              <Text style={s.roadmapSub}>입대부터 전역까지 주요 순간</Text>
-              <View style={{ marginTop: 14 }}>
-                <RoadmapTimeline roadmap={roadmap} />
-              </View>
-            </Card>
-          </View>
-        )}
+        {/* ── 응원 메시지 (컴팩트) ── */}
+        <View style={s.messageCard}>
+          <Ionicons name="chatbubble-ellipses" size={20} color={tc.primaryLight} style={s.messageEmoji} />
+          <Text style={s.messageText} numberOfLines={2}>{message}</Text>
+          <TouchableOpacity onPress={() => setMessage(getMessageForPhase(phase))} style={s.refreshBtn}>
+            <Ionicons name="refresh" size={16} color={tc.primaryLight} />
+          </TouchableOpacity>
+        </View>
 
         {/* ── 광고 ── */}
         <View style={s.padH}>
@@ -491,52 +465,59 @@ const makeStyles = (tc) => StyleSheet.create({
     fontWeight: '800',
   },
 
-  /* D-Day 메인카드 — 풀 와이드 */
+  /* 상단 행 (프로필 + 햄버거) */
+  topRow: { flexDirection: 'row', alignItems: 'center' },
+  menuBtn: { paddingHorizontal: 16, paddingVertical: 4 },
+
+  /* D-Day 메인카드 — 풀 와이드 (한 화면에 담기도록 컴팩트) */
   mainCard: {
     alignItems: 'center',
-    paddingVertical: 28,
+    paddingVertical: 16,
     paddingHorizontal: 20,
     backgroundColor: tc.primary,
   },
-  profileTag: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  profileTagAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)' },
-  profileTagName: { fontSize: 15, fontWeight: '700', color: 'rgba(255,255,255,0.92)' },
-  mainLabel: { fontSize: 15, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
-  dday: { fontSize: 72, fontWeight: '900', color: tc.white, letterSpacing: -2 },
-  dischargeDate: { fontSize: 15, color: 'rgba(255,255,255,0.8)', marginTop: 4, marginBottom: 20 },
-  progressSection: { width: '100%', marginBottom: 20 },
+  profileTag: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  profileTagAvatar: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)' },
+  profileTagName: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.92)' },
+  mainLabel: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 2 },
+  dday: { fontSize: 54, fontWeight: '900', color: tc.white, letterSpacing: -2 },
+  dischargeDate: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 2, marginBottom: 8 },
+  progressSection: { width: '100%', marginBottom: 8 },
   statsRow: {
     flexDirection: 'row',
     width: '100%',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.2)',
-    paddingTop: 18,
+    paddingTop: 10,
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 26, fontWeight: '800', color: tc.white },
-  statLabel: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 3 },
+  statValue: { fontSize: 22, fontWeight: '800', color: tc.white },
+  statLabel: { fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 2 },
   statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
 
-  /* 응원 메시지 — 풀 와이드 */
+  /* 응원 메시지 — 컴팩트 (한 줄 아이콘 + 텍스트) */
   messageCard: {
-    alignItems: 'center',
-    paddingVertical: 22,
-    paddingHorizontal: 20,
-    backgroundColor: tc.card,
-  },
-  messageEmoji: { fontSize: 30, marginBottom: 10 },
-  messageText: { fontSize: 16, color: tc.text, textAlign: 'center', lineHeight: 25, fontWeight: '500' },
-  refreshBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 10,
     marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    backgroundColor: tc.background,
-    borderRadius: 20,
+    marginHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: tc.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: tc.border,
   },
-  refreshText: { fontSize: 14, color: tc.primaryLight, fontWeight: '600' },
+  messageEmoji: { fontSize: 20, marginBottom: 0 },
+  messageText: { flex: 1, fontSize: 13.5, color: tc.text, lineHeight: 19, fontWeight: '500' },
+  refreshBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
+    backgroundColor: tc.background,
+    borderRadius: 16,
+  },
 
   /* 가로 패딩이 필요한 영역 */
   padH: { paddingHorizontal: 16 },
@@ -549,26 +530,18 @@ const makeStyles = (tc) => StyleSheet.create({
   },
   shareBtnText: { fontSize: 15, fontWeight: '700', color: tc.primary },
 
-  /* 전역 로드맵 */
-  roadmapCard: { marginTop: 12 },
-  roadmapTitle: { fontSize: 16, fontWeight: '800', color: tc.text },
-  roadmapSub: { fontSize: 12.5, color: tc.textSecondary, marginTop: 2 },
-
-  /* 다음 진급 카운트다운 */
-  nextPromoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    marginTop: 12,
-    marginBottom: 0,
-    gap: 12,
+  /* 전역 로드맵 바로가기 */
+  roadmapLinkBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginTop: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16,
+    backgroundColor: tc.card, borderWidth: StyleSheet.hairlineWidth, borderColor: tc.border,
   },
-  nextPromoEmoji: { fontSize: 26 },
-  nextPromoInfo: { flex: 1 },
-  nextPromoLabel: { fontSize: 15, fontWeight: '700', color: tc.text },
-  nextPromoSub: { fontSize: 13, color: tc.textSecondary, marginTop: 2 },
-  nextPromoDday: { fontSize: 22, fontWeight: '900', color: tc.primary, letterSpacing: -0.5 },
+  roadmapLinkIcon: {
+    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: tc.highlightBg,
+  },
+  roadmapLinkTitle: { fontSize: 15, fontWeight: '800', color: tc.text },
+  roadmapLinkSub: { fontSize: 12.5, color: tc.textSecondary, marginTop: 2 },
 
   /* 빈 화면 */
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },

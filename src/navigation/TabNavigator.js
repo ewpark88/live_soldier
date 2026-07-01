@@ -7,6 +7,7 @@ import { useThemeColors } from '../theme/ThemeContext';
 
 import HomeScreen from '../screens/HomeScreen';
 import DischargeScreen from '../screens/DischargeScreen';
+import RoadmapScreen from '../screens/RoadmapScreen';
 import LeaveScreen from '../screens/LeaveScreen';
 import SalaryScreen from '../screens/SalaryScreen';
 import TodoScreen from '../screens/TodoScreen';
@@ -75,6 +76,16 @@ export default function TabNavigator() {
       >
         <Tab.Screen name="home" component={HomeScreen} options={{ title: '전역까지', tabBarLabel: '홈' }} />
         <Tab.Screen name="discharge" component={DischargeScreen} options={{ title: '전역일 계산', tabBarLabel: '전역' }} />
+        {/* 전역 로드맵: 하단 탭엔 숨기고 햄버거 메뉴에서만 진입 */}
+        <Tab.Screen
+          name="roadmap"
+          component={RoadmapScreen}
+          options={{
+            title: '전역 로드맵',
+            tabBarButton: () => null,
+            tabBarItemStyle: { display: 'none' },
+          }}
+        />
         <Tab.Screen name="leave" component={LeaveScreen} options={{ title: '휴가 관리', tabBarLabel: '휴가' }} />
         <Tab.Screen name="salary" component={SalaryScreen} options={{ title: '급여 계산', tabBarLabel: '급여' }} />
         <Tab.Screen name="todo" component={TodoScreen} options={{ title: '일정 관리', tabBarLabel: '일정' }} />

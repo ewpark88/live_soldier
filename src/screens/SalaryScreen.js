@@ -13,6 +13,7 @@ import FadeInView from '../components/FadeInView';
 import SavingsCalculator from '../components/SavingsCalculator';
 import BenefitsList from '../components/BenefitsList';
 import AdBanner from '../components/AdBanner';
+import MenuButton from '../components/MenuButton';
 import { AD_UNITS } from '../constants/adUnits';
 import { loadMilitaryInfo, loadSalaryInfo, saveSalaryInfo, loadRankPromotions } from '../utils/storage';
 import SetupRequired from '../components/SetupRequired';
@@ -76,7 +77,7 @@ function calcStandardTotal(totalM) {
   return total;
 }
 
-export default function SalaryScreen() {
+export default function SalaryScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const tc = useThemeColors();
   const styles = useMemo(() => makeStyles(tc), [tc]);
@@ -178,7 +179,10 @@ export default function SalaryScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.pageTitle}>급여 계산</Text>
+        <View style={styles.topBar}>
+          <Text style={styles.pageTitle}>급여 계산</Text>
+          <MenuButton navigation={navigation} current="salary" />
+        </View>
 
         {/* ━━ ① 이번 달 예상 급여 (메인 카드) ━━ */}
         <FadeInView>
@@ -460,16 +464,17 @@ export default function SalaryScreen() {
 const makeStyles = (tc) => StyleSheet.create({
   container: { flex: 1, backgroundColor: tc.background },
   scroll: { padding: 16, paddingBottom: 24 },
-  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary, marginBottom: 18 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: tc.text, marginBottom: 4 },
 
-  /* ① 메인 카드 */
+  /* ① 메인 카드 (한 화면에 담기도록 컴팩트) */
   mainCard: {
     alignItems: 'center',
-    paddingVertical: 28,
+    paddingVertical: 18,
     backgroundColor: tc.primary,
   },
-  mainTop: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  mainTop: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   rankPill: {
     backgroundColor: 'rgba(255,255,255,0.25)',
     paddingHorizontal: 14, paddingVertical: 5,
@@ -484,11 +489,11 @@ const makeStyles = (tc) => StyleSheet.create({
   customPillText: { color: tc.white, fontWeight: '700', fontSize: 12 },
   estimatePill: { backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   estimateNote: { fontSize: 11, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginTop: 8, lineHeight: 16, paddingHorizontal: 8 },
-  mainLabel: { fontSize: 14, color: 'rgba(255,255,255,0.75)', marginBottom: 8 },
-  mainAmount: { fontSize: 46, fontWeight: '900', color: tc.white, letterSpacing: -1 },
-  mainNeedInput: { fontSize: 20, fontWeight: '800', color: tc.white, textAlign: 'center', lineHeight: 28, opacity: 0.95 },
-  mainAmountUnit: { fontSize: 22, fontWeight: '700' },
-  mainSub: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 6 },
+  mainLabel: { fontSize: 14, color: 'rgba(255,255,255,0.75)', marginBottom: 4 },
+  mainAmount: { fontSize: 38, fontWeight: '900', color: tc.white, letterSpacing: -1 },
+  mainNeedInput: { fontSize: 19, fontWeight: '800', color: tc.white, textAlign: 'center', lineHeight: 26, opacity: 0.95 },
+  mainAmountUnit: { fontSize: 20, fontWeight: '700' },
+  mainSub: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 4 },
 
   /* ② 급여 현황 */
   statusCard: { paddingBottom: 20 },

@@ -7,6 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Card from '../components/Card';
 import AdBanner from '../components/AdBanner';
+import MenuButton from '../components/MenuButton';
 import { AD_UNITS } from '../constants/adUnits';
 import { useTheme, useThemeColors } from '../theme/ThemeContext';
 import { clearAllData } from '../utils/storage';
@@ -87,7 +88,10 @@ export default function SettingsScreen({ navigation }) {
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.pageTitle}>설정</Text>
+        <View style={styles.topBar}>
+          <Text style={styles.pageTitle}>설정</Text>
+          <MenuButton navigation={navigation} current="settings" />
+        </View>
 
         {/* ── 테마 ── */}
         <Text style={styles.sectionLabel}>화면 테마</Text>
@@ -170,7 +174,8 @@ export default function SettingsScreen({ navigation }) {
 const makeStyles = (tc) => StyleSheet.create({
   container: { flex: 1, backgroundColor: tc.background },
   scroll: { padding: 16 },
-  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary, marginBottom: 6 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
   sectionLabel: {
     fontSize: 13, fontWeight: '700', color: tc.textSecondary,
     marginTop: 14, marginBottom: 8, marginLeft: 4,

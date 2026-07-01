@@ -11,8 +11,8 @@ import SectionTitle from '../components/SectionTitle';
 import Card from '../components/Card';
 import AdBanner from '../components/AdBanner';
 import DatePickerField from '../components/DatePickerField';
-import LeaveCalendar from '../components/LeaveCalendar';
 import RangeCalendar from '../components/RangeCalendar';
+import MenuButton from '../components/MenuButton';
 import FadeInView from '../components/FadeInView';
 import { AD_UNITS } from '../constants/adUnits';
 import {
@@ -33,7 +33,7 @@ const MODAL_NONE  = null;
 const MODAL_USE   = 'use';
 const MODAL_BONUS = 'bonus';
 
-export default function LeaveScreen() {
+export default function LeaveScreen({ navigation }) {
   const tc = useThemeColors();
   const styles = useMemo(() => makeStyles(tc), [tc]);
   const insets = useSafeAreaInsets();
@@ -45,7 +45,6 @@ export default function LeaveScreen() {
   const [editingBase,  setEditingBase]  = useState(false);
   const [baseInput,    setBaseInput]    = useState('21');
   const [modalType,    setModalType]    = useState(MODAL_NONE);
-  const [viewMode,     setViewMode]     = useState('list'); // 'list' | 'calendar'
   // 공통 폼 상태 (사용 / 포상 모두 동일 필드)
   const [formDate,    setFormDate]    = useState('');
   const [formEndDate, setFormEndDate] = useState(''); // 휴가 사용 기간 종료일 (단일이면 '')
@@ -145,7 +144,10 @@ export default function LeaveScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.pageTitle}>휴가 관리</Text>
+        <View style={styles.topBar}>
+          <Text style={styles.pageTitle}>휴가 관리</Text>
+          <MenuButton navigation={navigation} current="leave" />
+        </View>
 
         {/* ── 요약 카드 ── */}
         <FadeInView>
@@ -231,33 +233,19 @@ export default function LeaveScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── 리스트 / 캘린더 토글 ── */}
-        <View style={styles.segment}>
-          {[
-            { key: 'list', label: '목록' },
-            { key: 'calendar', label: '캘린더' },
-          ].map((t) => (
-            <TouchableOpacity
-              key={t.key}
-              style={[styles.segmentBtn, viewMode === t.key && styles.segmentBtnOn]}
-              onPress={() => setViewMode(t.key)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.segmentText, viewMode === t.key && styles.segmentTextOn]}>
-                {t.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {viewMode === 'calendar' && (
-          <Card style={styles.calendarCard}>
-            <LeaveCalendar records={records} bonusRecords={bonusRecords} />
-          </Card>
-        )}
+        {/* ── 캘린더 안내 (달력은 전역 탭으로 이전) ── */}
+        <TouchableOpacity
+          style={styles.calendarHint}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('discharge')}
+        >
+          <Ionicons name="calendar-outline" size={18} color={tc.primary} />
+          <Text style={styles.calendarHintText}>휴가·일정 달력은 ‘전역’ 탭에서 볼 수 있어요</Text>
+          <Ionicons name="chevron-forward" size={16} color={tc.textSecondary} />
+        </TouchableOpacity>
 
         {/* ── 포상휴가 목록 ── */}
-        {viewMode === 'list' && bonusRecords.length > 0 && (
+        {bonusRecords.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
               <SectionTitle icon="medal-outline" size={16}>포상휴가</SectionTitle>
@@ -288,7 +276,7 @@ export default function LeaveScreen() {
         )}
 
         {/* ── 휴가 사용 목록 ── */}
-        {viewMode === 'list' && (
+        {(
           <>
             <View style={styles.sectionHeader}>
               <SectionTitle icon="list-outline" size={16}>사용 기록</SectionTitle>
@@ -417,7 +405,8 @@ export default function LeaveScreen() {
 const makeStyles = (tc) => StyleSheet.create({
   container: { flex: 1, backgroundColor: tc.background },
   scroll: { padding: 16, paddingBottom: 24 },
-  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary, marginBottom: 18 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
 
   /* 요약 카드 */
   summaryCard: { paddingVertical: 18 },
@@ -467,16 +456,13 @@ const makeStyles = (tc) => StyleSheet.create({
   },
   addBonusBtnText: { color: tc.white, fontWeight: '700', fontSize: 15 },
 
-  /* 리스트/캘린더 토글 */
-  segment: {
-    flexDirection: 'row', backgroundColor: tc.background,
-    borderRadius: 12, padding: 4, marginBottom: 14,
+  /* 캘린더 안내 (전역 탭으로 이전) */
+  calendarHint: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: tc.highlightBg, borderRadius: 12,
+    paddingVertical: 12, paddingHorizontal: 14, marginBottom: 16,
   },
-  segmentBtn: { flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: 'center' },
-  segmentBtnOn: { backgroundColor: tc.card, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  segmentText: { fontSize: 14, fontWeight: '700', color: tc.textSecondary },
-  segmentTextOn: { color: tc.primary },
-  calendarCard: { paddingVertical: 14, marginBottom: 16 },
+  calendarHintText: { flex: 1, fontSize: 13.5, fontWeight: '600', color: tc.primary },
 
   /* 섹션 헤더 */
   sectionHeader: {

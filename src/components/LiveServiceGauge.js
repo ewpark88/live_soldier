@@ -203,17 +203,17 @@ export default function LiveServiceGauge({
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginTop: 4 },
-  headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 },
+  wrap: { marginTop: 0 },
+  headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 5 },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  liveLabel: { fontSize: 13, fontWeight: '700', letterSpacing: 0.2 },
-  pct: { fontSize: 22, fontWeight: '900', letterSpacing: 0.2, fontVariant: ['tabular-nums'] },
-  pctDec: { fontSize: 15, fontWeight: '800' },
-  pctUnit: { fontSize: 12, fontWeight: '700' },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
+  liveLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
+  pct: { fontSize: 19, fontWeight: '900', letterSpacing: 0.2, fontVariant: ['tabular-nums'] },
+  pctDec: { fontSize: 13, fontWeight: '800' },
+  pctUnit: { fontSize: 11, fontWeight: '700' },
 
-  track: { height: 16, borderRadius: 9, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 9, overflow: 'hidden', minWidth: 9 },
+  track: { height: 12, borderRadius: 7, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 7, overflow: 'hidden', minWidth: 7 },
 
   stripeLayer: { position: 'absolute', top: -4, bottom: -4, left: 0, flexDirection: 'row' },
   stripe: {
@@ -232,8 +232,8 @@ const styles = StyleSheet.create({
     position: 'absolute', right: 0, top: 0, bottom: 0,
     width: 22,
     backgroundColor: 'rgba(255,255,255,0.85)',
-    borderTopRightRadius: 9, borderBottomRightRadius: 9,
+    borderTopRightRadius: 7, borderBottomRightRadius: 7,
   },
 
-  sub: { fontSize: 12.5, fontWeight: '700', marginTop: 9, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  sub: { fontSize: 12, fontWeight: '700', marginTop: 6, textAlign: 'right', fontVariant: ['tabular-nums'] },
 });

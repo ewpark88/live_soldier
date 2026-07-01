@@ -13,6 +13,7 @@ import SectionTitle from '../components/SectionTitle';
 import AdBanner from '../components/AdBanner';
 import DatePickerField from '../components/DatePickerField';
 import RangeCalendar from '../components/RangeCalendar';
+import MenuButton from '../components/MenuButton';
 import FadeInView from '../components/FadeInView';
 import { AD_UNITS } from '../constants/adUnits';
 import { loadTodos, addTodo, toggleTodo, deleteTodo, loadMilitaryInfo } from '../utils/storage';
@@ -127,7 +128,7 @@ const TRAINING_PRESETS = [
   },
 ];
 
-export default function TodoScreen() {
+export default function TodoScreen({ navigation }) {
   const tc = useThemeColors();
   const styles = useMemo(() => makeStyles(tc), [tc]);
   const today = getToday();
@@ -237,7 +238,10 @@ export default function TodoScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.pageTitle}>일정 관리</Text>
+        <View style={styles.topBar}>
+          <Text style={styles.pageTitle}>일정 관리</Text>
+          <MenuButton navigation={navigation} current="todo" />
+        </View>
 
         {/* 요약 */}
         <Card style={styles.summaryCard}>
@@ -464,7 +468,8 @@ const CHIP_W = '30%';
 const makeStyles = (tc) => StyleSheet.create({
   container: { flex: 1, backgroundColor: tc.background },
   scroll: { padding: 16, paddingBottom: 8 },
-  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary, marginBottom: 18 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
 
   summaryCard: { paddingVertical: 16 },
   summaryRow: { flexDirection: 'row', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: tc.border, paddingBottom: 14 },
