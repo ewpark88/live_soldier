@@ -44,7 +44,8 @@
       "Bash(grep -nE \"^function |^const [A-Z][A-Za-z]+ = \\\\\\(|=> \\\\{$\" src/screens/HomeScreen.js)",
       "Bash(awk 'NR<173 && \\(/[^a-zA-Z]s\\\\./ || /tc\\\\./\\)' src/screens/HomeScreen.js)",
       "Bash(eas whoami *)",
-      "Bash(eas build *)"
+      "Bash(eas build *)",
+      "Bash(eas build:list --platform android --limit 5 --non-interactive)"
     ]
   }
 }
