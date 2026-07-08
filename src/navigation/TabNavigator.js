@@ -10,6 +10,10 @@ import DischargeScreen from '../screens/DischargeScreen';
 import RoadmapScreen from '../screens/RoadmapScreen';
 import LeaveScreen from '../screens/LeaveScreen';
 import SalaryScreen from '../screens/SalaryScreen';
+import SalaryGuideScreen from '../screens/SalaryGuideScreen';
+import OfficerPayScreen from '../screens/OfficerPayScreen';
+import SavingsScreen from '../screens/SavingsScreen';
+import BenefitsScreen from '../screens/BenefitsScreen';
 import TodoScreen from '../screens/TodoScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
@@ -88,6 +92,27 @@ export default function TabNavigator() {
         />
         <Tab.Screen name="leave" component={LeaveScreen} options={{ title: '휴가 관리', tabBarLabel: '휴가' }} />
         <Tab.Screen name="salary" component={SalaryScreen} options={{ title: '급여 계산', tabBarLabel: '급여' }} />
+        {/* 병사 월급 가이드·간부 봉급 참고·장병내일적금·군인 혜택: 하단 탭엔 숨기고 햄버거 메뉴에서만 진입 */}
+        <Tab.Screen
+          name="salaryGuide"
+          component={SalaryGuideScreen}
+          options={{ title: '병사 월급 가이드', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+        />
+        <Tab.Screen
+          name="officerPay"
+          component={OfficerPayScreen}
+          options={{ title: '간부 봉급 참고', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+        />
+        <Tab.Screen
+          name="savings"
+          component={SavingsScreen}
+          options={{ title: '장병내일적금 계산기', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+        />
+        <Tab.Screen
+          name="benefits"
+          component={BenefitsScreen}
+          options={{ title: '군인 혜택 모음', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+        />
         <Tab.Screen name="todo" component={TodoScreen} options={{ title: '일정 관리', tabBarLabel: '일정' }} />
         <Tab.Screen name="settings" component={SettingsScreen} options={{ title: '설정', tabBarLabel: '설정' }} />
       </Tab.Navigator>

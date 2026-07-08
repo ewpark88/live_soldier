@@ -140,6 +140,7 @@ export default function LeaveScreen({ navigation }) {
     <View style={styles.container}>
       <AdInterstitial visible={adVisible} onClose={closeAd} />
       <ScrollView
+        style={styles.scrollFlex}
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -312,8 +313,12 @@ export default function LeaveScreen({ navigation }) {
           </>
         )}
 
-        <AdBanner unit={AD_UNITS.LEAVE_BOTTOM} style={{ marginBottom: 12 }} />
       </ScrollView>
+
+      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
+      <View style={styles.adFooter}>
+        <AdBanner unit={AD_UNITS.LEAVE_BOTTOM} />
+      </View>
 
       {/* ── 추가 모달 (사용 / 포상 공용) ── */}
       <Modal visible={modalType !== MODAL_NONE} animationType="slide" transparent onRequestClose={closeModal}>
@@ -404,7 +409,15 @@ export default function LeaveScreen({ navigation }) {
 
 const makeStyles = (tc) => StyleSheet.create({
   container: { flex: 1, backgroundColor: tc.background },
+  scrollFlex: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 24 },
+  adFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    backgroundColor: tc.card,
+    borderTopWidth: 1,
+    borderTopColor: tc.border,
+  },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
 

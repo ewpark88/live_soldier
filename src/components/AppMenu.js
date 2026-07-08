@@ -1,10 +1,12 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Image, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
+import { loadMilitaryInfo } from '../utils/storage';
+import { isOfficer } from '../constants/serviceTerms';
 
 /**
  * 네이티브 의존성 없는 커스텀 슬라이드 메뉴(햄버거).
@@ -15,13 +17,16 @@ import { useThemeColors } from '../theme/ThemeContext';
  * @param {object}   navigation  react-navigation 객체
  * @param {string}   current     현재 화면 route name (강조 표시용)
  */
+// 휴가·급여·일정은 하단 탭에 이미 있으므로 메뉴에서 제외한다.
+// only: 'soldier' → 병사만, 'officer' → 간부만 노출 (계급별 봉급표 구분)
 const MENU_ITEMS = [
   { key: 'home',      label: '홈',         icon: 'home-outline' },
   { key: 'discharge', label: '전역일 계산', icon: 'flag-outline' },
   { key: 'roadmap',   label: '전역 로드맵', icon: 'map-outline' },
-  { key: 'leave',     label: '휴가 관리',   icon: 'calendar-outline' },
-  { key: 'salary',    label: '급여 계산',   icon: 'cash-outline' },
-  { key: 'todo',      label: '일정 관리',   icon: 'checkbox-outline' },
+  { key: 'salaryGuide', label: '병사 월급 가이드',   icon: 'list-outline',       only: 'soldier' },
+  { key: 'officerPay',  label: '간부 봉급 참고',     icon: 'shield-outline',     only: 'officer' },
+  { key: 'savings',   label: '장병내일적금 계산기', icon: 'calculator-outline' },
+  { key: 'benefits',  label: '군인 혜택 모음',      icon: 'gift-outline' },
   { key: 'settings',  label: '설정',        icon: 'settings-outline' },
 ];
 
@@ -34,6 +39,21 @@ export default function AppMenu({ visible, onClose, navigation, current }) {
 
   const slide = useRef(new Animated.Value(PANEL_W)).current;
   const fade = useRef(new Animated.Value(0)).current;
+
+  // 계급(간부/병사)에 따라 봉급표 메뉴를 구분해 노출 — 미설정 시 병사로 간주
+  const [officer, setOfficer] = useState(false);
+  useEffect(() => {
+    if (!visible) return;
+    let alive = true;
+    loadMilitaryInfo().then((mi) => {
+      if (alive) setOfficer(mi ? isOfficer(mi.personnelType) : false);
+    });
+    return () => { alive = false; };
+  }, [visible]);
+
+  const items = MENU_ITEMS.filter(
+    (m) => !m.only || (m.only === 'officer' ? officer : !officer),
+  );
 
   useEffect(() => {
     if (visible) {
@@ -81,7 +101,7 @@ export default function AppMenu({ visible, onClose, navigation, current }) {
 
         {/* 메뉴 항목 */}
         <View style={s.list}>
-          {MENU_ITEMS.map((m) => {
+          {items.map((m) => {
             const active = m.key === current;
             return (
               <TouchableOpacity

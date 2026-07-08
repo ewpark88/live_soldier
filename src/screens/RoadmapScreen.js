@@ -56,6 +56,7 @@ export default function RoadmapScreen({ navigation }) {
   return (
     <View style={s.container}>
       <ScrollView
+        style={s.scrollFlex}
         contentContainerStyle={[s.scroll, { paddingTop: insets.top + 10 }]}
         showsVerticalScrollIndicator={false}
       >
@@ -105,15 +106,27 @@ export default function RoadmapScreen({ navigation }) {
           </FadeInView>
         )}
 
-        <AdBanner unit={AD_UNITS.ROADMAP_BOTTOM} style={{ marginBottom: 12 }} />
       </ScrollView>
+
+      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
+      <View style={s.adFooter}>
+        <AdBanner unit={AD_UNITS.ROADMAP_BOTTOM} />
+      </View>
     </View>
   );
 }
 
 const makeStyles = (tc) => StyleSheet.create({
   container: { flex: 1, backgroundColor: tc.background },
+  scrollFlex: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 24 },
+  adFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    backgroundColor: tc.card,
+    borderTopWidth: 1,
+    borderTopColor: tc.border,
+  },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
 

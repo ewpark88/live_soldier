@@ -234,6 +234,7 @@ export default function TodoScreen({ navigation }) {
     <View style={styles.container}>
       <AdInterstitial visible={adVisible} onClose={closeAd} />
       <ScrollView
+        style={styles.scrollFlex}
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -347,15 +348,17 @@ export default function TodoScreen({ navigation }) {
                   onDelete={() => handleDelete(item.id, item.title)}
                 />
               ))}
-              {idx === 1 && <AdBanner unit={AD_UNITS.TODO_MIDDLE} />}
             </FadeInView>
           ))
         )}
 
-        <AdBanner unit={AD_UNITS.TODO_BOTTOM} />
-
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
+      <View style={styles.adFooter}>
+        <AdBanner unit={AD_UNITS.TODO_BOTTOM} />
+      </View>
 
       {/* ── 추가 모달 ── */}
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={closeModal}>
@@ -467,7 +470,15 @@ const CHIP_W = '30%';
 
 const makeStyles = (tc) => StyleSheet.create({
   container: { flex: 1, backgroundColor: tc.background },
+  scrollFlex: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 8 },
+  adFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    backgroundColor: tc.card,
+    borderTopWidth: 1,
+    borderTopColor: tc.border,
+  },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
 

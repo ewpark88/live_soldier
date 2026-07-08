@@ -10,8 +10,6 @@ import { useThemeColors } from '../theme/ThemeContext';
 import Card from '../components/Card';
 import SectionTitle from '../components/SectionTitle';
 import FadeInView from '../components/FadeInView';
-import SavingsCalculator from '../components/SavingsCalculator';
-import BenefitsList from '../components/BenefitsList';
 import AdBanner from '../components/AdBanner';
 import MenuButton from '../components/MenuButton';
 import { AD_UNITS } from '../constants/adUnits';
@@ -19,7 +17,7 @@ import { loadMilitaryInfo, loadSalaryInfo, saveSalaryInfo, loadRankPromotions } 
 import SetupRequired from '../components/SetupRequired';
 import { calcServedMonths, calcRankFromPromotions } from '../utils/dateUtils';
 import { isOfficer, personnelLabel } from '../constants/serviceTerms';
-import { getOfficerBasePay, OFFICER_PAY_GUIDE } from '../constants/militaryRanks';
+import { getOfficerBasePay } from '../constants/militaryRanks';
 import { calcHobong } from '../utils/officerUtils';
 
 /* ─── 계급별 표준 월급 (2024년 기준) ───────────────────────── */
@@ -30,7 +28,6 @@ const SALARY_GUIDE = [
   { rank: '상병', emoji: '⭐⭐', months: '8 ~ 13개월', amount: 1000000, start: 8,  end: 13  },
   { rank: '병장', emoji: '👑', months: '14개월~',    amount: 1250000, start: 14, end: 999 },
 ];
-const MAX_SALARY = 1250000;
 
 function formatMoney(n) {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -87,9 +84,6 @@ export default function SalaryScreen({ navigation }) {
   const [customMode,    setCustomMode]    = useState(false);
   const [customSalary,  setCustomSalary]  = useState('');
   const [totalMonths,   setTotalMonths]   = useState('');
-  const [guideOpen,     setGuideOpen]     = useState(false);
-  const [savingsOpen,   setSavingsOpen]   = useState(false);
-  const [benefitsOpen,  setBenefitsOpen]  = useState(false);
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -175,6 +169,7 @@ export default function SalaryScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <ScrollView
+        style={styles.scrollFlex}
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -317,153 +312,27 @@ export default function SalaryScreen({ navigation }) {
           )}
         </Card>
 
-        {/* ━━ ④ 병사 월급 가이드 (병사 전용, 접기/펼치기) ━━ */}
-        {!officer && (
-        <Card style={styles.guideCard}>
-          <TouchableOpacity
-            style={styles.guideHeader}
-            onPress={() => setGuideOpen((v) => !v)}
-            activeOpacity={0.7}
-          >
-            <View>
-              <SectionTitle icon="list-outline" size={16} style={{ marginBottom: 4 }}>2024년 병사 월급 가이드</SectionTitle>
-              <Text style={styles.guideSub}>계급별 표준 월급 참고표</Text>
-            </View>
-            <Text style={styles.guideToggleIcon}>{guideOpen ? '▲' : '▼'}</Text>
-          </TouchableOpacity>
-
-          {guideOpen && (
-            <View style={styles.guideBody}>
-              {SALARY_GUIDE.map((s) => {
-                const isCurrent = s.rank === currentRank;
-                const barPct    = Math.round((s.amount / MAX_SALARY) * 100);
-                return (
-                  <View
-                    key={s.rank}
-                    style={[styles.guideRow, isCurrent && styles.guideRowCurrent]}
-                  >
-                    {/* 좌측: 계급 정보 */}
-                    <View style={styles.guideLeft}>
-                      <View style={styles.guideRankRow}>
-                        <Text style={styles.guideEmoji}>{s.emoji}</Text>
-                        <Text style={[styles.guideRank, isCurrent && styles.guideRankCurrent]}>
-                          {s.rank}
-                        </Text>
-                        {isCurrent && (
-                          <View style={styles.currentBadge}>
-                            <Text style={styles.currentBadgeText}>현재</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={styles.guideMonths}>{s.months}</Text>
-                    </View>
-
-                    {/* 우측: 금액 + 바 */}
-                    <View style={styles.guideRight}>
-                      <Text style={[styles.guideAmount, isCurrent && { color: tc.primary }]}>
-                        {formatMoney(s.amount)}원
-                      </Text>
-                      <View style={styles.guideBarTrack}>
-                        <View style={[
-                          styles.guideBarFill,
-                          { width: `${barPct}%` },
-                          isCurrent && { backgroundColor: tc.primary },
-                        ]} />
-                      </View>
-                    </View>
-                  </View>
-                );
-              })}
-              <Text style={styles.guideNote}>* 실제 지급액은 상이할 수 있습니다.</Text>
-            </View>
-          )}
-        </Card>
-        )}
-
-        {/* ━━ ⑤' 간부 봉급 참고 (간부 전용) ━━ */}
-        {officer && (
-          <Card style={styles.guideCard}>
-            <TouchableOpacity
-              style={styles.guideHeader}
-              onPress={() => setGuideOpen((v) => !v)}
-              activeOpacity={0.7}
-            >
-              <View>
-                <SectionTitle icon="list-outline" size={16} style={{ marginBottom: 4 }}>간부봉급참고</SectionTitle>
-                <Text style={styles.guideSub}>초임(1호봉) 월 기본급 · 참고용</Text>
-              </View>
-              <Text style={styles.guideToggleIcon}>{guideOpen ? '▲' : '▼'}</Text>
-            </TouchableOpacity>
-
-            {guideOpen && (
-              <View style={styles.guideBody}>
-                {OFFICER_PAY_GUIDE.map((g) => {
-                  const isCurrent = g.rank === officerRank;
-                  return (
-                    <View
-                      key={g.rank}
-                      style={[styles.guideRow, isCurrent && styles.guideRowCurrent]}
-                    >
-                      <View style={styles.guideLeft}>
-                        <View style={styles.guideRankRow}>
-                          <Text style={[styles.guideRank, isCurrent && styles.guideRankCurrent]}>
-                            {g.rank}
-                          </Text>
-                          <Text style={styles.guideMonths}>{g.group}</Text>
-                          {isCurrent && (
-                            <View style={styles.currentBadge}>
-                              <Text style={styles.currentBadgeText}>현재</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                      <Text style={[styles.guideAmount, isCurrent && { color: tc.primary }]}>
-                        {formatMoney(g.amount)}원
-                      </Text>
-                    </View>
-                  );
-                })}
-                <Text style={styles.guideNote}>
-                  * 2025년 초임(1호봉) 기준 추정. 호봉·각종 수당 미반영, 정확한 금액은 직접 입력하세요.
-                </Text>
-              </View>
-            )}
-          </Card>
-        )}
-
-        {/* ━━ ⑥ 장병내일준비적금 계산기 (접기/펼치기) ━━ */}
-        <Card style={[styles.guideCard, savingsOpen && { paddingBottom: 16 }]}>
-          <TouchableOpacity style={styles.guideHeader} onPress={() => setSavingsOpen((v) => !v)} activeOpacity={0.7}>
-            <View>
-              <SectionTitle icon="calculator-outline" size={16} style={{ marginBottom: 4 }}>장병내일준비적금 계산기</SectionTitle>
-              <Text style={styles.guideSub}>전역 시 받을 목돈을 미리 계산</Text>
-            </View>
-            <Text style={styles.guideToggleIcon}>{savingsOpen ? '▲' : '▼'}</Text>
-          </TouchableOpacity>
-          {savingsOpen && <SavingsCalculator militaryInfo={militaryInfo} />}
-        </Card>
-
-        {/* ━━ ⑦ 군인 혜택 모음 (접기/펼치기) ━━ */}
-        <Card style={[styles.guideCard, benefitsOpen && { paddingBottom: 16 }]}>
-          <TouchableOpacity style={styles.guideHeader} onPress={() => setBenefitsOpen((v) => !v)} activeOpacity={0.7}>
-            <View>
-              <SectionTitle icon="gift-outline" size={16} style={{ marginBottom: 4 }}>군인 혜택 모음</SectionTitle>
-              <Text style={styles.guideSub}>금융·교통·문화·자기계발 등 할인·지원</Text>
-            </View>
-            <Text style={styles.guideToggleIcon}>{benefitsOpen ? '▲' : '▼'}</Text>
-          </TouchableOpacity>
-          {benefitsOpen && <BenefitsList />}
-        </Card>
-
-        <AdBanner unit={AD_UNITS.SALARY_BOTTOM} style={{ marginBottom: 12 }} />
       </ScrollView>
+
+      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
+      <View style={styles.adFooter}>
+        <AdBanner unit={AD_UNITS.SALARY_BOTTOM} />
+      </View>
     </View>
   );
 }
 
 const makeStyles = (tc) => StyleSheet.create({
   container: { flex: 1, backgroundColor: tc.background },
+  scrollFlex: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 24 },
+  adFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    backgroundColor: tc.card,
+    borderTopWidth: 1,
+    borderTopColor: tc.border,
+  },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: tc.text, marginBottom: 4 },
@@ -542,46 +411,4 @@ const makeStyles = (tc) => StyleSheet.create({
   cancelBtnText: { color: tc.textSecondary, fontWeight: '600', fontSize: 15 },
   saveBtn: { flex: 2, paddingVertical: 14, borderRadius: 10, backgroundColor: tc.primary, alignItems: 'center' },
   saveBtnText: { color: tc.white, fontWeight: '700', fontSize: 16 },
-
-  /* ④ 가이드 */
-  guideCard: { paddingBottom: 0, overflow: 'hidden' },
-  guideHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingBottom: 4,
-  },
-  guideSub: { fontSize: 12, color: tc.textSecondary },
-  guideToggleIcon: { fontSize: 16, color: tc.textSecondary, fontWeight: '700' },
-  guideBody: { marginTop: 16 },
-  guideRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 14, paddingHorizontal: 12,
-    borderRadius: 12, marginBottom: 8,
-    backgroundColor: tc.background,
-  },
-  guideRowCurrent: {
-    backgroundColor: '#E8F3F0',
-    borderWidth: 1.5,
-    borderColor: tc.primaryLight,
-  },
-  guideLeft: { flex: 1 },
-  guideRankRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  guideEmoji: { fontSize: 16 },
-  guideRank: { fontSize: 16, fontWeight: '700', color: tc.text },
-  guideRankCurrent: { color: tc.primary },
-  currentBadge: {
-    backgroundColor: tc.primary, borderRadius: 8,
-    paddingHorizontal: 7, paddingVertical: 2,
-  },
-  currentBadgeText: { fontSize: 10, color: tc.white, fontWeight: '700' },
-  guideMonths: { fontSize: 12, color: tc.textSecondary },
-  guideRight: { alignItems: 'flex-end', minWidth: 130 },
-  guideAmount: { fontSize: 16, fontWeight: '800', color: tc.text, marginBottom: 6 },
-  guideBarTrack: {
-    width: 120, height: 6,
-    backgroundColor: tc.border, borderRadius: 3, overflow: 'hidden',
-  },
-  guideBarFill: {
-    height: '100%', backgroundColor: tc.textLight, borderRadius: 3,
-  },
-  guideNote: { fontSize: 12, color: tc.textLight, textAlign: 'right', marginTop: 8, marginBottom: 4 },
 });

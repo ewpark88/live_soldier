@@ -85,7 +85,8 @@ export default function SettingsScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 24 }]}
+        style={styles.scrollFlex}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10, paddingBottom: 24 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topBar}>
@@ -165,15 +166,27 @@ export default function SettingsScreen({ navigation }) {
           </View>
         </Card>
 
-        <AdBanner unit={AD_UNITS.HOME_BOTTOM} />
       </ScrollView>
+
+      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
+      <View style={styles.adFooter}>
+        <AdBanner unit={AD_UNITS.HOME_BOTTOM} />
+      </View>
     </View>
   );
 }
 
 const makeStyles = (tc) => StyleSheet.create({
   container: { flex: 1, backgroundColor: tc.background },
+  scrollFlex: { flex: 1 },
   scroll: { padding: 16 },
+  adFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    backgroundColor: tc.card,
+    borderTopWidth: 1,
+    borderTopColor: tc.border,
+  },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
   sectionLabel: {

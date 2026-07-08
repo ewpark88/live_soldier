@@ -294,6 +294,7 @@ export default function HomeScreen({ navigation }) {
     <View style={[s.container, { backgroundColor: phaseCfg.screenBg ?? tc.background }]}>
       <AdInterstitial visible={adVisible} onClose={closeAd} />
       <ScrollView
+        style={s.scrollFlex}
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
       >
@@ -415,11 +416,12 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── 광고 ── */}
-        <View style={s.padH}>
-          <AdBanner unit={AD_UNITS.HOME_BOTTOM} style={{ marginTop: 16, marginBottom: 12 }} />
-        </View>
       </ScrollView>
+
+      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
+      <View style={s.adFooter}>
+        <AdBanner unit={AD_UNITS.HOME_BOTTOM} />
+      </View>
     </View>
   );
 }
@@ -428,7 +430,17 @@ const makeStyles = (tc) => StyleSheet.create({
   container: { flex: 1, backgroundColor: tc.background },
 
   /* ScrollView: 가로 패딩 없음 → 카드 풀 와이드 */
+  scrollFlex: { flex: 1 },
   scroll: { paddingBottom: 24 },
+
+  /* 하단 고정 배너 영역 (탭바 바로 위) */
+  adFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    backgroundColor: tc.card,
+    borderTopWidth: 1,
+    borderTopColor: tc.border,
+  },
 
   /* 헤더 영역만 가로 패딩 */
   header: {

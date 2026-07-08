@@ -193,6 +193,7 @@ export default function DischargeScreen({ navigation }) {
     <View style={styles.container}>
       <AdInterstitial visible={adVisible} onClose={closeAd} />
       <ScrollView
+        style={styles.scrollFlex}
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -433,15 +434,27 @@ export default function DischargeScreen({ navigation }) {
               </View>
             </Card>
 
-            <AdBanner unit={AD_UNITS.DISCHARGE_BOTTOM} style={{ marginBottom: 12 }} />
           </>
         )}
       </ScrollView>
+
+      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
+      <View style={styles.adFooter}>
+        <AdBanner unit={AD_UNITS.DISCHARGE_BOTTOM} />
+      </View>
     </View>
   );
 }
 
 const makeStyles = (tc) => StyleSheet.create({
+  scrollFlex: { flex: 1 },
+  adFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    backgroundColor: tc.card,
+    borderTopWidth: 1,
+    borderTopColor: tc.border,
+  },
   container:  { flex: 1, backgroundColor: tc.background },
   scroll:     { padding: 16, paddingBottom: 24 },
   topBar:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
