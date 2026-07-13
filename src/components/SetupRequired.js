@@ -1,64 +1,35 @@
 /**
- * 입대 정보 미입력 시 표시하는 안내 화면
- * LeaveScreen / SalaryScreen / TodoScreen 에서 공통 사용
+ * 입대 정보 미입력 시 표시하는 안내 화면.
+ * LeaveScreen / SalaryScreen / TodoScreen 에서 공통 사용.
+ *
+ * 내용은 EmptyState 프리미티브가 그린다 — 여기선 문구와 CTA 만 정한다.
  */
-import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
+import EmptyState from './ui/EmptyState';
 
 export default function SetupRequired() {
   const tc = useThemeColors();
-  const styles = useMemo(() => makeStyles(tc), [tc]);
   const navigation = useNavigation();
 
   return (
-    <View style={styles.container}>
-      <Ionicons name="shield-half" size={60} color={tc.primaryLight} style={styles.emoji} />
-      <Text style={styles.title}>입대 정보가 필요해요</Text>
-      <Text style={styles.desc}>
-        이 기능을 사용하려면{'\n'}
-        먼저 전역 탭에서 입대 정보를 입력해주세요.
-      </Text>
-      <TouchableOpacity
-        style={styles.btn}
-        onPress={() => navigation.navigate('discharge')}
-      >
-        <Text style={styles.btnText}>입대 정보 입력하러 가기</Text>
-      </TouchableOpacity>
+    <View style={[styles.center, { backgroundColor: tc.background }]}>
+      <EmptyState
+        icon="shield-half"
+        title="입대 정보가 필요해요"
+        desc={'이 기능을 사용하려면 먼저\n전역 탭에서 입대 정보를 입력해주세요.'}
+        action={{
+          label: '입대 정보 입력하러 가기',
+          icon: 'create-outline',
+          onPress: () => navigation.navigate('discharge'),
+        }}
+      />
     </View>
   );
 }
 
-const makeStyles = (tc) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: tc.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 36,
-  },
-  emoji: { fontSize: 64, marginBottom: 20 },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: tc.primary,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  desc: {
-    fontSize: 15,
-    color: tc.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 36,
-  },
-  btn: {
-    backgroundColor: tc.primary,
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 30,
-  },
-  btnText: { color: tc.white, fontWeight: '700', fontSize: 16 },
+const styles = StyleSheet.create({
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

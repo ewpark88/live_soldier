@@ -5,11 +5,12 @@
  * (과거: 육군 21 / 해군 23 / 공군 24 → 현행: 18 / 20 / 21, 단축 반영됨)
  * 현재 복무 중인 인원은 모두 단축된 기간이 적용되므로 별도 입대시기 보정 불필요.
  */
+/* emoji 는 위젯·공유 텍스트가 쓰므로 남겨둔다. 화면 UI 는 icon(Ionicons) 을 쓴다. */
 export const BRANCHES = [
-  { key: 'army',     label: '육군',   months: 18, emoji: '🪖' },
-  { key: 'navy',     label: '해군',   months: 20, emoji: '⚓' },
-  { key: 'airforce', label: '공군',   months: 21, emoji: '✈️' },
-  { key: 'marines',  label: '해병대', months: 18, emoji: '🦅' },
+  { key: 'army',     label: '육군',   months: 18, emoji: '🪖', icon: 'shield-half' },
+  { key: 'navy',     label: '해군',   months: 20, emoji: '⚓', icon: 'boat' },
+  { key: 'airforce', label: '공군',   months: 21, emoji: '✈️', icon: 'airplane' },
+  { key: 'marines',  label: '해병대', months: 18, emoji: '🦅', icon: 'flame' },
 ];
 
 /** 군별 현행 복무개월 반환 (없으면 육군 기준) */
@@ -27,9 +28,9 @@ export const RANK_ORDER = ['이병', '일병', '상병', '병장'];
  *   복무개월·급여를 사용자가 직접 입력하고, 병사 진급/계급 체계는 적용하지 않는다.
  */
 export const PERSONNEL_TYPES = [
-  { key: 'soldier', label: '병사',   emoji: '🪖' },
-  { key: 'nco',     label: '부사관', emoji: '🎖️' },
-  { key: 'officer', label: '장교',   emoji: '⭐' },
+  { key: 'soldier', label: '병사',   emoji: '🪖', icon: 'person' },
+  { key: 'nco',     label: '부사관', emoji: '🎖️', icon: 'ribbon' },
+  { key: 'officer', label: '장교',   emoji: '⭐', icon: 'star' },
 ];
 
 /** 간부(부사관·장교) 여부 — 병사 진급/계급 체계 미적용 대상 */

@@ -77,7 +77,7 @@ export function formatDateKo(date) {
 /* ─── 휴가/일정 기간(span) 계산 ─────────────────────────────────────────
  * 모두 "시작일·종료일을 포함"하는 폐구간 기준이다.
  * 예) 1/2 ~ 1/4 = 3일 (1/2, 1/3, 1/4 포함)
- * LeaveCalendar·TodoScreen·RangeCalendar가 공유한다. */
+ * EventCalendar·TodoScreen·RangeCalendar가 공유한다. */
 
 /** 시작일에서 days일 만큼(시작일 포함)의 'YYYY-MM-DD' 배열 */
 export function spanDates(startStr, days) {

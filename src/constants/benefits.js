@@ -10,6 +10,7 @@ export const BENEFIT_CATEGORIES = [
     key: 'finance',
     label: '금융·목돈',
     emoji: '💰',
+    icon: 'wallet',
     items: [
       {
         title: '장병내일준비적금',
@@ -32,6 +33,7 @@ export const BENEFIT_CATEGORIES = [
     key: 'transport',
     label: '교통',
     emoji: '🚆',
+    icon: 'train',
     items: [
       {
         title: 'KTX·SRT 군인 할인',
@@ -52,6 +54,7 @@ export const BENEFIT_CATEGORIES = [
     key: 'culture',
     label: '문화·여가',
     emoji: '🎬',
+    icon: 'film',
     items: [
       {
         title: '영화관 군인 할인',
@@ -71,6 +74,7 @@ export const BENEFIT_CATEGORIES = [
     key: 'telecom',
     label: '통신',
     emoji: '📱',
+    icon: 'phone-portrait',
     items: [
       {
         title: '군 장병 전용 요금제',
@@ -87,6 +91,7 @@ export const BENEFIT_CATEGORIES = [
     key: 'growth',
     label: '자기계발',
     emoji: '📚',
+    icon: 'school',
     items: [
       {
         title: '국방모바일 e러닝',
@@ -112,6 +117,7 @@ export const BENEFIT_CATEGORIES = [
     key: 'after',
     label: '전역 후',
     emoji: '🎓',
+    icon: 'briefcase',
     items: [
       {
         title: '예비군 훈련 안내',

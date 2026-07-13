@@ -1,15 +1,35 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { useMotion } from '../hooks/useMotion';
+import { motion } from '../theme/tokens';
 
 /**
- * 실시간 복무 진행률 게이지 — 살아 움직이는 연출.
- *  - 마운트 시 0 → 현재 진행률까지 차오르는 그로우인
- *  - 흐르는 사선 스트라이프(차징 느낌) + 빛 스윕(shimmer)
- *  - 채워지는 끝단의 글로우 펄스(지금 이 순간 차오르는 지점)
- *  - 소수점 7자리까지 매초 갱신되는 라이브 퍼센트
- *  - 복무 누적 라이브 시계(일 + HH:MM:SS)
+ * 실시간 복무 진행률 게이지 — 이 앱의 간판 컴포넌트.
  *
- * 메인 카드(어두운 배경) 위에 올라가므로 기본 색은 밝은 톤(흰색 계열 + 금색).
+ *  - 마운트 시 0 → 현재 진행률까지 차오르는 그로우인
+ *  - 빛 스윕(shimmer) + 채워지는 끝단의 글로우 펄스
+ *  - 소수점 7자리까지 매초 갱신되는 라이브 퍼센트 (진짜 차별점이라 유지)
+ *  - 복무 누적 라이브 시계 (일 + HH:MM:SS)
+ *
+ * 예전 대비 바뀐 점:
+ *  1) 코어 Animated → Reanimated. 채움을 width:'%' 가 아니라 scaleX 로 준다.
+ *     퍼센트 폭은 프레임마다 레이아웃 패스를 강제해서 JS 스레드에서 돌 수밖에
+ *     없었다 (useNativeDriver:false). 이제 전부 UI 스레드에서 돈다.
+ *  2) 무한 루프 4개 → 2개. 사선 줄무늬(skewX 바 N개)는 버렸다 — 오버드로가
+ *     큰데 대부분 노이즈로 읽혔다.
+ *  3) setInterval 을 포커스에 묶었다. 예전엔 다른 탭에 가 있어도 계속 돌았다.
+ *
+ * 어두운 히어로 위에 올라가므로 기본 색은 밝은 톤(흰색 계열 + 금색).
  */
 function calcLive(enlistDate, dischargeDate) {
   const start = new Date(enlistDate); start.setHours(0, 0, 0, 0);
@@ -34,10 +54,7 @@ function fmtClock(sec) {
   return { days, hms: `${pad(h)}:${pad(m)}:${pad(s)}` };
 }
 
-/* 흐르는 사선 스트라이프 */
-const STRIPE_W = 9;
-const STRIPE_GAP = 15;
-const STRIPE_PERIOD = STRIPE_W + STRIPE_GAP;
+const BAND = 64;
 
 export default function LiveServiceGauge({
   enlistDate,
@@ -47,113 +64,86 @@ export default function LiveServiceGauge({
   textColor = 'rgba(255,255,255,0.95)',
   subColor = 'rgba(255,255,255,0.6)',
 }) {
+  const m = useMotion();
+  const isFocused = useIsFocused();
+
   const [{ pct, servedSec }, setLive] = useState(() => calcLive(enlistDate, dischargeDate));
   const [trackW, setTrackW] = useState(0);
   const done = pct >= 100;
 
-  const fillAnim = useRef(new Animated.Value(0)).current; // 0..1 (그로우인 + 라이브)
-  const shimmer  = useRef(new Animated.Value(0)).current;
-  const stripe   = useRef(new Animated.Value(0)).current;
-  const edge     = useRef(new Animated.Value(0)).current; // 끝단 글로우 펄스
-  const dot      = useRef(new Animated.Value(1)).current;
+  const fill = useSharedValue(0);
+  const shimmer = useSharedValue(0);
+  const edge = useSharedValue(0);
+  const dot = useSharedValue(1);
 
-  // 매초 진행률/초 갱신
+  // 매초 갱신 — 화면이 보일 때만. 다른 탭에서까지 돌 이유가 없다.
   useEffect(() => {
+    if (!isFocused) return undefined;
     setLive(calcLive(enlistDate, dischargeDate));
     const id = setInterval(() => setLive(calcLive(enlistDate, dischargeDate)), 1000);
     return () => clearInterval(id);
-  }, [enlistDate, dischargeDate]);
+  }, [enlistDate, dischargeDate, isFocused]);
 
-  // 진행률 변화 → 바 채우기 (마운트 시 0에서 그로우인, 이후 매초 미세 갱신)
+  // 진행률 → 채움 (마운트 시 그로우인, 이후 매초 미세 갱신)
   useEffect(() => {
-    Animated.timing(fillAnim, {
-      toValue: pct / 100,
-      duration: 1100,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [pct, fillAnim]);
+    fill.value = withTiming(pct / 100, {
+      duration: m.dur(motion.duration.fill),
+      easing: Easing.bezier(...motion.bezier.emphasis),
+    });
+  }, [pct, m.reduced]);
 
-  // 빛 스윕
+  // 루프 2개 — 둘 다 UI 스레드, 포커스 아닐 땐 안 돈다
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmer, {
-          toValue: 1, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true,
-        }),
-        Animated.delay(500),
-      ])
+    if (m.reduced || !isFocused || done) return;
+
+    shimmer.value = withDelay(
+      500,
+      withRepeat(withTiming(1, { duration: 1500, easing: Easing.linear }), -1, false)
     );
-    loop.start();
-    return () => loop.stop();
-  }, [shimmer]);
-
-  // 흐르는 사선 스트라이프
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(stripe, {
-        toValue: 1, duration: 900, easing: Easing.linear, useNativeDriver: true,
-      })
+    edge.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 850, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 850, easing: Easing.inOut(Easing.quad) })
+      ),
+      -1,
+      false
     );
-    loop.start();
-    return () => loop.stop();
-  }, [stripe]);
-
-  // 끝단 글로우 펄스
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(edge, { toValue: 1, duration: 850, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(edge, { toValue: 0, duration: 850, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
+    dot.value = withRepeat(
+      withSequence(
+        withTiming(0.3, { duration: 650 }),
+        withTiming(1, { duration: 650 })
+      ),
+      -1,
+      false
     );
-    loop.start();
-    return () => loop.stop();
-  }, [edge]);
-
-  // 라이브 점 펄스
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(dot, { toValue: 0.2, duration: 650, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(dot, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [dot]);
+  }, [m.reduced, isFocused, done]);
 
   const onTrackLayout = useCallback((e) => setTrackW(e.nativeEvent.layout.width), []);
 
-  const fillWidth = fillAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-    extrapolate: 'clamp',
-  });
+  const fillStyle = useAnimatedStyle(() => ({ transform: [{ scaleX: fill.value }] }));
 
-  const BAND = 64;
-  const shimmerX = shimmer.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-BAND, Math.max(trackW, BAND)],
-  });
-  const stripeX = stripe.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, STRIPE_PERIOD],
-  });
-  const edgeOpacity = edge.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.95] });
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: -BAND + shimmer.value * (Math.max(trackW, BAND) + BAND) },
+    ],
+  }));
 
-  // 스트라이프 바 개수 (트랙 너비 + 한 주기 여유)
-  const stripeCount = trackW > 0 ? Math.ceil((trackW + STRIPE_PERIOD) / STRIPE_PERIOD) + 1 : 0;
+  // 끝단 글로우는 채움과 별도로 둔다 — fill 안에 넣으면 scaleX 에 같이 늘어나 뭉개진다
+  const edgeStyle = useAnimatedStyle(() => ({
+    opacity: 0.25 + edge.value * 0.7,
+    transform: [{ translateX: trackW * fill.value - 11 }],
+  }));
+
+  const dotStyle = useAnimatedStyle(() => ({ opacity: dot.value }));
 
   const clock = fmtClock(servedSec);
-  const pctStr = pct.toFixed(7);
-  const [intPart, decPart] = pctStr.split('.');
+  const [intPart, decPart] = pct.toFixed(7).split('.');
 
   return (
-    <View style={styles.wrap}>
+    <View>
       <View style={styles.headRow}>
         <View style={styles.liveRow}>
-          <Animated.View style={[styles.dot, { backgroundColor: fillColor, opacity: dot }]} />
+          <Animated.View style={[styles.dot, { backgroundColor: fillColor }, dotStyle]} />
           <Text style={[styles.liveLabel, { color: subColor }]}>
             {done ? '복무 완료' : '실시간 진행률'}
           </Text>
@@ -166,36 +156,18 @@ export default function LiveServiceGauge({
       </View>
 
       <View style={[styles.track, { backgroundColor: trackColor }]} onLayout={onTrackLayout}>
-        <Animated.View style={[styles.fill, { width: fillWidth, backgroundColor: fillColor }]}>
-          {/* 흐르는 사선 스트라이프 */}
-          {stripeCount > 0 && (
-            <Animated.View
-              style={[
-                styles.stripeLayer,
-                { width: trackW + STRIPE_PERIOD * 2, transform: [{ translateX: stripeX }] },
-              ]}
-            >
-              {Array.from({ length: stripeCount }, (_, i) => (
-                <View key={i} style={[styles.stripe, { left: i * STRIPE_PERIOD - STRIPE_PERIOD }]} />
-              ))}
-            </Animated.View>
-          )}
-
-          {/* 빛 스윕 */}
-          <Animated.View
-            style={[styles.shimmer, { width: BAND, transform: [{ translateX: shimmerX }] }]}
-          />
-
-          {/* 채워지는 끝단 글로우 (지금 차오르는 지점) */}
-          {!done && (
-            <Animated.View style={[styles.edge, { opacity: edgeOpacity }]} />
-          )}
+        <Animated.View style={[styles.fill, { backgroundColor: fillColor }, fillStyle]}>
+          <Animated.View style={[styles.shimmer, { width: BAND }, shimmerStyle]} />
         </Animated.View>
+
+        {!done && trackW > 0 ? (
+          <Animated.View style={[styles.edge, edgeStyle]} pointerEvents="none" />
+        ) : null}
       </View>
 
       <Text style={[styles.sub, { color: subColor }]}>
         {done
-          ? '🎉 전역! 복무를 마쳤습니다'
+          ? '전역! 복무를 마쳤습니다'
           : `복무 ${clock.days.toLocaleString()}일  ${clock.hms} 흐르는 중`}
       </Text>
     </View>
@@ -203,37 +175,56 @@ export default function LiveServiceGauge({
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginTop: 0 },
-  headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 5 },
+  headRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 5,
+  },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 7, height: 7, borderRadius: 3.5 },
-  liveLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
-  pct: { fontSize: 19, fontWeight: '900', letterSpacing: 0.2, fontVariant: ['tabular-nums'] },
+  liveLabel: { fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.2 },
+  pct: {
+    fontSize: 19,
+    lineHeight: 24,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+    fontVariant: ['tabular-nums'],
+  },
   pctDec: { fontSize: 13, fontWeight: '800' },
   pctUnit: { fontSize: 11, fontWeight: '700' },
 
   track: { height: 12, borderRadius: 7, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 7, overflow: 'hidden', minWidth: 7 },
-
-  stripeLayer: { position: 'absolute', top: -4, bottom: -4, left: 0, flexDirection: 'row' },
-  stripe: {
-    position: 'absolute', top: 0, bottom: 0,
-    width: STRIPE_W,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    transform: [{ skewX: '-22deg' }],
+  fill: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 7,
+    overflow: 'hidden',
+    transformOrigin: 'left',
   },
 
   shimmer: {
-    position: 'absolute', top: 0, bottom: 0,
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
     backgroundColor: 'rgba(255,255,255,0.6)',
   },
 
   edge: {
-    position: 'absolute', right: 0, top: 0, bottom: 0,
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
     width: 22,
     backgroundColor: 'rgba(255,255,255,0.85)',
-    borderTopRightRadius: 7, borderBottomRightRadius: 7,
+    borderRadius: 7,
   },
 
-  sub: { fontSize: 12, fontWeight: '700', marginTop: 6, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  sub: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700',
+    marginTop: 6,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
+  },
 });

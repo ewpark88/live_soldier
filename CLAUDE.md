@@ -23,3 +23,19 @@ eas build --platform android --profile production
 - 출시 이력과 어긋나면 `eas build:version:get` 으로 확인하고 `eas build:version:set` 으로 맞춘다.
 
 자세한 배포 절차는 `doc/07_DEPLOY.md` 참고.
+
+## UI / 디자인 시스템 (v1.0.7~)
+
+화면을 새로 만들거나 고치기 전에 **`doc/05_DESIGN_SYSTEM.md` 를 먼저 읽는다.** 핵심만:
+
+- 스타일 값은 `src/theme/tokens.js` 의 토큰을 쓴다. `fontSize`·`padding`·`borderRadius` 를
+  직접 숫자로 박지 않는다. 색은 `useThemeColors()` — 하드코딩 hex 금지 (다크모드가 깨진다).
+- 화면은 `<Screen>` + `<AppHeader>` + `<Section>` 위에 짓는다.
+  **세로 간격은 `<Section>` 만 준다** — 자식이 자기 마진을 가지면 간격이 겹쳐 쌓인다.
+- 그리드는 `<Grid>` 프리미티브만. `width:'47.5%'` + `gap` 같은 퍼센트 조합은 100%로
+  안 떨어져서 오른쪽에 자투리가 남는다.
+- 애니메이션은 전부 `useMotion()` 을 거친다 (OS 동작 줄이기 + 설정 토글 대응).
+  진행 바는 `scaleX`, **`width:'%'` 애니메이션 금지.**
+- **`babel.config.js` 를 건드리지 말 것** — `babel-preset-expo@54` 가 reanimated worklets
+  플러그인을 자동 주입한다. 수동 추가 시 이중 적용되어 난해한 worklet 에러가 난다.
+- UI 아이콘은 Ionicons. 상수의 `emoji` 필드는 위젯·공유 텍스트가 쓰므로 지우지 않는다.

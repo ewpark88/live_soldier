@@ -1,151 +1,150 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Modal, KeyboardAvoidingView, Platform, Alert,
-  Animated,
+  Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  FadeInDown, FadeOutRight, LinearTransition, ZoomIn,
+  useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming,
+} from 'react-native-reanimated';
 import { useThemeColors } from '../theme/ThemeContext';
 import Card from '../components/Card';
 import SectionTitle from '../components/SectionTitle';
-import AdBanner from '../components/AdBanner';
-import DatePickerField from '../components/DatePickerField';
 import RangeCalendar from '../components/RangeCalendar';
-import MenuButton from '../components/MenuButton';
-import FadeInView from '../components/FadeInView';
-import { AD_UNITS } from '../constants/adUnits';
-import { loadTodos, addTodo, toggleTodo, deleteTodo, loadMilitaryInfo } from '../utils/storage';
-import { formatDate, formatDateKo, endDateFromSpan, daysBetweenInclusive } from '../utils/dateUtils';
+import DatePickerField from '../components/DatePickerField';
 import SetupRequired from '../components/SetupRequired';
 import AdInterstitial from '../components/AdInterstitial';
+import {
+  Screen, AppHeader, Section, Grid, Button, Chip, StatTile,
+  Divider, EmptyState, Txt, BottomSheet, PressScale,
+} from '../components/ui';
+import { AD_UNITS } from '../constants/adUnits';
+import { TRAINING_PRESETS } from '../constants/trainingPresets';
+import {
+  loadTodos, addTodo, toggleTodo, deleteTodo, loadMilitaryInfo,
+} from '../utils/storage';
+import {
+  formatDate, formatDateKo, endDateFromSpan, daysBetweenInclusive,
+} from '../utils/dateUtils';
 import useShowInterstitial from '../hooks/useShowInterstitial';
+import { useMotion } from '../hooks/useMotion';
+import { haptic } from '../utils/haptics';
+import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
 
-function getToday() { return formatDate(new Date()); }
-
-function isInRange(todo, filterDate) {
-  if (!filterDate) return true;
-  if (!todo.endDate) return todo.date === filterDate;
-  return todo.date <= filterDate && filterDate <= todo.endDate;
+function getToday() {
+  return formatDate(new Date());
 }
 
-function formatRange(startDate, endDate) {
-  if (!endDate || endDate === startDate) return formatDateKo(startDate);
-  return `${formatDateKo(startDate)} ~ ${formatDateKo(endDate)}`;
-}
-
+/** 시작~종료 포함 일수 (단일이면 1) */
 function calcDuration(startDate, endDate) {
-  if (!endDate || endDate === startDate) return null;
+  if (!endDate || endDate === startDate) return 1;
   return daysBetweenInclusive(startDate, endDate);
 }
 
-/* ─── 훈련 프리셋 ─────────────────────────────────────────── */
-const TRAINING_PRESETS = [
-  {
-    emoji: '❄️',
-    name: '혹한기 훈련',
-    days: 7,
-    color: '#5B9BD5',
-    note: '연 1회 동계 필수 훈련',
-  },
-  {
-    emoji: '🏃',
-    name: '유격훈련',
-    days: 5,
-    color: '#70AD47',
-    note: '연 1회 전투체력 필수 훈련',
-  },
-  {
-    emoji: '☣️',
-    name: '화생방 훈련',
-    days: 2,
-    color: '#FF7043',
-    note: '연 1회 CBRN 방호 훈련',
-  },
-  {
-    emoji: '🎯',
-    name: '사격 훈련',
-    days: 2,
-    color: '#E53935',
-    note: '정기 개인화기 사격',
-  },
-  {
-    emoji: '💪',
-    name: '체력검정',
-    days: 1,
-    color: '#8E24AA',
-    note: '체력단련 평가 (달리기·팔굽혀펴기·윗몸)',
-  },
-  {
-    emoji: '🌙',
-    name: '야간훈련',
-    days: 2,
-    color: '#37474F',
-    note: '야간 전술훈련',
-  },
-  {
-    emoji: '🚨',
-    name: '비상소집',
-    days: 1,
-    color: '#F4511E',
-    note: '전시 대비 비상 훈련',
-  },
-  {
-    emoji: '🔫',
-    name: '전술훈련',
-    days: 3,
-    color: '#558B2F',
-    note: '소대·중대급 전술 기동훈련',
-  },
-  {
-    emoji: '🏥',
-    name: '구급법 교육',
-    days: 1,
-    color: '#00897B',
-    note: '응급처치·심폐소생술 교육',
-  },
-  {
-    emoji: '🖥️',
-    name: '사이버 교육',
-    days: 1,
-    color: '#1E88E5',
-    note: '사이버 보안·정보보호 교육',
-  },
-  {
-    emoji: '📚',
-    name: '정신교육',
-    days: 1,
-    color: '#6D4C41',
-    note: '정기 정신전력교육',
-  },
-  {
-    emoji: '🛡️',
-    name: '대테러 훈련',
-    days: 1,
-    color: '#546E7A',
-    note: '테러 대비 훈련',
-  },
-];
+/** 필터 날짜가 일정 기간에 포함되는지 */
+function isInRange(t, filterDate) {
+  if (!filterDate) return true;
+  const start = t.date;
+  const end = t.endDate || t.date;
+  return filterDate >= start && filterDate <= end;
+}
+
+/* ─── 할 일 한 줄 ─────────────────────────────────────────── */
+function TodoItem({ item, onToggle, onDelete, last }) {
+  const tc = useThemeColors();
+  const m = useMotion();
+  const s = useMemo(() => makeItemStyles(tc), [tc]);
+
+  const duration = calcDuration(item.date, item.endDate);
+  const pop = useSharedValue(1);
+
+  const handleToggle = () => {
+    if (!m.reduced) {
+      pop.value = withSequence(
+        withTiming(0.8, { duration: 90 }),
+        withSpring(1, m.spring('pop'))
+      );
+    }
+    // 완료는 묵직하게, 해제는 가볍게 — 촉감으로 방향을 구분한다
+    if (item.done) haptic.light();
+    else haptic.medium();
+    onToggle();
+  };
+
+  const boxStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
+
+  return (
+    <Animated.View
+      entering={m.enter(FadeInDown, 0, motion.duration.base)}
+      exiting={m.exit(FadeOutRight)}
+      layout={m.layout(LinearTransition.springify().damping(20).stiffness(200))}
+    >
+      <View style={s.row}>
+        <PressScale onPress={handleToggle} haptic={null} style={s.checkTap}>
+          <Animated.View style={[s.checkbox, item.done && s.checkboxDone, boxStyle]}>
+            {item.done ? <Ionicons name="checkmark" size={16} color={tc.onPrimary} /> : null}
+          </Animated.View>
+        </PressScale>
+
+        <PressScale onPress={handleToggle} haptic={null} style={s.body}>
+          <Txt
+            role="bodyLg"
+            style={[
+              { fontWeight: '700' },
+              item.done && { color: tc.textLight, textDecorationLine: 'line-through' },
+            ]}
+            numberOfLines={2}
+          >
+            {item.title}
+          </Txt>
+
+          <View style={s.metaRow}>
+            {duration > 1 ? (
+              <Txt role="caption" tone="primary">
+                {formatDateKo(item.date)} ~ {formatDateKo(item.endDate)} · {duration}일
+              </Txt>
+            ) : null}
+            {item.note ? (
+              <Txt role="caption" tone="secondary" numberOfLines={1}>
+                {item.note}
+              </Txt>
+            ) : null}
+          </View>
+        </PressScale>
+
+        <PressScale
+          onPress={() => onDelete(item.id, item.title)}
+          haptic="light"
+          style={s.trash}
+          accessibilityLabel="삭제"
+        >
+          <Ionicons name="trash-outline" size={17} color={tc.textLight} />
+        </PressScale>
+      </View>
+
+      {!last ? <Divider inset={40} /> : null}
+    </Animated.View>
+  );
+}
 
 export default function TodoScreen({ navigation }) {
   const tc = useThemeColors();
-  const styles = useMemo(() => makeStyles(tc), [tc]);
+  const m = useMotion();
+  const s = useMemo(() => makeStyles(tc), [tc]);
   const today = getToday();
 
-  const insets = useSafeAreaInsets();
   const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
-  const [militaryInfo, setMilitaryInfo] = useState(undefined);
-  const [todos,        setTodos]        = useState([]);
-  const [filterDate,   setFilterDate]   = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [showPresets,  setShowPresets]  = useState(false); // 프리셋 패널 토글
 
-  // 폼 상태 (formEndDate='' → 단일 일정, 값 있으면 기간)
-  const [formTitle,   setFormTitle]   = useState('');
-  const [formDate,    setFormDate]    = useState(today);
+  const [militaryInfo, setMilitaryInfo] = useState(undefined);
+  const [todos, setTodos] = useState([]);
+  const [filterDate, setFilterDate] = useState('');
+  const [sheet, setSheet] = useState(null); // 'add' | 'presets' | null
+
+  const [formTitle, setFormTitle] = useState('');
+  const [formDate, setFormDate] = useState(today);
   const [formEndDate, setFormEndDate] = useState('');
-  const [formNote,    setFormNote]    = useState('');
+  const [formNote, setFormNote] = useState('');
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -156,22 +155,17 @@ export default function TodoScreen({ navigation }) {
     setTodos(await loadTodos());
   };
 
-  /* ─── 프리셋 선택 → 모달 열기 ─────────────────────────────── */
   const handlePreset = (preset) => {
     setFormTitle(preset.name);
     setFormNote(preset.note);
     setFormDate(today);
-    // 여러 날 훈련은 오늘부터 기간이 자동 지정됨 (캘린더에서 바로 조정 가능)
     setFormEndDate(preset.days > 1 ? endDateFromSpan(today, preset.days) : '');
-    setShowPresets(false);
-    setModalVisible(true);
+    setSheet('add');
   };
 
-  /* ─── 할 일 추가 ─────────────────────────────────────────── */
   const handleAdd = async () => {
-    if (!formTitle.trim()) { Alert.alert('오류', '할 일 내용을 입력해주세요.'); return; }
-    if (!formDate) { Alert.alert('오류', '날짜를 선택해주세요.'); return; }
-    // formEndDate가 시작일보다 뒤일 때만 기간으로 저장 (그 외엔 단일 일정)
+    if (!formTitle.trim()) { haptic.warning(); Alert.alert('오류', '할 일 내용을 입력해주세요.'); return; }
+    if (!formDate) { haptic.warning(); Alert.alert('오류', '날짜를 선택해주세요.'); return; }
     const endDate = formEndDate && formEndDate > formDate ? formEndDate : '';
     setTodos(await addTodo({
       title: formTitle.trim(),
@@ -179,7 +173,8 @@ export default function TodoScreen({ navigation }) {
       endDate,
       note: formNote.trim(),
     }));
-    closeModal();
+    haptic.success();
+    closeSheet();
     showAd();
   };
 
@@ -192,29 +187,27 @@ export default function TodoScreen({ navigation }) {
     ]);
   };
 
-  const openModal = () => {
+  const openAdd = () => {
     setFormTitle('');
     setFormDate(today);
     setFormEndDate('');
     setFormNote('');
-    setModalVisible(true);
+    setSheet('add');
   };
 
-  const closeModal = () => {
-    setModalVisible(false);
+  const closeSheet = () => {
+    setSheet(null);
     setFormTitle('');
     setFormDate(today);
     setFormEndDate('');
     setFormNote('');
   };
 
-  /* ─── 필터링 & 그룹핑 ─────────────────────────────────────── */
   const filtered = todos.filter((t) => isInRange(t, filterDate));
 
   const grouped = filtered.reduce((acc, t) => {
     const key = t.date || today;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(t);
+    (acc[key] = acc[key] || []).push(t);
     return acc;
   }, {});
 
@@ -225,373 +218,273 @@ export default function TodoScreen({ navigation }) {
   });
 
   const totalCount = todos.length;
-  const doneCount  = todos.filter((t) => t.done).length;
+  const doneCount = todos.filter((t) => t.done).length;
 
-  if (militaryInfo === undefined) return null;
+  if (militaryInfo === undefined) return <Screen scroll={false} />;
   if (!militaryInfo) return <SetupRequired />;
 
   return (
-    <View style={styles.container}>
-      <AdInterstitial visible={adVisible} onClose={closeAd} />
-      <ScrollView
-        style={styles.scrollFlex}
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10 }]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+    <>
+      <Screen
+        ad={AD_UNITS.TODO_BOTTOM}
+        contentContainerStyle={{ paddingBottom: 96 }}
+        header={
+          <AppHeader
+            title="일정 관리"
+            navigation={navigation}
+            current="todo"
+            right={
+              <Chip
+                label="훈련 추가"
+                icon="flash"
+                size="sm"
+                onPress={() => setSheet('presets')}
+              />
+            }
+          />
+        }
       >
-        <View style={styles.topBar}>
-          <Text style={styles.pageTitle}>일정 관리</Text>
-          <MenuButton navigation={navigation} current="todo" />
-        </View>
+        {/* 요약 + 날짜 필터 */}
+        <Section index={0}>
+          <Card>
+            <View style={s.statRow}>
+              <StatTile label="전체" value={totalCount} tone="primary" countUp />
+              <StatTile label="완료" value={doneCount} tone="success" countUp />
+              <StatTile label="미완료" value={totalCount - doneCount} tone="accent" countUp />
+            </View>
 
-        {/* 요약 */}
-        <Card style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            {[
-              { val: totalCount,             label: '전체',   color: tc.primary },
-              { val: doneCount,              label: '완료',   color: tc.success },
-              { val: totalCount - doneCount, label: '미완료', color: tc.accent },
-            ].map((item) => (
-              <View key={item.label} style={styles.summaryItem}>
-                <Text style={[styles.summaryBig, { color: item.color }]}>{item.val}</Text>
-                <Text style={styles.summarySub}>{item.label}</Text>
+            {/* DatePickerField 가 더 이상 자체 마진을 갖지 않아서
+                예전의 marginBottom:14 정렬 핵 없이 그냥 나란히 놓인다. */}
+            <View style={s.filterRow}>
+              <View style={{ flex: 1 }}>
+                <DatePickerField
+                  value={filterDate}
+                  onChange={setFilterDate}
+                  placeholder="날짜로 일정 찾기"
+                />
               </View>
-            ))}
-          </View>
-          <View style={styles.filterRow}>
-            <View style={{ flex: 1 }}>
-              <DatePickerField
-                value={filterDate}
-                onChange={setFilterDate}
-                placeholder="날짜로 필터링"
-              />
-            </View>
-            {filterDate ? (
-              <TouchableOpacity style={styles.filterClearBtn} onPress={() => setFilterDate('')}>
-                <Text style={styles.filterClearText}>전체</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </Card>
-
-        {/* ── 버튼 행 ── */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.addBtn} onPress={openModal}>
-            <Text style={styles.addBtnText}>＋ 직접 추가</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.presetToggleBtn, showPresets && styles.presetToggleBtnOn]}
-            onPress={() => setShowPresets((v) => !v)}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <Ionicons name="flash-outline" size={15} color={showPresets ? tc.white : tc.primary} />
-              <Text style={[styles.presetToggleBtnText, showPresets && styles.presetToggleBtnTextOn]}>훈련 빠른 추가</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── 훈련 프리셋 패널 ── */}
-        {showPresets && (
-          <Card style={styles.presetCard}>
-            <Text style={styles.presetCardTitle}>군 훈련 빠른 추가</Text>
-            <Text style={styles.presetCardSub}>탭하면 날짜·기간이 자동 입력돼요</Text>
-            <View style={styles.presetGrid}>
-              {TRAINING_PRESETS.map((p) => (
-                <TouchableOpacity
-                  key={p.name}
-                  style={[styles.presetChip, { borderColor: p.color }]}
-                  onPress={() => handlePreset(p)}
-                  activeOpacity={0.75}
-                >
-                  <View style={[styles.presetChipTop, { backgroundColor: p.color }]}>
-                    <Text style={styles.presetEmoji}>{p.emoji}</Text>
-                    {p.days > 1 && (
-                      <View style={styles.presetDaysBadge}>
-                        <Text style={styles.presetDaysText}>{p.days}일</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.presetName} numberOfLines={2}>{p.name}</Text>
-                </TouchableOpacity>
-              ))}
+              {filterDate ? (
+                <Button
+                  title="전체"
+                  variant="ghost"
+                  size="md"
+                  onPress={() => { setFilterDate(''); haptic.select(); }}
+                />
+              ) : null}
             </View>
           </Card>
-        )}
+        </Section>
 
-        {/* 날짜별 그룹 */}
+        {/* 날짜별 그룹 — 그룹 하나당 카드 하나, 안에서 헤어라인으로 나눈다 */}
         {sortedDates.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Ionicons name="calendar-clear-outline" size={50} color={tc.textLight} style={styles.emptyEmoji} />
-            <Text style={styles.emptyText}>
-              {filterDate ? `${formatDateKo(filterDate)}에 일정이 없어요.` : '할 일을 추가해보세요!'}
-            </Text>
-          </Card>
+          <Section index={1}>
+            <Card>
+              <EmptyState
+                icon="calendar-outline"
+                title={filterDate ? '이 날짜엔 일정이 없어요' : '아직 등록된 일정이 없어요'}
+                desc={
+                  filterDate
+                    ? '다른 날짜를 보거나 필터를 해제해보세요.'
+                    : '훈련 일정이나 할 일을 등록해두면 알림으로 미리 알려드려요.'
+                }
+                action={{ label: '일정 추가', icon: 'add', onPress: openAdd }}
+                compact
+              />
+            </Card>
+          </Section>
         ) : (
-          sortedDates.map((date, idx) => (
-            <FadeInView key={date} delay={Math.min(idx, 6) * 55}>
-              <View style={styles.dateHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Ionicons name="calendar-outline" size={14} color={tc.primary} />
-                  <Text style={styles.dateHeaderText}>
-                    {date === today ? '오늘' : `${formatDateKo(date)}`}
-                  </Text>
-                </View>
-                <Text style={styles.dateHeaderCount}>
-                  {grouped[date].filter((t) => t.done).length}/{grouped[date].length}
-                </Text>
-              </View>
-              {grouped[date].map((item) => (
-                <TodoItem
-                  key={item.id}
-                  item={item}
-                  onToggle={() => handleToggle(item.id)}
-                  onDelete={() => handleDelete(item.id, item.title)}
-                />
-              ))}
-            </FadeInView>
-          ))
+          sortedDates.map((date, idx) => {
+            const items = grouped[date];
+            const done = items.filter((t) => t.done).length;
+            return (
+              <Section key={date} index={idx + 1}>
+                <Card>
+                  <SectionTitle
+                    icon={date === today ? 'today-outline' : 'calendar-outline'}
+                    tone={date === today ? 'accent' : 'primary'}
+                    right={
+                      <Txt role="caption" tone="secondary">
+                        {done}/{items.length} 완료
+                      </Txt>
+                    }
+                  >
+                    {date === today ? `오늘 · ${formatDateKo(date)}` : formatDateKo(date)}
+                  </SectionTitle>
+
+                  <View style={{ marginTop: sp.xs }}>
+                    {items.map((item, i) => (
+                      <TodoItem
+                        key={item.id}
+                        item={item}
+                        onToggle={() => handleToggle(item.id)}
+                        onDelete={handleDelete}
+                        last={i === items.length - 1}
+                      />
+                    ))}
+                  </View>
+                </Card>
+              </Section>
+            );
+          })
         )}
+      </Screen>
 
-        <View style={{ height: 24 }} />
-      </ScrollView>
+      {/* FAB — 광고 푸터 위에 뜬다 (탭바는 푸터 아래라 여기서 셈하지 않는다) */}
+      <Animated.View
+        entering={m.enter(ZoomIn, 0, motion.duration.slow)}
+        style={s.fabWrap}
+        pointerEvents="box-none"
+      >
+        <PressScale onPress={openAdd} haptic="medium" style={s.fab} accessibilityLabel="일정 추가">
+          <Ionicons name="add" size={28} color={tc.onPrimary} />
+        </PressScale>
+      </Animated.View>
 
-      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
-      <View style={styles.adFooter}>
-        <AdBanner unit={AD_UNITS.TODO_BOTTOM} />
-      </View>
+      <AdInterstitial visible={adVisible} onClose={closeAd} />
 
-      {/* ── 추가 모달 ── */}
-      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={closeModal}>
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.modalBox}>
-            <View style={styles.modalHandle} />
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.modalScroll}
-            >
-              <Text style={styles.modalTitle}>할 일 추가</Text>
+      {/* 훈련 프리셋 시트 — 예전엔 화면 중간에서 펼쳐지며 아래 목록을 통째로
+          밀어냈다. 시트로 빼면 레이아웃 이동이 0이 된다. */}
+      <BottomSheet visible={sheet === 'presets'} onClose={closeSheet}>
+        <Txt role="subtitle" style={{ marginBottom: sp.xs }}>훈련 빠른 추가</Txt>
+        <Txt role="caption" tone="secondary" style={{ marginBottom: sp.lg }}>
+          누르면 오늘 날짜로 기간이 자동 지정돼요
+        </Txt>
 
-              <Text style={styles.formLabel}>할 일 내용 *</Text>
-              <TextInput
-                style={styles.formInput}
-                value={formTitle}
-                onChangeText={setFormTitle}
-                placeholder="예) 혹한기 훈련, 면회 신청..."
-                placeholderTextColor={tc.textLight}
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <Grid columns={3} gap={sp.sm}>
+            {TRAINING_PRESETS.map((p) => (
+              <PressScale
+                key={p.name}
+                onPress={() => handlePreset(p)}
+                haptic="select"
+                style={s.preset}
+              >
+                <View style={[s.presetIcon, { backgroundColor: `${p.color}22` }]}>
+                  <Ionicons name={p.icon} size={20} color={p.color} />
+                </View>
+                <Txt role="caption" style={{ textAlign: 'center' }} numberOfLines={2}>
+                  {p.name}
+                </Txt>
+                <Chip label={`${p.days}일`} size="sm" />
+              </PressScale>
+            ))}
+          </Grid>
+        </ScrollView>
+      </BottomSheet>
+
+      {/* 추가 시트 */}
+      <BottomSheet visible={sheet === 'add'} onClose={closeSheet}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Txt role="subtitle" style={{ marginBottom: sp.lg }}>일정 추가</Txt>
+
+            <Txt role="label" tone="secondary" style={s.formLabel}>할 일 내용 *</Txt>
+            <TextInput
+              style={s.input}
+              value={formTitle}
+              onChangeText={setFormTitle}
+              placeholder="예) 혹한기 훈련, 면회 신청..."
+              placeholderTextColor={tc.textLight}
+            />
+
+            <Txt role="label" tone="secondary" style={s.formLabel}>날짜 · 기간</Txt>
+            <View style={s.calendarBox}>
+              <RangeCalendar
+                startDate={formDate}
+                endDate={formEndDate}
+                onChange={(start, end) => { setFormDate(start); setFormEndDate(end); }}
               />
-
-              <Text style={styles.formLabel}>날짜 · 기간</Text>
-              <View style={styles.calendarBox}>
-                <RangeCalendar
-                  startDate={formDate}
-                  endDate={formEndDate}
-                  onChange={(start, end) => { setFormDate(start); setFormEndDate(end); }}
-                />
-              </View>
-
-              <Text style={styles.formLabel}>메모 (선택)</Text>
-              <TextInput
-                style={[styles.formInput, styles.formTextarea]}
-                value={formNote}
-                onChangeText={setFormNote}
-                placeholder="추가 메모..."
-                placeholderTextColor={tc.textLight}
-                multiline
-                numberOfLines={2}
-              />
-
-              <View style={styles.modalBtnRow}>
-                <TouchableOpacity style={styles.modalCancelBtn} onPress={closeModal}>
-                  <Text style={styles.modalCancelBtnText}>취소</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.modalSaveBtn} onPress={handleAdd}>
-                  <Text style={styles.modalSaveBtnText}>추가</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-    </View>
-  );
-}
-
-/* ─── 할 일 아이템 ───────────────────────────────────────── */
-function TodoItem({ item, onToggle, onDelete }) {
-  const tc = useThemeColors();
-  const styles = useMemo(() => makeStyles(tc), [tc]);
-  const duration = calcDuration(item.date, item.endDate);
-  const scale = useRef(new Animated.Value(1)).current;
-
-  const handleToggle = () => {
-    // 체크 시 살짝 눌렸다 튀어오르는 팝 효과
-    Animated.sequence([
-      Animated.timing(scale, { toValue: 0.8, duration: 90, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1, friction: 4, tension: 160, useNativeDriver: true }),
-    ]).start();
-    onToggle();
-  };
-
-  return (
-    <Card style={[styles.todoCard, item.done && styles.todoCardDone]}>
-      <TouchableOpacity style={styles.todoRow} onPress={handleToggle} activeOpacity={0.7}>
-        <Animated.View style={[styles.checkbox, item.done && styles.checkboxDone, { transform: [{ scale }] }]}>
-          {item.done && <Text style={styles.checkmark}>✓</Text>}
-        </Animated.View>
-        <View style={styles.todoContent}>
-          <Text style={[styles.todoTitle, item.done && styles.todoTitleDone]} numberOfLines={2}>
-            {item.title}
-          </Text>
-          {item.endDate && item.endDate !== item.date && (
-            <View style={styles.durationRow}>
-              <Ionicons name="time-outline" size={13} color={tc.textSecondary} style={styles.durationIcon} />
-              <Text style={styles.durationText}>
-                {formatRange(item.date, item.endDate)}
-                {duration ? `  (${duration}일)` : ''}
-              </Text>
             </View>
-          )}
-          {!!item.note && <Text style={styles.todoNote} numberOfLines={1}>{item.note}</Text>}
-        </View>
-        <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={styles.deleteBtnText}>✕</Text>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    </Card>
+
+            <Txt role="label" tone="secondary" style={s.formLabel}>메모 (선택)</Txt>
+            <TextInput
+              style={[s.input, s.textarea]}
+              value={formNote}
+              onChangeText={setFormNote}
+              placeholder="추가 메모..."
+              placeholderTextColor={tc.textLight}
+              multiline
+              numberOfLines={2}
+            />
+
+            <View style={s.sheetBtns}>
+              <Button title="취소" variant="ghost" onPress={closeSheet} style={{ flex: 1 }} />
+              <Button title="추가" onPress={handleAdd} style={{ flex: 1 }} />
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </BottomSheet>
+    </>
   );
 }
 
-/* ─── 스타일 ─────────────────────────────────────────────── */
-const CHIP_W = '30%';
+const makeItemStyles = (tc) =>
+  StyleSheet.create({
+    row: { flexDirection: 'row', alignItems: 'center', gap: sp.md, paddingVertical: sp.md },
+    checkTap: { padding: sp.xxs },
+    checkbox: {
+      width: 24,
+      height: 24,
+      borderRadius: r.xs,
+      borderWidth: 2,
+      borderColor: tc.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxDone: { backgroundColor: tc.primary, borderColor: tc.primary },
+    body: { flex: 1, gap: 2 },
+    metaRow: { gap: 1 },
+    trash: { padding: sp.xs },
+  });
 
-const makeStyles = (tc) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: tc.background },
-  scrollFlex: { flex: 1 },
-  scroll: { padding: 16, paddingBottom: 8 },
-  adFooter: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    backgroundColor: tc.card,
-    borderTopWidth: 1,
-    borderTopColor: tc.border,
-  },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
+const makeStyles = (tc) =>
+  StyleSheet.create({
+    statRow: { flexDirection: 'row', gap: sp.sm },
+    filterRow: { flexDirection: 'row', alignItems: 'center', gap: sp.sm, marginTop: sp.lg },
 
-  summaryCard: { paddingVertical: 16 },
-  summaryRow: { flexDirection: 'row', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: tc.border, paddingBottom: 14 },
-  summaryItem: { flex: 1, alignItems: 'center' },
-  summaryBig: { fontSize: 26, fontWeight: '800' },
-  summarySub: { fontSize: 13, color: tc.textSecondary, marginTop: 3 },
-  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  filterClearBtn: {
-    paddingHorizontal: 14, paddingVertical: 10,
-    backgroundColor: tc.background, borderRadius: 10,
-    borderWidth: 1.5, borderColor: tc.primaryLight, marginBottom: 14,
-  },
-  filterClearText: { fontSize: 14, color: tc.primaryLight, fontWeight: '600' },
+    fabWrap: { position: 'absolute', right: sp.lg, bottom: 96 },
+    fab: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: tc.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: tc.shadowStrong,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.28,
+      shadowRadius: 12,
+      elevation: 8,
+    },
 
-  /* 버튼 행 */
-  actionRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  addBtn: {
-    flex: 1, backgroundColor: tc.primary,
-    borderRadius: 12, paddingVertical: 15, alignItems: 'center',
-  },
-  addBtnText: { color: tc.white, fontWeight: '700', fontSize: 15 },
-  presetToggleBtn: {
-    flex: 1, borderRadius: 12, paddingVertical: 15, alignItems: 'center',
-    borderWidth: 1.5, borderColor: tc.primary, backgroundColor: tc.card,
-  },
-  presetToggleBtnOn: { backgroundColor: tc.primary },
-  presetToggleBtnText: { color: tc.primary, fontWeight: '700', fontSize: 15 },
-  presetToggleBtnTextOn: { color: tc.white },
+    preset: {
+      alignItems: 'center',
+      gap: sp.xs + 2,
+      paddingVertical: sp.md,
+      paddingHorizontal: sp.xs,
+      borderRadius: r.md,
+      backgroundColor: tc.surfaceSunken,
+    },
+    presetIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  /* 훈련 프리셋 패널 */
-  presetCard: { marginBottom: 14, paddingBottom: 16 },
-  presetCardTitle: { fontSize: 16, fontWeight: '800', color: tc.text, marginBottom: 3 },
-  presetCardSub: { fontSize: 12, color: tc.textSecondary, marginBottom: 14 },
-  presetGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  presetChip: {
-    width: CHIP_W,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    overflow: 'hidden',
-  },
-  presetChipTop: {
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  presetEmoji: { fontSize: 26 },
-  presetDaysBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 6,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 8,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  presetDaysText: { fontSize: 10, color: '#FFF', fontWeight: '700' },
-  presetName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: tc.text,
-    textAlign: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 7,
-    lineHeight: 16,
-  },
-
-  /* 할 일 목록 */
-  emptyCard: { alignItems: 'center', paddingVertical: 36 },
-  emptyEmoji: { fontSize: 38, marginBottom: 12 },
-  emptyText: { fontSize: 15, color: tc.textSecondary, textAlign: 'center' },
-  dateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4 },
-  dateHeaderText: { fontSize: 15, fontWeight: '700', color: tc.primary },
-  dateHeaderCount: { fontSize: 13, color: tc.textSecondary },
-  todoCard: { paddingVertical: 14, paddingHorizontal: 14, marginBottom: 8 },
-  todoCardDone: { opacity: 0.55, backgroundColor: tc.background },
-  todoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  checkbox: { width: 26, height: 26, borderRadius: 7, borderWidth: 2, borderColor: tc.border, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  checkboxDone: { backgroundColor: tc.primary, borderColor: tc.primary },
-  checkmark: { color: tc.white, fontSize: 14, fontWeight: '900' },
-  todoContent: { flex: 1 },
-  todoTitle: { fontSize: 16, fontWeight: '600', color: tc.text, lineHeight: 22 },
-  todoTitleDone: { textDecorationLine: 'line-through', color: tc.textSecondary },
-  durationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 },
-  durationIcon: { fontSize: 12 },
-  durationText: { fontSize: 12, color: tc.primaryLight, fontWeight: '600' },
-  todoNote: { fontSize: 13, color: tc.textSecondary, marginTop: 4 },
-  deleteBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: tc.background, alignItems: 'center', justifyContent: 'center' },
-  deleteBtnText: { fontSize: 12, color: tc.danger, fontWeight: '800' },
-
-  /* 모달 */
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalBox: { backgroundColor: tc.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 14, paddingBottom: 34, maxHeight: '90%' },
-  modalScroll: { paddingBottom: 10 },
-  modalHandle: { width: 40, height: 4, backgroundColor: tc.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 19, fontWeight: '800', color: tc.text, marginBottom: 20, textAlign: 'center' },
-  calendarBox: { backgroundColor: tc.background, borderRadius: 14, borderWidth: 1.5, borderColor: tc.border, paddingHorizontal: 8, paddingVertical: 6, marginBottom: 14 },
-  formLabel: { fontSize: 14, fontWeight: '600', color: tc.textSecondary, marginBottom: 9 },
-  formInput: {
-    backgroundColor: tc.background, borderWidth: 1.5, borderColor: tc.border,
-    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13,
-    fontSize: 16, color: tc.text, marginBottom: 14,
-  },
-  formTextarea: { height: 76, textAlignVertical: 'top' },
-  modalBtnRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
-  modalCancelBtn: { flex: 1, paddingVertical: 15, borderRadius: 12, borderWidth: 1.5, borderColor: tc.border, alignItems: 'center' },
-  modalCancelBtnText: { color: tc.textSecondary, fontWeight: '600', fontSize: 16 },
-  modalSaveBtn: { flex: 2, paddingVertical: 15, borderRadius: 12, backgroundColor: tc.primary, alignItems: 'center' },
-  modalSaveBtnText: { color: tc.white, fontWeight: '700', fontSize: 16 },
-});
+    formLabel: { marginTop: sp.md, marginBottom: sp.sm },
+    input: {
+      backgroundColor: tc.surfaceSunken,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: tc.surfaceSunkenBorder,
+      borderRadius: r.sm,
+      paddingHorizontal: sp.md,
+      paddingVertical: sp.md,
+      ...ty.bodyLg,
+      color: tc.text,
+    },
+    textarea: { minHeight: 64, textAlignVertical: 'top' },
+    calendarBox: { backgroundColor: tc.surfaceSunken, borderRadius: r.md, padding: sp.sm },
+    sheetBtns: { flexDirection: 'row', gap: sp.sm, marginTop: sp.xl },
+  });

@@ -14,6 +14,7 @@ import { calcDischargeDate, formatDate } from './dateUtils';
 
 const STORE_KEY = '@profiles_v1';
 const THEME_KEY = '@theme_mode';
+const PREFS_KEY = '@ui_prefs_v1';
 export const MAX_PROFILES = 12;
 
 /* 구버전(단일 프로필) 키 — 최초 1회 마이그레이션 시에만 읽음 */
@@ -370,6 +371,27 @@ export async function loadThemeMode() {
 
 export async function saveThemeMode(mode) {
   try { await AsyncStorage.setItem(THEME_KEY, mode); } catch {}
+}
+
+// ─── UI 환경설정 (햅틱 / 애니메이션 줄이기) ────────────────────────────
+// 테마 모드와 마찬가지로 프로필 바깥에 저장한다 — 사람이 아니라 기기 설정이다.
+export const DEFAULT_UI_PREFS = { haptics: true, reduceMotion: false };
+
+export async function loadUIPrefs() {
+  try {
+    const raw = await AsyncStorage.getItem(PREFS_KEY);
+    const v = _safeParse(raw, {});
+    return {
+      haptics: typeof v.haptics === 'boolean' ? v.haptics : DEFAULT_UI_PREFS.haptics,
+      reduceMotion: typeof v.reduceMotion === 'boolean' ? v.reduceMotion : DEFAULT_UI_PREFS.reduceMotion,
+    };
+  } catch {
+    return { ...DEFAULT_UI_PREFS };
+  }
+}
+
+export async function saveUIPrefs(prefs) {
+  try { await AsyncStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
 }
 
 // ─── 전체 데이터 삭제 (모든 프로필/군생활 데이터 초기화) ────────────────

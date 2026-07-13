@@ -1,40 +1,70 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Platform,
-} from 'react-native';
+import { Alert, Platform, StyleSheet, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { ZoomIn } from 'react-native-reanimated';
 import Card from '../components/Card';
-import AdBanner from '../components/AdBanner';
-import MenuButton from '../components/MenuButton';
+import { Screen, AppHeader, Section, ListRow, Divider, Txt } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import { useTheme, useThemeColors } from '../theme/ThemeContext';
+import { usePrefs } from '../theme/PrefsContext';
+import { useMotion } from '../hooks/useMotion';
 import { clearAllData } from '../utils/storage';
+import { haptic } from '../utils/haptics';
 import {
   isNotifEnabled, enableNotifications, disableNotifications, isNotifAvailable,
 } from '../utils/notifications';
 import { expo as appInfo } from '../../app.json';
+import { space as sp } from '../theme/tokens';
 
 const THEME_OPTIONS = [
   { key: 'system', label: '시스템 설정 따름', icon: 'phone-portrait-outline', desc: '기기의 라이트/다크 설정을 자동으로 따릅니다' },
-  { key: 'light',  label: '라이트',          icon: 'sunny-outline',          desc: '항상 밝은 테마' },
-  { key: 'dark',   label: '다크',            icon: 'moon-outline',           desc: '항상 어두운 테마' },
+  { key: 'light', label: '라이트', icon: 'sunny-outline', desc: '항상 밝은 테마' },
+  { key: 'dark', label: '다크', icon: 'moon-outline', desc: '항상 어두운 테마' },
 ];
 
+/** 그룹 라벨 + 카드 + (선택) 힌트 */
+function Group({ label, hint, index, children }) {
+  return (
+    <Section index={index} gap={sp.md}>
+      <Txt role="label" tone="secondary" style={{ marginLeft: sp.xs, marginBottom: sp.sm }}>
+        {label}
+      </Txt>
+      {/* pad="none": 행이 좌우 패딩을 직접 갖는다.
+          overflow:'hidden' 은 쓰지 않는다 — iOS 에서 카드 그림자가 잘려 사라진다. */}
+      <Card pad="none" style={styles.group}>
+        {children}
+      </Card>
+      {hint ? (
+        <Txt role="caption" tone="light" style={{ marginTop: sp.sm, marginLeft: sp.xs }}>
+          {hint}
+        </Txt>
+      ) : null}
+    </Section>
+  );
+}
+
 export default function SettingsScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
   const tc = useThemeColors();
   const { mode, setMode } = useTheme();
-  const styles = useMemo(() => makeStyles(tc), [tc]);
+  const { haptics, reduceMotion, setHaptics, setReduceMotion } = usePrefs();
+  const m = useMotion();
+
   const [notifOn, setNotifOn] = useState(false);
   const [notifBusy, setNotifBusy] = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    let alive = true;
-    isNotifEnabled().then((v) => { if (alive) setNotifOn(v); });
-    return () => { alive = false; };
-  }, []));
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      isNotifEnabled().then((v) => { if (alive) setNotifOn(v); });
+      return () => { alive = false; };
+    }, [])
+  );
+
+  const switchProps = (on) => ({
+    trackColor: { false: tc.border, true: tc.primaryLight },
+    thumbColor: Platform.OS === 'android' ? (on ? tc.primary : tc.card) : undefined,
+  });
 
   const handleToggleNotif = async (next) => {
     if (notifBusy) return;
@@ -42,15 +72,18 @@ export default function SettingsScreen({ navigation }) {
     try {
       if (next) {
         if (!isNotifAvailable()) {
+          haptic.warning();
           Alert.alert('알림 사용 불가', 'Expo Go에서는 알림을 사용할 수 없어요. 빌드된 앱에서 이용해주세요.');
           return;
         }
         const ok = await enableNotifications();
         if (ok) {
           setNotifOn(true);
+          haptic.success();
           Alert.alert('알림 켜짐', '전역 D-day·진급·일정 리마인더를 보내드릴게요.');
         } else {
           setNotifOn(false);
+          haptic.warning();
           Alert.alert('권한 필요', '기기 설정에서 알림 권한을 허용해주세요.');
         }
       } else {
@@ -63,6 +96,7 @@ export default function SettingsScreen({ navigation }) {
   };
 
   const handleClearData = () => {
+    haptic.warning();
     Alert.alert(
       '모든 데이터 삭제',
       '삭제를 하면 모든 데이터가 사라집니다. 삭제하시겠습니까?',
@@ -83,126 +117,138 @@ export default function SettingsScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scrollFlex}
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10, paddingBottom: 24 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.topBar}>
-          <Text style={styles.pageTitle}>설정</Text>
-          <MenuButton navigation={navigation} current="settings" />
-        </View>
-
-        {/* ── 테마 ── */}
-        <Text style={styles.sectionLabel}>화면 테마</Text>
-        <Card style={styles.groupCard}>
-          {THEME_OPTIONS.map((opt, i) => {
-            const active = mode === opt.key;
-            return (
-              <TouchableOpacity
-                key={opt.key}
-                style={[styles.row, i < THEME_OPTIONS.length - 1 && styles.rowDivider]}
-                activeOpacity={0.7}
+    <Screen
+      ad={AD_UNITS.HOME_BOTTOM}
+      header={<AppHeader title="설정" navigation={navigation} current="settings" />}
+    >
+      {/* ── 화면 테마 ── */}
+      <Group label="화면 테마" index={0}>
+        {THEME_OPTIONS.map((opt, i) => {
+          const active = mode === opt.key;
+          return (
+            <View key={opt.key}>
+              <ListRow
+                title={opt.label}
+                subtitle={opt.desc}
+                icon={opt.icon}
+                iconTone={active ? 'primary' : 'neutral'}
                 onPress={() => setMode(opt.key)}
-              >
-                <Ionicons name={opt.icon} size={22} color={active ? tc.primary : tc.textSecondary} style={styles.rowIcon} />
-                <View style={styles.rowTextWrap}>
-                  <Text style={[styles.rowTitle, active && { color: tc.primary, fontWeight: '700' }]}>{opt.label}</Text>
-                  <Text style={styles.rowDesc}>{opt.desc}</Text>
-                </View>
-                {active && <Ionicons name="checkmark-circle" size={22} color={tc.primary} />}
-              </TouchableOpacity>
-            );
-          })}
-        </Card>
-
-        {/* ── 알림 ── */}
-        <Text style={styles.sectionLabel}>알림</Text>
-        <Card style={styles.groupCard}>
-          <View style={styles.row}>
-            <Ionicons name="notifications-outline" size={22} color={notifOn ? tc.primary : tc.textSecondary} style={styles.rowIcon} />
-            <View style={styles.rowTextWrap}>
-              <Text style={[styles.rowTitle, notifOn && { color: tc.primary, fontWeight: '700' }]}>전역 리마인더</Text>
-              <Text style={styles.rowDesc}>전역 D-100·D-7·진급일·일정을 미리 알려드려요</Text>
+                titleStyle={active && { color: tc.primary }}
+                style={styles.row}
+                right={
+                  active ? (
+                    <Animated.View entering={m.enter(ZoomIn, 0, 220)}>
+                      <Ionicons name="checkmark-circle" size={22} color={tc.primary} />
+                    </Animated.View>
+                  ) : undefined
+                }
+              />
+              {i < THEME_OPTIONS.length - 1 ? <Divider inset={sp.lg + 48} /> : null}
             </View>
+          );
+        })}
+      </Group>
+
+      {/* ── 알림 ── */}
+      <Group
+        label="알림"
+        index={1}
+        hint="* 알림은 이 기기에서만 예약되며, 현재 선택된 프로필 기준으로 발송됩니다."
+      >
+        <ListRow
+          title="전역 리마인더"
+          subtitle="전역 D-100·D-7·진급일·일정을 미리 알려드려요"
+          icon="notifications-outline"
+          iconTone={notifOn ? 'primary' : 'neutral'}
+          style={styles.row}
+          right={
             <Switch
               value={notifOn}
               onValueChange={handleToggleNotif}
               disabled={notifBusy}
-              trackColor={{ false: tc.border, true: tc.primaryLight }}
-              thumbColor={Platform.OS === 'android' ? (notifOn ? tc.primary : tc.card) : undefined}
+              {...switchProps(notifOn)}
             />
-          </View>
-        </Card>
-        <Text style={styles.hint}>* 알림은 이 기기에서만 예약되며, 현재 선택된 프로필 기준으로 발송됩니다.</Text>
+          }
+        />
+      </Group>
 
-        {/* ── 데이터 ── */}
-        <Text style={styles.sectionLabel}>데이터</Text>
-        <Card style={styles.groupCard}>
-          <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={handleClearData}>
-            <Ionicons name="trash-outline" size={22} color={tc.danger} style={styles.rowIcon} />
-            <View style={styles.rowTextWrap}>
-              <Text style={[styles.rowTitle, { color: tc.danger }]}>모든 데이터 삭제</Text>
-              <Text style={styles.rowDesc}>모든 프로필·군생활 데이터를 초기화합니다</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={tc.textLight} />
-          </TouchableOpacity>
-        </Card>
-        <Text style={styles.hint}>* 모든 데이터는 이 기기에만 저장되며 외부로 전송되지 않습니다.</Text>
+      {/* ── 모션 (애니메이션·햅틱) ── */}
+      <Group
+        label="모션"
+        index={2}
+        hint="* 기기의 '동작 줄이기' 접근성 설정이 켜져 있으면 애니메이션은 자동으로 꺼집니다."
+      >
+        <ListRow
+          title="햅틱 반응"
+          subtitle="버튼·선택 시 가볍게 진동합니다"
+          icon="pulse-outline"
+          iconTone={haptics ? 'primary' : 'neutral'}
+          style={styles.row}
+          right={
+            <Switch
+              value={haptics}
+              onValueChange={(v) => { setHaptics(v); if (v) haptic.light(); }}
+              {...switchProps(haptics)}
+            />
+          }
+        />
+        <Divider inset={sp.lg + 48} />
+        <ListRow
+          title="애니메이션 줄이기"
+          subtitle="화면 전환·카운트업 등의 움직임을 최소화합니다"
+          icon="eye-off-outline"
+          iconTone={reduceMotion ? 'primary' : 'neutral'}
+          style={styles.row}
+          right={
+            <Switch
+              value={reduceMotion}
+              onValueChange={setReduceMotion}
+              {...switchProps(reduceMotion)}
+            />
+          }
+        />
+      </Group>
 
-        {/* ── 정보 ── */}
-        <Text style={styles.sectionLabel}>앱 정보</Text>
-        <Card style={styles.groupCard}>
-          <View style={[styles.row, styles.rowDivider]}>
-            <Ionicons name="information-circle-outline" size={22} color={tc.textSecondary} style={styles.rowIcon} />
-            <Text style={styles.rowTitle}>앱 이름</Text>
-            <Text style={styles.rowValue}>{appInfo.name}</Text>
-          </View>
-          <View style={styles.row}>
-            <Ionicons name="pricetag-outline" size={22} color={tc.textSecondary} style={styles.rowIcon} />
-            <Text style={styles.rowTitle}>버전</Text>
-            <Text style={styles.rowValue}>{appInfo.version}</Text>
-          </View>
-        </Card>
+      {/* ── 데이터 ── */}
+      <Group
+        label="데이터"
+        index={3}
+        hint="* 모든 데이터는 이 기기에만 저장되며 외부로 전송되지 않습니다."
+      >
+        <ListRow
+          title="모든 데이터 삭제"
+          subtitle="모든 프로필·군생활 데이터를 초기화합니다"
+          icon="trash-outline"
+          danger
+          chevron
+          onPress={handleClearData}
+          style={styles.row}
+        />
+      </Group>
 
-      </ScrollView>
-
-      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
-      <View style={styles.adFooter}>
-        <AdBanner unit={AD_UNITS.HOME_BOTTOM} />
-      </View>
-    </View>
+      {/* ── 앱 정보 ── */}
+      <Group label="앱 정보" index={4}>
+        <ListRow
+          title="앱 이름"
+          icon="information-circle-outline"
+          iconTone="neutral"
+          value={appInfo.name}
+          style={styles.row}
+        />
+        <Divider inset={sp.lg + 48} />
+        <ListRow
+          title="버전"
+          icon="pricetag-outline"
+          iconTone="neutral"
+          value={appInfo.version}
+          style={styles.row}
+        />
+      </Group>
+    </Screen>
   );
 }
 
-const makeStyles = (tc) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: tc.background },
-  scrollFlex: { flex: 1 },
-  scroll: { padding: 16 },
-  adFooter: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    backgroundColor: tc.card,
-    borderTopWidth: 1,
-    borderTopColor: tc.border,
-  },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
-  sectionLabel: {
-    fontSize: 13, fontWeight: '700', color: tc.textSecondary,
-    marginTop: 14, marginBottom: 8, marginLeft: 4,
-  },
-  groupCard: { padding: 0, overflow: 'hidden' },
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 15,
-  },
-  rowDivider: { borderBottomWidth: 1, borderBottomColor: tc.border },
-  rowIcon: { marginRight: 12 },
-  rowTextWrap: { flex: 1 },
-  rowTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: tc.text },
-  rowDesc: { fontSize: 12, color: tc.textSecondary, marginTop: 2 },
-  rowValue: { fontSize: 15, color: tc.textSecondary, fontWeight: '600' },
-  hint: { fontSize: 12, color: tc.textLight, marginTop: 8, marginLeft: 4, lineHeight: 17 },
+const styles = StyleSheet.create({
+  group: { paddingHorizontal: 0 },
+  row: { paddingHorizontal: sp.lg },
 });

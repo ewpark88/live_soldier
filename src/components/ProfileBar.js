@@ -4,6 +4,7 @@ import {
   Image, Modal, TextInput, Alert, Linking, Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
 import {
   listProfiles, setActiveProfile, addProfile, updateProfile, deleteProfile,
@@ -45,9 +46,15 @@ const makeAv = (tc) => StyleSheet.create({
   fallbackText: { color: tc.textSecondary, fontWeight: '800' },
 });
 
-export default function ProfileBar({ onChange }) {
+/**
+ * @param onDark  어두운 히어로 위에 얹을 때 — 이름/추가 버튼 색이 반전된다.
+ *                (기본 textSecondary 는 딥그린 위에서 거의 안 보인다)
+ */
+export default function ProfileBar({ onChange, onDark = false }) {
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
+  const nameColor = onDark ? { color: tc.heroTextMuted } : null;
+  const nameActiveColor = onDark ? { color: tc.heroText, fontWeight: '700' } : null;
   const [activeId, setActiveId]   = useState(null);
   const [profiles, setProfiles]   = useState([]);
   const [modalMode, setModalMode] = useState(null); // 'add' | 'edit' | null
@@ -164,7 +171,10 @@ export default function ProfileBar({ onChange }) {
               activeOpacity={0.8}
             >
               <Avatar photo={p.photo} name={p.name} active={active} />
-              <Text style={[s.name, active && s.nameActive]} numberOfLines={1}>
+              <Text
+                style={[s.name, nameColor, active && s.nameActive, active && nameActiveColor]}
+                numberOfLines={1}
+              >
                 {p.name}
               </Text>
             </TouchableOpacity>
@@ -173,10 +183,14 @@ export default function ProfileBar({ onChange }) {
 
         {profiles.length < MAX_PROFILES && (
           <TouchableOpacity style={s.item} onPress={openAdd} activeOpacity={0.8}>
-            <View style={s.addCircle}>
-              <Text style={s.addPlus}>＋</Text>
+            <View style={[s.addCircle, onDark && { borderColor: tc.heroBorder }]}>
+              <Ionicons
+                name="add"
+                size={20}
+                color={onDark ? tc.heroTextMuted : tc.textSecondary}
+              />
             </View>
-            <Text style={s.name}>추가</Text>
+            <Text style={[s.name, nameColor]}>추가</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -242,7 +256,7 @@ const makeStyles = (tc) => StyleSheet.create({
   },
   addPlus: { fontSize: 22, color: tc.textSecondary, fontWeight: '700', marginTop: -2 },
 
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 28 },
+  overlay: { flex: 1, backgroundColor: tc.scrim, alignItems: 'center', justifyContent: 'center', padding: 28 },
   modalBox: { width: '100%', backgroundColor: tc.card, borderRadius: 20, padding: 24, alignItems: 'center' },
   modalTitle: { fontSize: 19, fontWeight: '800', color: tc.text, marginBottom: 18 },
   photoPick: { alignItems: 'center' },

@@ -30,18 +30,19 @@ export function buildRoadmap(info, promotions) {
   const officer = isOfficer(info.personnelType);
   const list = [];
 
-  list.push({ key: 'enlist', label: '입대', emoji: '🪖', date: new Date(info.enlistDate) });
-  list.push({ key: 'd100in', label: '입대 100일', emoji: '💯', date: addDays(info.enlistDate, 99) });
+  /* emoji 는 위젯·공유 텍스트용으로 남겨두고, 화면은 icon(Ionicons) 을 쓴다. */
+  list.push({ key: 'enlist', label: '입대', emoji: '🪖', icon: 'flag', date: new Date(info.enlistDate) });
+  list.push({ key: 'd100in', label: '입대 100일', emoji: '💯', icon: 'calendar-number', date: addDays(info.enlistDate, 99) });
 
   if (!officer && promotions) {
-    if (promotions.일병) list.push({ key: 'r1', label: '일병 진급', emoji: '🎖️', date: new Date(promotions.일병) });
-    if (promotions.상병) list.push({ key: 'r2', label: '상병 진급', emoji: '🎖️', date: new Date(promotions.상병) });
-    if (promotions.병장) list.push({ key: 'r3', label: '병장 진급', emoji: '👑', date: new Date(promotions.병장) });
+    if (promotions.일병) list.push({ key: 'r1', label: '일병 진급', emoji: '🎖️', icon: 'chevron-up-circle', date: new Date(promotions.일병) });
+    if (promotions.상병) list.push({ key: 'r2', label: '상병 진급', emoji: '🎖️', icon: 'chevron-up-circle', date: new Date(promotions.상병) });
+    if (promotions.병장) list.push({ key: 'r3', label: '병장 진급', emoji: '👑', icon: 'star', date: new Date(promotions.병장) });
   }
 
-  list.push({ key: 'half', label: '반환점 (복무 절반)', emoji: '⚖️', date: midpoint(info.enlistDate, info.dischargeDate) });
-  list.push({ key: 'd100out', label: '전역 100일 전', emoji: '🔥', date: addDays(info.dischargeDate, -100) });
-  list.push({ key: 'discharge', label: '전역', emoji: '🎉', date: new Date(info.dischargeDate) });
+  list.push({ key: 'half', label: '반환점 (복무 절반)', emoji: '⚖️', icon: 'hourglass', date: midpoint(info.enlistDate, info.dischargeDate) });
+  list.push({ key: 'd100out', label: '전역 100일 전', emoji: '🔥', icon: 'flame', date: addDays(info.dischargeDate, -100) });
+  list.push({ key: 'discharge', label: '전역', emoji: '🎉', icon: 'trophy', date: new Date(info.dischargeDate) });
 
   return list
     .map((m) => {

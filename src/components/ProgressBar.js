@@ -1,71 +1,98 @@
-import React, { useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import React, { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { useThemeColors } from '../theme/ThemeContext';
+import { motion } from '../theme/tokens';
+import { useMotion } from '../hooks/useMotion';
 
+/**
+ * 공용 진행 바.
+ *
+ * width:'%' 가 아니라 scaleX 를 애니메이션한다. 퍼센트 폭은 프레임마다
+ * 레이아웃 패스를 강제해서 JS 스레드에서 돌 수밖에 없다 (예전 구현과
+ * SalaryScreen 의 사본이 둘 다 useNativeDriver:false 였던 이유).
+ * scaleX 는 UI 스레드에서 공짜다.
+ *
+ * @param progress  0..1
+ * @param tone      'primary' | 'accent' | 'success' | 'hero'(어두운 히어로 위)
+ */
 export default function ProgressBar({
   progress = 0,
-  showLabel = true,
+  height = 8,
+  tone = 'primary',
   trackColor,
   fillColor,
-  labelColor,
+  delay = 200,
+  style,
 }) {
   const tc = useThemeColors();
-  const styles = useMemo(() => makeStyles(tc), [tc]);
-  const animWidth = useRef(new Animated.Value(0)).current;
+  const m = useMotion();
+  const p = useSharedValue(0);
+
+  const clamped = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0));
 
   useEffect(() => {
-    Animated.timing(animWidth, {
-      toValue: progress,
-      duration: 800,
-      useNativeDriver: false,
-    }).start();
-  }, [progress]);
+    p.value = withDelay(
+      m.dur(delay),
+      withTiming(clamped, {
+        duration: m.dur(motion.duration.fill),
+        easing: Easing.bezier(...motion.bezier.emphasis),
+      })
+    );
+  }, [clamped, m.reduced]);
 
-  const widthInterpolated = animWidth.interpolate({
-    inputRange: [0, 100],
-    outputRange: ['0%', '100%'],
-    extrapolate: 'clamp',
-  });
+  const TONE_FILL = {
+    primary: tc.progressFill,
+    accent: tc.accent,
+    success: tc.success,
+    hero: tc.accentLight,
+  };
+  const TONE_TRACK = {
+    primary: tc.progressBg,
+    accent: tc.progressBg,
+    success: tc.progressBg,
+    hero: 'rgba(255,255,255,0.16)',
+  };
+
+  const fillStyle = useAnimatedStyle(() => ({ transform: [{ scaleX: p.value }] }));
 
   return (
-    <View style={styles.wrapper}>
-      <View style={[styles.track, trackColor && { backgroundColor: trackColor }]}>
-        <Animated.View
-          style={[styles.fill, { width: widthInterpolated }, fillColor && { backgroundColor: fillColor }]}
-        />
-      </View>
-      {showLabel && (
-        <Text style={[styles.label, labelColor && { color: labelColor }]}>
-          {Math.round(progress)}%
-        </Text>
-      )}
+    <View
+      style={[
+        styles.track,
+        {
+          height,
+          borderRadius: height / 2,
+          backgroundColor: trackColor || TONE_TRACK[tone] || tc.progressBg,
+        },
+        style,
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.fill,
+          {
+            borderRadius: height / 2,
+            backgroundColor: fillColor || TONE_FILL[tone] || tc.progressFill,
+          },
+          fillStyle,
+        ]}
+      />
     </View>
   );
 }
 
-const makeStyles = (tc) => StyleSheet.create({
-  wrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  track: {
-    flex: 1,
-    height: 10,
-    backgroundColor: tc.progressBg,
-    borderRadius: 5,
-    overflow: 'hidden',
-  },
+const styles = StyleSheet.create({
+  track: { overflow: 'hidden', width: '100%' },
   fill: {
-    height: '100%',
-    backgroundColor: tc.progressFill,
-    borderRadius: 5,
-  },
-  label: {
-    width: 42,
-    fontSize: 13,
-    fontWeight: '700',
-    color: tc.textSecondary,
-    textAlign: 'right',
+    ...StyleSheet.absoluteFillObject,
+    // 왼쪽 끝을 고정하고 오른쪽으로 늘린다 (기본값이면 가운데서 양쪽으로 퍼진다)
+    transformOrigin: 'left',
   },
 });

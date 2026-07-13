@@ -28,6 +28,55 @@ export const lightColors = {
   shadow: '#1B3F37',         // 초록빛이 도는 부드러운 그림자
   highlightBg: '#EAF3EF',    // 현재 항목 강조 배경
   overlay: 'rgba(12,22,18,0.5)',
+
+  // ── 대비 보장 ────────────────────────────────────────────────
+  // primary 위에 얹는 글자색. 다크에서 primary 는 밝은 민트라
+  // 흰 글자를 쓰면 읽을 수 없다. 버튼은 반드시 이 값을 쓴다.
+  onPrimary: '#FFFFFF',
+
+  // ── 히어로 (브랜드 표면) ──────────────────────────────────────
+  // 라이트/다크 양쪽 모두 딥그린이다. 브랜드 표면이라 테마 분기가 없다.
+  heroFrom: '#2E6455',
+  heroTo: '#173B33',
+  heroText: '#F2F7F5',
+  heroTextMuted: 'rgba(242,247,245,0.72)',
+  heroBorder: 'rgba(255,255,255,0.10)',
+  heroSheen: 'rgba(255,255,255,0.12)',
+
+  // ── 메탈릭 골드 ──────────────────────────────────────────────
+  goldFrom: '#F0C45E',
+  goldTo: '#C9861B',
+  onGold: '#3A2705',
+
+  // ── 소프트 표면 (하드코딩 색을 흡수한다) ──────────────────────
+  primarySoft: '#E8F1EE',
+  accentSoft: '#FDF3DF',
+  accentText: '#7A4800',
+  successSoft: '#E4F5EE',
+  warningSoft: '#FDF0E1',
+  dangerSoft: '#FCE9E7',
+  surfaceSunken: '#EFF3F1',
+  surfaceSunkenBorder: '#DFE7E4',
+  cardElevated: '#FFFFFF',
+  skeleton: '#E6ECEA',
+  shadowStrong: '#0B211B',
+
+  // 달력 주말
+  sat: '#3B72C4',
+  sun: '#D8483E',
+
+  // 모달 딤 — 기존 overlay 와 같은 값. 신규 코드는 scrim 을 쓴다.
+  scrim: 'rgba(12,22,18,0.5)',
+  scrimStrong: 'rgba(12,22,18,0.7)',
+
+  // ── 카운트다운 단계별 배경 틴트 ───────────────────────────────
+  // 히어로만 단계를 표현한다. 화면 전체 배경을 물들이지 않는다.
+  phase: {
+    normal: { bg: '#F5F7F6' },
+    d100: { bg: '#F4F6EE' },
+    d30: { bg: '#FAF4E8' },
+    d7: { bg: '#FDF0E3' },
+  },
 };
 
 export const darkColors = {
@@ -55,6 +104,45 @@ export const darkColors = {
   shadow: '#000000',
   highlightBg: '#1B2723',
   overlay: 'rgba(0,0,0,0.6)',
+
+  // 다크에서 primary 는 밝은 민트다. 그 위엔 어두운 글자를 얹어야 읽힌다.
+  onPrimary: '#08120F',
+
+  heroFrom: '#22564A',
+  heroTo: '#12312A',
+  heroText: '#EAF1EF',
+  heroTextMuted: 'rgba(234,241,239,0.68)',
+  heroBorder: 'rgba(255,255,255,0.08)',
+  heroSheen: 'rgba(255,255,255,0.10)',
+
+  goldFrom: '#F2C46B',
+  goldTo: '#D08F22',
+  onGold: '#2A1C03',
+
+  primarySoft: '#17302A',
+  accentSoft: '#2C2415',
+  accentText: '#F0C45E',
+  successSoft: '#12332A',
+  warningSoft: '#33291A',
+  dangerSoft: '#39211F',
+  surfaceSunken: '#101917',
+  surfaceSunkenBorder: '#28332F',
+  cardElevated: '#1D2724',
+  skeleton: '#222D29',
+  shadowStrong: '#000000',
+
+  sat: '#7FA8E8',
+  sun: '#E8776D',
+
+  scrim: 'rgba(0,0,0,0.6)',
+  scrimStrong: 'rgba(0,0,0,0.78)',
+
+  phase: {
+    normal: { bg: '#0D1412' },
+    d100: { bg: '#111512' },
+    d30: { bg: '#151510' },
+    d7: { bg: '#1A1410' },
+  },
 };
 
 /** 정적 import 호환(폴백) — 기본은 라이트 팔레트 */

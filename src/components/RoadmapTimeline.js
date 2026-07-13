@@ -1,83 +1,184 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  Easing,
+  FadeInLeft,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { useThemeColors } from '../theme/ThemeContext';
+import { motion, radius as r, space as sp, tabular, type as ty } from '../theme/tokens';
+import { useMotion } from '../hooks/useMotion';
 import { formatDateKo } from '../utils/dateUtils';
 import { nextMilestoneKey } from '../utils/roadmapUtils';
+import Chip from './ui/Chip';
 
 /**
  * 전역 로드맵 세로 타임라인.
- * 지난 마일스톤은 채워진 노드, 다음 마일스톤은 강조, 이후는 비활성.
  *
- * @param {Array} roadmap  buildRoadmap() 결과
+ * 레일이 스스로 그려진다 — 각 행이 왼쪽에서 밀려 들어오고, 노드를 잇는 선이
+ * 위에서 아래로 자라난다(scaleY + transformOrigin:'top'). 줄당 임팩트가
+ * 이 앱에서 제일 큰 애니메이션이다.
+ *
+ * 다음 마일스톤 노드에는 펄스 링이 돈다. 링은 노드 안(overflow:'hidden')에
+ * 갇혀 있어서 바깥 텍스트를 침범할 수 없다.
  */
+function Connector({ done, delay, color }) {
+  const m = useMotion();
+  const grow = useSharedValue(m.reduced ? 1 : 0);
+
+  useEffect(() => {
+    if (m.reduced) { grow.value = 1; return; }
+    grow.value = withDelay(
+      delay,
+      withTiming(1, {
+        duration: motion.duration.slow,
+        easing: Easing.bezier(...motion.bezier.standard),
+      })
+    );
+  }, [m.reduced, delay]);
+
+  const style = useAnimatedStyle(() => ({ transform: [{ scaleY: grow.value }] }));
+
+  return (
+    <Animated.View
+      style={[s.line, { backgroundColor: color }, style]}
+    />
+  );
+}
+
+function PulseRing({ color }) {
+  const m = useMotion();
+  const p = useSharedValue(0);
+
+  useEffect(() => {
+    if (m.reduced) return;
+    p.value = withRepeat(
+      withTiming(1, { duration: 1800, easing: Easing.out(Easing.quad) }),
+      -1,
+      false
+    );
+  }, [m.reduced]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + p.value * 0.25 }],
+    opacity: 0.5 * (1 - p.value),
+  }));
+
+  if (m.reduced) return null;
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[s.ring, { borderColor: color }, style]}
+    />
+  );
+}
+
 export default function RoadmapTimeline({ roadmap }) {
   const tc = useThemeColors();
-  const s = useMemo(() => makeStyles(tc), [tc]);
+  const m = useMotion();
+  const styles = useMemo(() => makeStyles(tc), [tc]);
+
   if (!roadmap || roadmap.length === 0) return null;
 
   const nextKey = nextMilestoneKey(roadmap);
 
   return (
-    <View style={s.wrap}>
-      {roadmap.map((m, i) => {
-        const isNext = m.key === nextKey;
+    <View>
+      {roadmap.map((item, i) => {
+        const isNext = item.key === nextKey;
         const last = i === roadmap.length - 1;
-        const dotColor = m.done ? tc.primary : isNext ? tc.accent : tc.border;
+
+        const nodeBg = item.done ? tc.primary : isNext ? tc.accent : tc.surfaceSunken;
+        const nodeFg = item.done ? tc.onPrimary : isNext ? tc.onGold : tc.textLight;
+        const lineColor = item.done ? tc.primary : tc.border;
+
         return (
-          <View key={m.key} style={s.row}>
-            {/* 좌측 라인+노드 */}
+          <Animated.View
+            key={item.key}
+            entering={m.enter(FadeInLeft, i, motion.duration.base)}
+            style={s.row}
+          >
             <View style={s.railCol}>
-              <View style={[s.dot, { backgroundColor: dotColor, borderColor: dotColor }, isNext && s.dotNext]}>
-                <Text style={s.dotEmoji}>{m.emoji}</Text>
+              <View style={[s.node, { backgroundColor: nodeBg }]}>
+                {isNext ? <PulseRing color={tc.accent} /> : null}
+                <Ionicons name={item.icon || 'ellipse'} size={16} color={nodeFg} />
               </View>
-              {!last && <View style={[s.line, { backgroundColor: m.done ? tc.primary : tc.border }]} />}
+              {!last ? (
+                <Connector
+                  done={item.done}
+                  color={lineColor}
+                  delay={m.stagger(i) + 120}
+                />
+              ) : null}
             </View>
 
-            {/* 우측 내용 */}
             <View style={[s.content, last && { paddingBottom: 0 }]}>
               <View style={s.titleRow}>
-                <Text style={[s.label, m.done && s.labelDone, isNext && s.labelNext]}>{m.label}</Text>
+                <Text
+                  style={[styles.label, item.done && { color: tc.textSecondary }]}
+                  numberOfLines={1}
+                >
+                  {item.label}
+                </Text>
+
                 {isNext ? (
-                  <View style={s.ddayPill}>
-                    <Text style={s.ddayPillText}>D-{m.dday}</Text>
-                  </View>
-                ) : m.done ? (
-                  <Text style={s.doneMark}>완료</Text>
+                  <Chip label={`D-${item.dday}`} size="sm" tone="accent" />
+                ) : item.done ? (
+                  <Text style={styles.done}>완료</Text>
                 ) : (
-                  <Text style={s.ddayText}>D-{m.dday}</Text>
+                  <Text style={styles.dday}>D-{item.dday}</Text>
                 )}
               </View>
-              <Text style={s.date}>{formatDateKo(m.date)}</Text>
+              <Text style={styles.date}>{formatDateKo(item.date)}</Text>
             </View>
-          </View>
+          </Animated.View>
         );
       })}
     </View>
   );
 }
 
-const makeStyles = (tc) => StyleSheet.create({
-  wrap: { marginTop: 4 },
+const NODE = 34;
+
+const s = StyleSheet.create({
   row: { flexDirection: 'row' },
-  railCol: { width: 40, alignItems: 'center' },
-  dot: {
-    width: 32, height: 32, borderRadius: 16, borderWidth: 2,
-    alignItems: 'center', justifyContent: 'center',
+  railCol: { width: 44, alignItems: 'center' },
+  node: {
+    width: NODE,
+    height: NODE,
+    borderRadius: NODE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // 펄스 링이 노드를 벗어나 옆 텍스트를 덮지 않도록 가둔다
+    overflow: 'hidden',
   },
-  dotNext: {
-    shadowColor: tc.accent, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6, shadowRadius: 6, elevation: 4,
+  ring: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: NODE / 2,
+    borderWidth: 2,
   },
-  dotEmoji: { fontSize: 15 },
-  line: { width: 2.5, flex: 1, minHeight: 18, marginVertical: 2 },
-  content: { flex: 1, paddingBottom: 18, paddingTop: 4, paddingLeft: 4 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  label: { fontSize: 15, fontWeight: '700', color: tc.text, flex: 1 },
-  labelDone: { color: tc.textSecondary },
-  labelNext: { color: tc.text },
-  date: { fontSize: 12.5, color: tc.textSecondary, marginTop: 2 },
-  ddayText: { fontSize: 13, fontWeight: '700', color: tc.textLight },
-  doneMark: { fontSize: 12, fontWeight: '700', color: tc.primary },
-  ddayPill: { backgroundColor: tc.accent, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3 },
-  ddayPillText: { fontSize: 13, fontWeight: '800', color: tc.white },
+  line: {
+    width: 2,
+    flex: 1,
+    minHeight: 20,
+    marginVertical: 3,
+    borderRadius: r.pill,
+    transformOrigin: 'top',
+  },
+  content: { flex: 1, paddingBottom: sp.xl, paddingTop: sp.xs, paddingLeft: sp.xs },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: sp.sm },
 });
+
+const makeStyles = (tc) =>
+  StyleSheet.create({
+    label: { ...ty.body, fontWeight: '700', color: tc.text, flex: 1 },
+    date: { ...ty.caption, color: tc.textSecondary, marginTop: 1 },
+    dday: { ...ty.label, ...tabular, color: tc.textLight },
+    done: { ...ty.caption, color: tc.primary, fontWeight: '700' },
+  });

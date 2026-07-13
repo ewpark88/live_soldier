@@ -1,565 +1,599 @@
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Animated, Image,
-} from 'react-native';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { Image, RefreshControl, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  Easing,
+  Extrapolation,
+  FadeIn,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { useThemeColors } from '../theme/ThemeContext';
 import LiveServiceGauge from '../components/LiveServiceGauge';
-import AdBanner from '../components/AdBanner';
 import ProfileBar from '../components/ProfileBar';
 import MenuButton from '../components/MenuButton';
 import OnboardingScreen from '../components/OnboardingScreen';
-import { shareDischarge } from '../utils/shareUtils';
-import { refreshScheduledNotifications } from '../utils/notifications';
-import { Ionicons } from '@expo/vector-icons';
+import AdInterstitial from '../components/AdInterstitial';
+import Card from '../components/Card';
+import {
+  Screen, Section, HeroCard, Chip, StatTile, ListRow,
+  EmptyState, Txt, AnimatedNumber, PressScale, AdFooter,
+} from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
+import { RANK_IMAGES } from '../constants/rankImages';
 import {
   loadMilitaryInfo, loadLeaveRecords, loadLeaveTotal,
   loadLeaveBonusRecords, loadRankPromotions, listProfiles,
   loadPersonnelType, savePersonnelType,
 } from '../utils/storage';
-import AdInterstitial from '../components/AdInterstitial';
+import { shareDischarge } from '../utils/shareUtils';
+import { refreshScheduledNotifications } from '../utils/notifications';
 import useShowInterstitial from '../hooks/useShowInterstitial';
+import { useMotion } from '../hooks/useMotion';
+import { haptic } from '../utils/haptics';
 import {
-  calcDaysLeft, calcProgress, calcServedDays,
-  calcRank, calcRankFromPromotions, getMessageForPhase, formatDateKo,
+  calcDaysLeft, calcServedDays, calcRank, calcRankFromPromotions,
+  getMessageForPhase, formatDateKo, nextPromotion,
 } from '../utils/dateUtils';
-import { isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { isOfficer, personnelLabel, BRANCHES } from '../constants/serviceTerms';
+import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
 
-const BRANCH_LABEL = { army: '육군', navy: '해군', airforce: '공군', marines: '해병대' };
-
-/* ─── 계급 이미지 (static require) ────────────────────────── */
-/* 파일명은 ASCII로 고정 — Metro가 한글 파일명을 동일 안드로이드 리소스로
-   충돌시켜(중위→대령 등) 잘못 매칭되는 문제 방지. 키는 한글 계급명 유지. */
-const RANK_IMAGES = {
-  '이병': require('../../assets/ranks/ibyeong.png'),
-  '일병': require('../../assets/ranks/ilbyeong.png'),
-  '상병': require('../../assets/ranks/sangbyeong.png'),
-  '병장': require('../../assets/ranks/byeongjang.png'),
-};
-
-/* ─── 간부 계급 이미지 (부사관·장교) ───────────────────────── */
-const OFFICER_RANK_IMAGES = {
-  '하사': require('../../assets/ranks/hasa.png'),
-  '중사': require('../../assets/ranks/jungsa.png'),
-  '상사': require('../../assets/ranks/sangsa.png'),
-  '원사': require('../../assets/ranks/wonsa.png'),
-  '소위': require('../../assets/ranks/sowi.png'),
-  '중위': require('../../assets/ranks/jungwi.png'),
-  '대위': require('../../assets/ranks/daewi.png'),
-  '소령': require('../../assets/ranks/soryeong.png'),
-  '중령': require('../../assets/ranks/jungryeong.png'),
-  '대령': require('../../assets/ranks/daeryeong.png'),
-};
-
-/* ─── 계급별 색상 (텍스트용) ───────────────────────────────── */
-const RANK_COLOR = {
-  '이병': '#78909C',
-  '일병': '#9C6B3C',
-  '상병': '#2E5B4F',
-  '병장': '#C97D00',
-};
-
-/* ─── 복무 단계 (전역일까지 남은 날 기준) ──────────────────── */
+/* ─── 복무 단계 ───────────────────────────────────────────── */
 function getPhase(daysLeft) {
-  if (daysLeft <= 0)   return 'done';
-  if (daysLeft <= 3)   return 'd3';
-  if (daysLeft <= 7)   return 'd7';
-  if (daysLeft <= 30)  return 'd30';
+  if (daysLeft <= 0) return 'done';
+  if (daysLeft <= 3) return 'd3';
+  if (daysLeft <= 7) return 'd7';
+  if (daysLeft <= 30) return 'd30';
   if (daysLeft <= 100) return 'd100';
   return 'normal';
 }
 
-// 딥 그린 히어로 카드를 유지하면서, 전역이 가까워질수록 카드를 살짝 더 깊게 +
-// 골드 액센트를 점점 밝게 + 글로우/마일스톤으로 고조시킨다. (촌스러운 갈색 배경 제거)
+/**
+ * 단계별 히어로 설정.
+ *
+ * 예전엔 screenBg 로 "화면 전체 배경"을 크림색으로 물들였는데, 그게 정확히
+ * 촌스러워지는 지점이었고 다크모드도 깨뜨렸다. 이제 단계는 히어로만 표현한다.
+ */
 const PHASE_CFG = {
-  done:  {
-    cardBg: '#1A4D42', screenBg: '#FAF6EA', accent: '#FFD24A', glow: true,
-    milestone: { emoji: '🎆', text: '드디어 전역이다!!', bg: '#CFA13A', tc: '#15231E' },
-    particles: ['🎆','🎊','🎉','🥳','🎖️','⭐'],
+  done: {
+    gradient: ['#1E4A3F', '#0D2721'], accent: '#FFD24A', glow: true, embers: 'dense',
+    milestone: { icon: 'trophy', text: '드디어 전역이다!!' },
   },
-  d3:    {
-    cardBg: '#1B4E43', screenBg: '#FAF4E6', accent: '#FFCF45', glow: true,
-    milestone: { emoji: '🎖️', text: '전역 3일 전!! 거의 다 왔다!', bg: '#CFA13A', tc: '#15231E' },
-    particles: ['🎖️','✨','⭐','🔥','🎊'],
+  d3: {
+    gradient: ['#204A3F', '#0F2B25'], accent: '#FFCF45', glow: true, embers: 'normal',
+    milestone: { icon: 'ribbon', text: '전역 3일 전!! 거의 다 왔다!' },
   },
-  d7:    {
-    cardBg: '#1E5246', screenBg: '#F8F4EA', accent: '#F7C53C', glow: true,
-    milestone: { emoji: '🏆', text: '전역까지 일주일!', bg: '#C9962E', tc: '#15231E' },
-    particles: [],
+  d7: {
+    gradient: ['#245043', '#12302A'], accent: '#F7C53C', glow: true, embers: null,
+    milestone: { icon: 'trophy-outline', text: '전역까지 일주일!' },
   },
-  d30:   {
-    cardBg: '#215649', screenBg: '#F6F6EF', accent: '#F4C04A', glow: false,
-    milestone: { emoji: '🔥', text: '전역 한 달 전! 조금만 더!', bg: '#2B6457', tc: '#fff' },
-    particles: [],
+  d30: {
+    gradient: ['#27584C', '#16362F'], accent: '#F4C04A', glow: false, embers: null,
+    milestone: { icon: 'flame', text: '전역 한 달 전! 조금만 더!' },
   },
-  d100:  {
-    cardBg: '#234E44', screenBg: '#F4F8F5', accent: '#F0C45E', glow: false,
-    milestone: { emoji: '💪', text: '전역 100일 전! 보인다!', bg: '#2B6457', tc: '#fff' },
-    particles: [],
+  d100: {
+    gradient: ['#2A5C50', '#183A32'], accent: '#F0C45E', glow: false, embers: null,
+    milestone: { icon: 'barbell', text: '전역 100일 전! 보인다!' },
   },
   normal: {
-    cardBg: '#234E44', screenBg: null, accent: '#F0C45E', glow: false,
+    gradient: ['#2A5C50', '#1A3E36'], accent: '#F0C45E', glow: false, embers: null,
     milestone: null,
-    particles: [],
   },
 };
 
-/* ─── 떠오르는 파티클 (D-3 이내) ───────────────────────────── */
-const PARTICLE_COUNT = 6;
-function FloatingParticles({ emojis }) {
-  const anims = useRef(
-    Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
-      y:     new Animated.Value(0),
-      op:    new Animated.Value(0),
-      left:  6 + i * 15,
-      emoji: emojis[i % emojis.length],
-      delay: i * 280,
-    }))
-  ).current;
+/* ─── 골드 불티 ────────────────────────────────────────────────
+   예전엔 🎆🎊🎉🥳 이모지가 떠다녔다 — 앱에서 가장 촌스러운 요소였고,
+   overflow 클리핑이 없는 카드를 뚫고 위 섹션까지 침범했다.
+   HeroCard 는 항상 overflow:'hidden' 이라 물리적으로 새어나갈 수 없다. */
+function Ember({ index, dense }) {
+  const m = useMotion();
+  const p = useSharedValue(0);
+
+  const size = 2 + (index % 3);
+  const left = 4 + ((index * 7.3) % 92);
+  const drift = ((index % 5) - 2) * 8;
+  const dur = 3200 + (index % 4) * 700;
 
   useEffect(() => {
-    const loops = anims.map(({ y, op, delay }) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.parallel([
-            Animated.timing(y,  { toValue: -240, duration: 2800, useNativeDriver: true }),
-            Animated.sequence([
-              Animated.timing(op, { toValue: 1,   duration: 350,  useNativeDriver: true }),
-              Animated.delay(1800),
-              Animated.timing(op, { toValue: 0,   duration: 400,  useNativeDriver: true }),
-            ]),
-          ]),
-          Animated.timing(y,  { toValue: 0, duration: 0, useNativeDriver: true }),
-        ])
-      )
+    if (m.reduced) return;
+    p.value = withDelay(
+      index * (dense ? 160 : 300),
+      withRepeat(withTiming(1, { duration: dur, easing: Easing.linear }), -1, false)
     );
-    loops.forEach(l => l.start());
-    return () => loops.forEach(l => l.stop());
-  }, []);
+  }, [m.reduced]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: -180 * p.value },
+      { translateX: drift * p.value },
+    ],
+    // 떠오르며 밝아졌다가 사그라든다
+    opacity: interpolate(p.value, [0, 0.15, 0.7, 1], [0, 0.5, 0.28, 0]),
+  }));
+
+  if (m.reduced) return null;
 
   return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        {
+          position: 'absolute',
+          bottom: 4,
+          left: `${left}%`,
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: '#F0C45E',
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+function EmberField({ dense }) {
+  const count = dense ? 18 : 12;
+  return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {anims.map(({ y, op, left, emoji }, i) => (
-        <Animated.Text
-          key={i}
-          style={{ position: 'absolute', bottom: 6, left: `${left}%`, fontSize: 22, opacity: op, transform: [{ translateY: y }] }}
-        >
-          {emoji}
-        </Animated.Text>
+      {Array.from({ length: count }, (_, i) => (
+        <Ember key={i} index={i} dense={dense} />
       ))}
     </View>
   );
 }
 
-/* ─── 마일스톤 배너 ─────────────────────────────────────────── */
-function MilestoneBanner({ cfg }) {
-  const scaleAnim = useRef(new Animated.Value(0.82)).current;
-  useEffect(() => {
-    Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 110, useNativeDriver: true }).start();
-  }, []);
-  return (
-    <Animated.View style={[mb.wrap, { backgroundColor: cfg.bg, transform: [{ scale: scaleAnim }] }]}>
-      <Text style={mb.emoji}>{cfg.emoji}</Text>
-      <Text style={[mb.text, { color: cfg.tc }]}>{cfg.text}</Text>
-    </Animated.View>
-  );
-}
-const mb = StyleSheet.create({
-  wrap:  { marginHorizontal: 16, marginTop: 10, borderRadius: 14, paddingVertical: 11, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  emoji: { fontSize: 22 },
-  text:  { fontSize: 15, fontWeight: '800', flex: 1 },
-});
-
 export default function HomeScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
   const tc = useThemeColors();
+  const insets = useSafeAreaInsets();
+  const m = useMotion();
   const s = useMemo(() => makeStyles(tc), [tc]);
 
-  const [info,       setInfo]       = useState(null);
-  const [leaveUsed,  setLeaveUsed]  = useState(0);
+  const [info, setInfo] = useState(null);
+  const [leaveUsed, setLeaveUsed] = useState(0);
   const [leaveTotal, setLeaveTotal] = useState(21);
   const [promotions, setPromotions] = useState(null);
-  const [profileName,  setProfileName]  = useState('');
-  const [profilePhoto, setProfilePhoto] = useState(null);
-  const [personnelType, setPersonnelType] = useState(undefined); // undefined=로딩중, null=미설정
-  const [message,    setMessage]    = useState(() => getMessageForPhase('normal'));
-  const pulseAnim   = useRef(new Animated.Value(1)).current;
-  const sessionShown = useRef(false); // 세션 당 1회만 시도
-  const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
+  const [profileName, setProfileName] = useState('');
+  const [personnelType, setPersonnelType] = useState(undefined);
+  const [message, setMessage] = useState(() => getMessageForPhase('normal'));
+  const [refreshing, setRefreshing] = useState(false);
+  const [replay, setReplay] = useState(0);
 
-  useFocusEffect(useCallback(() => {
-    loadData();
-    // 앱 실행 후 첫 홈 진입 시 하루 1회 광고 (빈도 제한은 adManager가 관리)
-    if (!sessionShown.current) {
-      sessionShown.current = true;
-      setTimeout(() => showAd(), 2000); // 화면 로딩 후 2초 뒤
-    }
-  }, []));
+  const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
+  const sessionShown = React.useRef(false);
+
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+      if (!sessionShown.current) {
+        sessionShown.current = true;
+        setTimeout(() => showAd(), 2000);
+      }
+    }, [])
+  );
 
   const loadData = async () => {
     const { activeId, profiles } = await listProfiles();
     const active = profiles.find((p) => p.id === activeId);
     setProfileName(active?.name ?? '');
-    setProfilePhoto(active?.photo ?? null);
     setPersonnelType(await loadPersonnelType());
-    const mi        = await loadMilitaryInfo();
+
+    const mi = await loadMilitaryInfo();
     setInfo(mi);
-    const records   = await loadLeaveRecords();
-    setLeaveUsed(records.reduce((s, r) => s + (r.days || 0), 0));
-    const base      = await loadLeaveTotal();
-    const bonus     = await loadLeaveBonusRecords();
-    const bonusDays = bonus.reduce((s, r) => s + (r.days || 0), 0);
-    setLeaveTotal(base + bonusDays);
-    const promo     = await loadRankPromotions(mi?.enlistDate);
-    setPromotions(promo);
-    // 남은 일수(phase)에 맞는 응원 메시지
+
+    const records = await loadLeaveRecords();
+    setLeaveUsed(records.reduce((acc, x) => acc + (x.days || 0), 0));
+
+    const base = await loadLeaveTotal();
+    const bonus = await loadLeaveBonusRecords();
+    setLeaveTotal(base + bonus.reduce((acc, x) => acc + (x.days || 0), 0));
+
+    setPromotions(await loadRankPromotions(mi?.enlistDate));
     setMessage(getMessageForPhase(mi ? getPhase(calcDaysLeft(mi.dischargeDate)) : 'normal'));
-    // 알림이 켜져 있으면 최신 데이터(프로필 전환·정보 수정 포함)로 리마인더 재예약
+
     refreshScheduledNotifications().catch(() => {});
   };
 
-  const startPulse = () => {
-    Animated.sequence([
-      Animated.timing(pulseAnim, { toValue: 1.08, duration: 300, useNativeDriver: true }),
-      Animated.timing(pulseAnim, { toValue: 1,    duration: 300, useNativeDriver: true }),
-    ]).start();
+  const onRefresh = async () => {
+    setRefreshing(true);
+    haptic.light();
+    await loadData();
+    setRefreshing(false);
   };
 
-  /* ── 신분 미선택(온보딩) 상태 ── */
   const handleSelectType = async (type) => {
     await savePersonnelType(type);
     setPersonnelType(type);
     navigation.navigate('discharge');
   };
 
-  // 신분 로딩 중에는 깜빡임 방지를 위해 아무것도 렌더하지 않음
+  /* ── 히어로 패럴랙스 ── */
+  const gradientStyle = useAnimatedStyle(() => {
+    if (m.reduced) return {};
+    // 위로 당기면 그라데이션이 고무줄처럼 늘어난다 (iOS 특유의 그 느낌)
+    const scale = interpolate(scrollY.value, [-140, 0], [1.22, 1], {
+      extrapolateRight: Extrapolation.CLAMP,
+    });
+    return { transform: [{ scale }] };
+  });
+
+  const heroContentStyle = useAnimatedStyle(() => {
+    if (m.reduced) return {};
+    return {
+      transform: [
+        {
+          translateY: interpolate(scrollY.value, [0, 220], [0, -34], Extrapolation.CLAMP),
+        },
+      ],
+      opacity: interpolate(scrollY.value, [120, 240], [1, 0.35], Extrapolation.CLAMP),
+    };
+  });
+
+  const miniStyle = useAnimatedStyle(() => {
+    const o = interpolate(scrollY.value, [190, 240], [0, 1], Extrapolation.CLAMP);
+    return {
+      opacity: o,
+      transform: [{ translateY: interpolate(o, [0, 1], [-8, 0]) }],
+    };
+  });
+
+  /* ── 로딩 ── */
   if (!info && personnelType === undefined) {
-    return <View style={s.container} />;
+    return <Screen scroll={false} />;
   }
 
-  // 입대정보 없고 신분도 미설정 → 온보딩
+  /* ── 온보딩 ── */
   if (!info && !personnelType) {
     return (
-      <View style={s.container}>
-        <View style={[s.topRow, { paddingTop: insets.top + 8 }]}>
-          <View style={{ flex: 1 }}><ProfileBar onChange={loadData} /></View>
-          <MenuButton navigation={navigation} current="home" style={s.menuBtn} />
+      <Screen scroll={false} ad={AD_UNITS.HOME_BOTTOM}>
+        <View style={s.topRow}>
+          <View style={{ flex: 1 }}>
+            <ProfileBar onChange={loadData} />
+          </View>
+          <MenuButton navigation={navigation} current="home" />
         </View>
         <OnboardingScreen name={profileName} onSelect={handleSelectType} />
-      </View>
+      </Screen>
     );
   }
 
-  /* ── 신분은 정했으나 입대정보 미입력 상태 ── */
+  /* ── 입대 정보 미입력 ── */
   if (!info) {
     return (
-      <View style={[s.container, { paddingTop: insets.top + 10 }]}>
+      <Screen ad={AD_UNITS.HOME_BOTTOM}>
         <View style={s.topRow}>
-          <View style={{ flex: 1 }}><ProfileBar onChange={loadData} /></View>
-          <MenuButton navigation={navigation} current="home" style={s.menuBtn} />
+          <View style={{ flex: 1 }}>
+            <ProfileBar onChange={loadData} />
+          </View>
+          <MenuButton navigation={navigation} current="home" />
         </View>
-        <View style={s.emptyWrap}>
-          <Ionicons name="shield-half" size={52} color={tc.primaryLight} style={s.emptyEmoji} />
-          <Text style={s.emptyTitle}>
-            {profileName ? `${profileName} 님, 환영합니다!` : '환영합니다!'}
-          </Text>
-          <Text style={s.emptyText}>
-            입대 정보를 입력하면{'\n'}전역까지 얼마나 남았는지 알 수 있어요.
-          </Text>
-          <TouchableOpacity style={s.setupBtn} onPress={() => navigation.navigate('discharge')}>
-            <Text style={s.setupBtnText}>입대 정보 입력하기</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+        <EmptyState
+          icon="shield-half"
+          title={profileName ? `${profileName} 님, 환영합니다!` : '환영합니다!'}
+          desc={'입대 정보를 입력하면\n전역까지 얼마나 남았는지 알 수 있어요.'}
+          action={{
+            label: '입대 정보 입력하기',
+            icon: 'create-outline',
+            onPress: () => navigation.navigate('discharge'),
+          }}
+        />
+      </Screen>
     );
   }
 
-  const daysLeft   = calcDaysLeft(info.dischargeDate);
-  const progress   = calcProgress(info.enlistDate, info.dischargeDate);
+  const daysLeft = calcDaysLeft(info.dischargeDate);
   const servedDays = calcServedDays(info.enlistDate);
-  const officer    = isOfficer(info.personnelType);
-  const rank       = officer ? (info.officerRank ?? personnelLabel(info.personnelType))
-                             : (calcRankFromPromotions(promotions) ?? calcRank(servedDays));
-  const leaveLeft  = leaveTotal - leaveUsed;
-  const rankColor  = officer ? tc.primary : (RANK_COLOR[rank] ?? tc.primary);
-  const phase      = getPhase(daysLeft);
-  const phaseCfg   = PHASE_CFG[phase];
-  const onShare    = () => shareDischarge(info, rank, profileName);
+  const officer = isOfficer(info.personnelType);
+  const rank = officer
+    ? (info.officerRank ?? personnelLabel(info.personnelType))
+    : (calcRankFromPromotions(promotions) ?? calcRank(servedDays));
+  const leaveLeft = leaveTotal - leaveUsed;
+  const branchLabel = BRANCHES.find((b) => b.key === info.branch)?.label ?? '';
+  const phase = getPhase(daysLeft);
+  const cfg = PHASE_CFG[phase];
+  const promo = officer ? null : nextPromotion(promotions);
+  const crest = RANK_IMAGES[rank];
+
+  const ddayText = daysLeft > 0 ? null : daysLeft === 0 ? 'D-Day!' : '전역 완료!';
+
+  const tapDday = () => {
+    haptic.medium();
+    setReplay((x) => x + 1); // 카운트업을 처음부터 다시 돌린다
+  };
 
   return (
-    <View style={[s.container, { backgroundColor: phaseCfg.screenBg ?? tc.background }]}>
-      <AdInterstitial visible={adVisible} onClose={closeAd} />
-      <ScrollView
-        style={s.scrollFlex}
-        contentContainerStyle={s.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── 프로필 스위처 + 햄버거 메뉴 ── */}
-        <View style={[s.topRow, { paddingTop: insets.top + 8, marginBottom: 6 }]}>
-          <View style={{ flex: 1 }}><ProfileBar onChange={loadData} /></View>
-          <MenuButton navigation={navigation} current="home" style={s.menuBtn} />
-        </View>
-
-        {/* ── 컴팩트 헤더 ── */}
-        <View style={[s.header, { paddingTop: 4 }]}>
-          <View style={s.headerLeft}>
-            <View style={s.titleRow}>
-              <Image source={require('../../assets/icon.png')} style={s.appIcon} />
-              <Text style={s.headerTitle}>전역까지</Text>
-            </View>
-            <Text style={s.headerSub}>{BRANCH_LABEL[info.branch]}</Text>
-          </View>
-
-          {/* 계급/구분 태그 — 병사·간부 모두 계급 이미지, 미지정 간부는 이모지 */}
-          <View style={s.rankImgWrap}>
-            {officer ? (
-              OFFICER_RANK_IMAGES[rank] ? (
-                <Image source={OFFICER_RANK_IMAGES[rank]} style={s.rankImg} resizeMode="contain" />
-              ) : (
-                <Text style={s.rankEmoji}>{info.personnelType === 'officer' ? '⭐' : '🎖️'}</Text>
-              )
-            ) : (
-              <Image
-                source={RANK_IMAGES[rank]}
-                style={s.rankImg}
-                resizeMode="contain"
-              />
-            )}
-            <Text style={[s.rankTagText, { color: rankColor }]}>{rank}</Text>
-          </View>
-        </View>
-
-        {/* ── 마일스톤 배너 ── */}
-        {phaseCfg.milestone && <MilestoneBanner cfg={phaseCfg.milestone} />}
-
-        {/* ── D-Day 메인카드 (풀 와이드) ── */}
-        <TouchableOpacity activeOpacity={0.88} onPress={startPulse}>
-          <View style={[s.mainCard, { backgroundColor: phaseCfg.cardBg }]}>
-            {phaseCfg.particles.length > 0 && <FloatingParticles emojis={phaseCfg.particles} />}
-            {(profilePhoto || profileName) ? (
-              <View style={s.profileTag}>
-                {profilePhoto ? (
-                  <Image source={{ uri: profilePhoto }} style={s.profileTagAvatar} />
-                ) : null}
-                <Text style={s.profileTagName}>{profileName}</Text>
-              </View>
-            ) : null}
-            <Text style={s.mainLabel}>전역까지</Text>
-            <Animated.Text style={[
-              s.dday,
-              { transform: [{ scale: pulseAnim }], color: phaseCfg.accent },
-              phaseCfg.glow && {
-                textShadowColor: phaseCfg.accent,
-                textShadowRadius: 18,
-                textShadowOffset: { width: 0, height: 0 },
-              },
-            ]}>
-              {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-Day!' : '전역 완료!'}
-            </Animated.Text>
-            <Text style={s.dischargeDate}>{formatDateKo(info.dischargeDate)}</Text>
-            <View style={s.progressSection}>
-              <LiveServiceGauge
-                enlistDate={info.enlistDate}
-                dischargeDate={info.dischargeDate}
-              />
-            </View>
-            <View style={s.statsRow}>
-              <View style={s.statItem}>
-                <Text style={s.statValue}>{servedDays}</Text>
-                <Text style={s.statLabel}>복무 일수</Text>
-              </View>
-              <View style={s.statDivider} />
-              <View style={s.statItem}>
-                <Text style={[s.statValue, { color: tc.accentLight }]}>{leaveLeft}</Text>
-                <Text style={s.statLabel}>남은 휴가</Text>
-              </View>
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        {/* ── 전역일 공유 버튼 (한 화면에 보이도록 상단 배치) ── */}
-        <View style={s.padH}>
-          <TouchableOpacity style={s.shareBtn} activeOpacity={0.85} onPress={onShare}>
-            <Ionicons name="share-social" size={19} color={tc.primary} />
-            <Text style={s.shareBtnText}>내 전역일 자랑하기</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── 전역 로드맵 바로가기 ── */}
-        <View style={s.padH}>
-          <TouchableOpacity
-            style={s.roadmapLinkBtn}
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate('roadmap')}
+    <>
+      <View style={[s.root, { backgroundColor: tc.background }]}>
+        <Animated.ScrollView
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: sp.xxl }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={tc.accent}
+              colors={[tc.primary]}
+              progressBackgroundColor={tc.card}
+            />
+          }
+        >
+          {/* ── 히어로 (풀블리드) ──
+              프로필바 + 앱타이틀 + D-Day 카드, 세 블록이 나눠 쓰던 상단을 하나로 합쳤다. */}
+          <HeroCard
+            fullBleed
+            gradient={cfg.gradient}
+            sheen
+            gradientStyle={gradientStyle}
+            contentStyle={[s.heroPad, { paddingTop: insets.top + sp.sm }]}
+            style={s.hero}
           >
-            <View style={s.roadmapLinkIcon}>
-              <Ionicons name="map" size={20} color={tc.primary} />
+            {cfg.embers ? <EmberField dense={cfg.embers === 'dense'} /> : null}
+
+            <View style={s.topRow}>
+              <View style={{ flex: 1 }}>
+                <ProfileBar onChange={loadData} onDark />
+              </View>
+              <MenuButton navigation={navigation} current="home" color={tc.heroText} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.roadmapLinkTitle}>전역 로드맵</Text>
-              <Text style={s.roadmapLinkSub}>다음 진급·호봉과 주요 순간을 한눈에</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={tc.textSecondary} />
-          </TouchableOpacity>
-        </View>
 
-        {/* ── 응원 메시지 (컴팩트) ── */}
-        <View style={s.messageCard}>
-          <Ionicons name="chatbubble-ellipses" size={20} color={tc.primaryLight} style={s.messageEmoji} />
-          <Text style={s.messageText} numberOfLines={2}>{message}</Text>
-          <TouchableOpacity onPress={() => setMessage(getMessageForPhase(phase))} style={s.refreshBtn}>
-            <Ionicons name="refresh" size={16} color={tc.primaryLight} />
-          </TouchableOpacity>
-        </View>
+            <Animated.View style={heroContentStyle}>
+              {cfg.milestone ? (
+                <Animated.View entering={m.enter(FadeIn, 0, motion.duration.slow)}>
+                  <Chip
+                    label={cfg.milestone.text}
+                    icon={cfg.milestone.icon}
+                    tone="accent"
+                    style={s.milestone}
+                  />
+                </Animated.View>
+              ) : null}
 
-      </ScrollView>
+              <View style={s.heroMain}>
+                <View style={{ flex: 1 }}>
+                  <Txt role="label" tone="heroMuted" style={s.eyebrow}>전역까지</Txt>
 
-      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
-      <View style={s.adFooter}>
-        <AdBanner unit={AD_UNITS.HOME_BOTTOM} />
+                  <PressScale onPress={tapDday} haptic={null} style={s.ddayTap}>
+                    {ddayText ? (
+                      <Txt
+                        role="hero"
+                        style={[
+                          { color: cfg.accent },
+                          cfg.glow && s.glow,
+                          cfg.glow && { textShadowColor: cfg.accent },
+                        ]}
+                      >
+                        {ddayText}
+                      </Txt>
+                    ) : (
+                      <View style={s.ddayRow}>
+                        <Txt role="subtitle" tone="heroMuted">D-</Txt>
+                        <AnimatedNumber
+                          value={daysLeft}
+                          replayKey={replay}
+                          style={[
+                            ty.display,
+                            { color: cfg.accent },
+                            cfg.glow && s.glow,
+                            cfg.glow && { textShadowColor: cfg.accent },
+                          ]}
+                        />
+                      </View>
+                    )}
+                  </PressScale>
+
+                  <View style={s.dateRow}>
+                    <Txt role="caption" tone="heroMuted">
+                      {formatDateKo(info.dischargeDate)}
+                    </Txt>
+                    <PressScale
+                      onPress={() => shareDischarge(info, rank, profileName)}
+                      haptic="light"
+                      style={s.shareBtn}
+                      accessibilityLabel="전역일 공유"
+                    >
+                      <Ionicons name="share-social" size={15} color={tc.heroText} />
+                      <Txt role="micro" tone="hero">자랑하기</Txt>
+                    </PressScale>
+                  </View>
+                </View>
+
+                {/* 계급장 */}
+                <View style={s.crestWrap}>
+                  {cfg.glow ? <View style={[s.crestGlow, { backgroundColor: cfg.accent }]} /> : null}
+                  {crest ? (
+                    <Image source={crest} style={s.crest} resizeMode="contain" />
+                  ) : (
+                    <Ionicons
+                      name={info.personnelType === 'officer' ? 'star' : 'ribbon'}
+                      size={36}
+                      color={cfg.accent}
+                    />
+                  )}
+                  <Txt role="caption" tone="hero" style={{ fontWeight: '700' }}>{rank}</Txt>
+                </View>
+              </View>
+
+              <View style={s.gauge}>
+                <LiveServiceGauge
+                  enlistDate={info.enlistDate}
+                  dischargeDate={info.dischargeDate}
+                  fillColor={cfg.accent}
+                />
+              </View>
+
+              <View style={s.statRow}>
+                <StatTile label="복무 일수" value={servedDays} unit="일" onHero countUp />
+                <StatTile label="남은 휴가" value={leaveLeft} unit="일" onHero countUp />
+                {promo ? (
+                  <StatTile
+                    label={`다음 진급 · ${promo.rank}`}
+                    value={`D-${promo.daysLeft}`}
+                    onHero
+                    onPress={() => navigation.navigate('roadmap')}
+                  />
+                ) : (
+                  <StatTile label="복무 개월" value={info.months} unit="개월" onHero countUp />
+                )}
+              </View>
+            </Animated.View>
+          </HeroCard>
+
+          {/* ── 바로가기 ── */}
+          <View style={s.body}>
+            <Section index={0}>
+              <Card pad="none" style={{ paddingHorizontal: 0 }}>
+                <ListRow
+                  title="전역 로드맵"
+                  subtitle="다음 진급·호봉과 주요 순간을 한눈에"
+                  icon="map"
+                  chevron
+                  onPress={() => navigation.navigate('roadmap')}
+                  style={s.navRow}
+                />
+              </Card>
+            </Section>
+
+            <Section index={1}>
+              <Card pad="none" style={{ paddingHorizontal: 0 }}>
+                <ListRow
+                  title="장병내일적금 계산기"
+                  subtitle="전역 시 받을 목돈을 미리 계산"
+                  icon="calculator"
+                  iconTone="accent"
+                  chevron
+                  onPress={() => navigation.navigate('savings')}
+                  style={s.navRow}
+                />
+              </Card>
+            </Section>
+
+            {/* ── 응원 메시지 ── */}
+            <Section index={2}>
+              <Card>
+                <View style={s.msgRow}>
+                  <Ionicons name="chatbubble-ellipses" size={20} color={tc.primaryLight} />
+                  <Txt role="body" style={{ flex: 1 }} numberOfLines={3}>
+                    {message}
+                  </Txt>
+                  <PressScale
+                    onPress={() => setMessage(getMessageForPhase(phase))}
+                    haptic="select"
+                    style={s.refresh}
+                    accessibilityLabel="다른 메시지 보기"
+                  >
+                    <Ionicons name="refresh" size={16} color={tc.primaryLight} />
+                  </PressScale>
+                </View>
+              </Card>
+            </Section>
+          </View>
+        </Animated.ScrollView>
+
+        {/* ── 스티키 미니 헤더 ── */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            s.mini,
+            { paddingTop: insets.top, backgroundColor: cfg.gradient[1], borderBottomColor: tc.heroBorder },
+            miniStyle,
+          ]}
+        >
+          <View style={s.miniRow}>
+            {crest ? <Image source={crest} style={s.miniCrest} resizeMode="contain" /> : null}
+            <Txt role="label" tone="hero">{rank}</Txt>
+            <Txt role="label" style={{ color: cfg.accent, marginLeft: 'auto' }} numeric>
+              {daysLeft > 0 ? `D-${daysLeft}` : ddayText}
+            </Txt>
+          </View>
+        </Animated.View>
+
+        <AdFooter unit={AD_UNITS.HOME_BOTTOM} />
       </View>
-    </View>
+
+      <AdInterstitial visible={adVisible} onClose={closeAd} />
+    </>
   );
 }
 
-const makeStyles = (tc) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: tc.background },
+const makeStyles = (tc) =>
+  StyleSheet.create({
+    root: { flex: 1 },
+    hero: { marginBottom: sp.lg },
+    heroPad: { paddingHorizontal: sp.lg, paddingBottom: sp.xl },
 
-  /* ScrollView: 가로 패딩 없음 → 카드 풀 와이드 */
-  scrollFlex: { flex: 1 },
-  scroll: { paddingBottom: 24 },
+    topRow: { flexDirection: 'row', alignItems: 'center', gap: sp.md },
 
-  /* 하단 고정 배너 영역 (탭바 바로 위) */
-  adFooter: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    backgroundColor: tc.card,
-    borderTopWidth: 1,
-    borderTopColor: tc.border,
-  },
+    milestone: { alignSelf: 'flex-start', marginTop: sp.md },
 
-  /* 헤더 영역만 가로 패딩 */
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-  },
-  headerLeft: { flex: 1 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  appIcon: { width: 28, height: 28, borderRadius: 7 },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: tc.primary },
-  headerSub: { fontSize: 16, fontWeight: '700', color: tc.textSecondary, marginTop: 2 },
+    heroMain: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sp.md,
+      marginTop: sp.md,
+    },
+    eyebrow: { letterSpacing: 2 },
+    ddayTap: { alignSelf: 'flex-start' },
+    ddayRow: { flexDirection: 'row', alignItems: 'baseline', gap: sp.xxs },
+    glow: { textShadowRadius: 18, textShadowOffset: { width: 0, height: 0 } },
 
-  /* 계급 이미지 태그 */
-  rankImgWrap: {
-    alignItems: 'center',
-    gap: 4,
-    minWidth: 64,
-  },
-  rankImg: {
-    width: 64,
-    height: 64,
-  },
-  rankEmoji: {
-    fontSize: 46,
-    height: 64,
-    lineHeight: 64,
-    textAlign: 'center',
-  },
-  rankTagText: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
+    dateRow: { flexDirection: 'row', alignItems: 'center', gap: sp.md, marginTop: sp.xs },
+    shareBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sp.xs,
+      paddingVertical: sp.xs,
+      paddingHorizontal: sp.sm,
+      borderRadius: r.pill,
+      backgroundColor: 'rgba(255,255,255,0.12)',
+    },
 
-  /* 상단 행 (프로필 + 햄버거) */
-  topRow: { flexDirection: 'row', alignItems: 'center' },
-  menuBtn: { paddingHorizontal: 16, paddingVertical: 4 },
+    crestWrap: { alignItems: 'center', gap: sp.xs, width: 72 },
+    crest: { width: 56, height: 56 },
+    crestGlow: {
+      position: 'absolute',
+      top: 4,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      opacity: 0.28,
+    },
 
-  /* D-Day 메인카드 — 풀 와이드 (한 화면에 담기도록 컴팩트) */
-  mainCard: {
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    backgroundColor: tc.primary,
-  },
-  profileTag: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  profileTagAvatar: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)' },
-  profileTagName: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.92)' },
-  mainLabel: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 2 },
-  dday: { fontSize: 54, fontWeight: '900', color: tc.white, letterSpacing: -2 },
-  dischargeDate: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 2, marginBottom: 8 },
-  progressSection: { width: '100%', marginBottom: 8 },
-  statsRow: {
-    flexDirection: 'row',
-    width: '100%',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.2)',
-    paddingTop: 10,
-  },
-  statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 22, fontWeight: '800', color: tc.white },
-  statLabel: { fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 2 },
-  statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
+    gauge: { marginTop: sp.xl },
+    statRow: { flexDirection: 'row', gap: sp.sm, marginTop: sp.xl },
 
-  /* 응원 메시지 — 컴팩트 (한 줄 아이콘 + 텍스트) */
-  messageCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 12,
-    marginHorizontal: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    backgroundColor: tc.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: tc.border,
-  },
-  messageEmoji: { fontSize: 20, marginBottom: 0 },
-  messageText: { flex: 1, fontSize: 13.5, color: tc.text, lineHeight: 19, fontWeight: '500' },
-  refreshBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 6,
-    backgroundColor: tc.background,
-    borderRadius: 16,
-  },
+    body: { paddingHorizontal: sp.lg },
+    navRow: { paddingHorizontal: sp.lg },
 
-  /* 가로 패딩이 필요한 영역 */
-  padH: { paddingHorizontal: 16 },
+    msgRow: { flexDirection: 'row', alignItems: 'center', gap: sp.md },
+    refresh: { padding: sp.xs },
 
-  /* 전역일 공유 버튼 */
-  shareBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginTop: 12, paddingVertical: 15, borderRadius: 16,
-    backgroundColor: tc.highlightBg, borderWidth: StyleSheet.hairlineWidth, borderColor: tc.border,
-  },
-  shareBtnText: { fontSize: 15, fontWeight: '700', color: tc.primary },
-
-  /* 전역 로드맵 바로가기 */
-  roadmapLinkBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginTop: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16,
-    backgroundColor: tc.card, borderWidth: StyleSheet.hairlineWidth, borderColor: tc.border,
-  },
-  roadmapLinkIcon: {
-    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: tc.highlightBg,
-  },
-  roadmapLinkTitle: { fontSize: 15, fontWeight: '800', color: tc.text },
-  roadmapLinkSub: { fontSize: 12.5, color: tc.textSecondary, marginTop: 2 },
-
-  /* 빈 화면 */
-  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-  emptyEmoji: { fontSize: 64, marginBottom: 18 },
-  emptyTitle: { fontSize: 26, fontWeight: '800', color: tc.primary, marginBottom: 10 },
-  emptyText: { fontSize: 16, color: tc.textSecondary, textAlign: 'center', lineHeight: 24, marginBottom: 32 },
-  setupBtn: { backgroundColor: tc.primary, paddingHorizontal: 36, paddingVertical: 16, borderRadius: 30 },
-  setupBtnText: { color: tc.white, fontWeight: '700', fontSize: 17 },
-});
+    mini: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    miniRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sp.sm,
+      height: 48,
+      paddingHorizontal: sp.lg,
+    },
+    miniCrest: { width: 24, height: 24 },
+  });

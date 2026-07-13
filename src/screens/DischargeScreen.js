@@ -1,19 +1,22 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Alert, TextInput,
-} from 'react-native';
+import { Alert, StyleSheet, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  FadeInDown, LinearTransition,
+  useAnimatedStyle, useSharedValue, withTiming,
+} from 'react-native-reanimated';
 import { useThemeColors } from '../theme/ThemeContext';
 import SectionTitle from '../components/SectionTitle';
 import Card from '../components/Card';
-import AdBanner from '../components/AdBanner';
+import ProgressBar from '../components/ProgressBar';
 import DatePickerField from '../components/DatePickerField';
-import FadeInView from '../components/FadeInView';
-import MenuButton from '../components/MenuButton';
 import EventCalendar from '../components/EventCalendar';
+import AdInterstitial from '../components/AdInterstitial';
+import {
+  Screen, AppHeader, Section, HeroCard, Grid, Button, Chip,
+  ListRow, Txt, AnimatedNumber, PressScale,
+} from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import {
   loadMilitaryInfo, saveMilitaryInfo,
@@ -22,40 +25,40 @@ import {
   loadLeaveRecords, loadLeaveBonusRecords, loadTodos,
 } from '../utils/storage';
 import { ranksFor } from '../constants/militaryRanks';
-import AdInterstitial from '../components/AdInterstitial';
 import useShowInterstitial from '../hooks/useShowInterstitial';
+import { useMotion } from '../hooks/useMotion';
+import { haptic } from '../utils/haptics';
 import {
-  calcDischargeDate, calcDaysLeft, formatDate, formatDateKo,
+  calcDischargeDate, calcDaysLeft, calcServedMonths, formatDate, formatDateKo,
 } from '../utils/dateUtils';
 import { BRANCHES, PERSONNEL_TYPES, isOfficer } from '../constants/serviceTerms';
 import { updateDischargeWidget } from '../widget/updateWidget';
+import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
 
-const BRANCH_LABEL = { army: '육군', navy: '해군', airforce: '공군', marines: '해병대' };
+const PROMO_RANKS = ['일병', '상병', '병장'];
 
 export default function DischargeScreen({ navigation }) {
   const tc = useThemeColors();
-  const styles = useMemo(() => makeStyles(tc), [tc]);
-  const insets = useSafeAreaInsets();
-
-  const [enlistDate,    setEnlistDate]    = useState('');
-  const [branch,        setBranch]        = useState('army');
-  const [personnelType, setPersonnelType] = useState('soldier'); // soldier | nco | officer
-  const [monthsInput,   setMonthsInput]   = useState('');         // 간부 복무개월 직접입력
-  const [officerRank,   setOfficerRank]   = useState(null);       // 간부 현재 계급
-  const [info,          setInfo]          = useState(null);
-  const [editing,       setEditing]       = useState(false);      // 입력 폼 펼침 여부
+  const m = useMotion();
+  const s = useMemo(() => makeStyles(tc), [tc]);
   const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
 
-  /* 진급일 관련 */
-  const [promotions,   setPromotions]   = useState(null);
-  const [promoOpen,    setPromoOpen]    = useState(false);
-  const [editingPromo, setEditingPromo] = useState(false);
-  const [editPromo,    setEditPromo]    = useState(null);
+  const [enlistDate, setEnlistDate] = useState('');
+  const [branch, setBranch] = useState('army');
+  const [personnelType, setPersonnelType] = useState('soldier');
+  const [monthsInput, setMonthsInput] = useState('');
+  const [officerRank, setOfficerRank] = useState(null);
+  const [info, setInfo] = useState(null);
+  const [editing, setEditing] = useState(false);
 
-  /* 캘린더용 (휴가/일정) */
+  const [promotions, setPromotions] = useState(null);
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [editingPromo, setEditingPromo] = useState(false);
+  const [editPromo, setEditPromo] = useState(null);
+
   const [leaveRecords, setLeaveRecords] = useState([]);
   const [bonusRecords, setBonusRecords] = useState([]);
-  const [todos,        setTodos]        = useState([]);
+  const [todos, setTodos] = useState([]);
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -74,7 +77,6 @@ export default function DischargeScreen({ navigation }) {
       setBonusRecords(await loadLeaveBonusRecords());
       setTodos(await loadTodos());
     } else {
-      // 입대정보 없는(새/빈) 프로필로 전환 시 폼 초기화 — 온보딩에서 정한 신분은 유지
       const pt = await loadPersonnelType();
       setInfo(null);
       setEnlistDate('');
@@ -82,7 +84,7 @@ export default function DischargeScreen({ navigation }) {
       setPersonnelType(pt ?? 'soldier');
       setOfficerRank(null);
       setMonthsInput('');
-      setEditing(true); // 정보 없으면 바로 입력 폼
+      setEditing(true);
       setPromotions(null);
       setLeaveRecords([]);
       setBonusRecords([]);
@@ -94,19 +96,18 @@ export default function DischargeScreen({ navigation }) {
   const officer = isOfficer(personnelType);
 
   const handleSave = async () => {
-    if (!enlistDate) {
-      Alert.alert('오류', '입대일을 선택해주세요.');
-      return;
-    }
+    if (!enlistDate) { haptic.warning(); Alert.alert('오류', '입대일을 선택해주세요.'); return; }
     if (new Date(enlistDate) > new Date()) {
+      haptic.warning();
       Alert.alert('오류', '입대일이 오늘보다 미래일 수 없습니다.');
       return;
     }
-    // 병사는 군별 의무복무기간 자동, 간부는 복무개월 직접입력
+
     let months;
     if (officer) {
       months = parseInt(monthsInput, 10);
       if (isNaN(months) || months < 1 || months > 240) {
+        haptic.warning();
         Alert.alert('오류', '복무 개월 수를 올바르게 입력해주세요 (1~240).');
         return;
       }
@@ -124,9 +125,8 @@ export default function DischargeScreen({ navigation }) {
       months,
     };
     await saveMilitaryInfo(mi);
-    await savePersonnelType(personnelType); // 신분 브리지 동기화
+    await savePersonnelType(personnelType);
 
-    /* 병사만 진급일 체계 적용. 입대일 변경 시 진급일 자동 재계산 */
     if (officer) {
       await resetRankPromotions();
       setPromotions(null);
@@ -137,39 +137,38 @@ export default function DischargeScreen({ navigation }) {
 
     setInfo(mi);
     setEditing(false);
-    updateDischargeWidget(); // 홈 위젯 갱신 (안드로이드)
-    Alert.alert('저장 완료', '입대 정보가 저장되었습니다!');
+    updateDischargeWidget();
+    haptic.success();
     showAd();
   };
 
-  /* 진급일 수정 시작 */
   const handleStartEditPromo = () => {
     setEditPromo({ ...promotions });
     setEditingPromo(true);
   };
 
-  /* 진급일 저장 */
   const handleSavePromo = async () => {
-    if (!editPromo.일병 || !editPromo.상병 || !editPromo.병장) {
+    if (!editPromo?.일병 || !editPromo?.상병 || !editPromo?.병장) {
+      haptic.warning();
       Alert.alert('오류', '진급일을 모두 입력해주세요.');
       return;
     }
     if (editPromo.일병 >= editPromo.상병 || editPromo.상병 >= editPromo.병장) {
+      haptic.warning();
       Alert.alert('오류', '진급일 순서가 올바르지 않습니다.\n일병 < 상병 < 병장 순이어야 합니다.');
       return;
     }
     await saveRankPromotions(editPromo);
     setPromotions(editPromo);
     setEditingPromo(false);
-    updateDischargeWidget(); // 계급 변동 가능 → 위젯 갱신
-    Alert.alert('저장 완료', '진급일이 저장되었습니다!');
+    updateDischargeWidget();
+    haptic.success();
   };
 
-  /* 진급일 기본값 초기화 */
   const handleResetPromo = () => {
     Alert.alert(
       '기본값으로 초기화',
-      '표준 진급일 기준으로 되돌립니다.\n(이병 2개월, 상병 8개월, 병장 14개월)',
+      '표준 진급일 기준으로 되돌립니다.\n(일병 2개월, 상병 8개월, 병장 14개월)',
       [
         { text: '취소', style: 'cancel' },
         {
@@ -184,345 +183,417 @@ export default function DischargeScreen({ navigation }) {
     );
   };
 
-  const daysLeft    = info ? calcDaysLeft(info.dischargeDate) : 0;
+  const daysLeft = info ? calcDaysLeft(info.dischargeDate) : 0;
   const infoOfficer = info ? isOfficer(info.personnelType) : false;
   const activePromo = editingPromo ? editPromo : promotions;
-  const typeLabel   = PERSONNEL_TYPES.find((t) => t.key === (info?.personnelType))?.label ?? '';
+  const typeLabel = PERSONNEL_TYPES.find((t) => t.key === info?.personnelType)?.label ?? '';
+  const branchLabel = BRANCHES.find((b) => b.key === info?.branch)?.label ?? '';
+
+  // 복무 진행률 — 여정 레일의 채워진 부분
+  const servedMonths = info ? calcServedMonths(info.enlistDate) : 0;
+  const progress = info?.months > 0 ? Math.min(1, servedMonths / info.months) : 0;
+
+  const chevron = useSharedValue(0);
+  const togglePromo = () => {
+    const next = !promoOpen;
+    setPromoOpen(next);
+    chevron.value = withTiming(next ? 1 : 0, { duration: m.dur(220) });
+    haptic.select();
+  };
+  const chevronStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${chevron.value * 180}deg` }],
+  }));
 
   return (
-    <View style={styles.container}>
-      <AdInterstitial visible={adVisible} onClose={closeAd} />
-      <ScrollView
-        style={styles.scrollFlex}
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10 }]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+    <>
+      <Screen
+        ad={AD_UNITS.DISCHARGE_BOTTOM}
+        header={<AppHeader title="전역일 계산" navigation={navigation} current="discharge" />}
       >
-        {/* ── 상단 (제목 + 햄버거) ── */}
-        <View style={styles.topBar}>
-          <Text style={styles.pageTitle}>전역일 계산</Text>
-          <MenuButton navigation={navigation} current="discharge" />
-        </View>
-
-        {/* ── 입력 폼 (편집 중이거나 정보 없을 때만) ── */}
         {editing ? (
-          <Card>
-            <Text style={styles.sectionTitle}>입대 정보 입력</Text>
+          /* ── 입력 폼 ── */
+          <Section index={0}>
+            <Card>
+              <SectionTitle icon="create-outline">입대 정보 입력</SectionTitle>
 
-            <DatePickerField
-              label="입대일"
-              value={enlistDate}
-              onChange={setEnlistDate}
-              placeholder="입대일을 선택하세요"
-              maximumDate={new Date()}
-              minimumDate={new Date(2000, 0, 1)}
-            />
-
-            <Text style={[styles.label, { marginTop: 6 }]}>구분</Text>
-            <View style={styles.typeRow}>
-              {PERSONNEL_TYPES.map((t) => (
-                <TouchableOpacity
-                  key={t.key}
-                  style={[styles.typeBtn, personnelType === t.key && styles.typeBtnActive]}
-                  onPress={() => { setPersonnelType(t.key); setOfficerRank(null); }}
-                >
-                  <Text style={styles.typeEmoji}>{t.emoji}</Text>
-                  <Text style={[styles.typeLabel, personnelType === t.key && styles.typeLabelActive]}>
-                    {t.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[styles.label, { marginTop: 14 }]}>군별 선택</Text>
-            <View style={styles.branchRow}>
-              {BRANCHES.map((b) => (
-                <TouchableOpacity
-                  key={b.key}
-                  style={[styles.branchBtn, branch === b.key && styles.branchBtnActive]}
-                  onPress={() => setBranch(b.key)}
-                >
-                  <Text style={styles.branchEmoji}>{b.emoji}</Text>
-                  <Text style={[styles.branchLabel, branch === b.key && styles.branchLabelActive]}>
-                    {b.label}
-                  </Text>
-                  {!officer && (
-                    <Text style={[styles.branchMonths, branch === b.key && styles.branchMonthsActive]}>
-                      {b.months}개월
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {officer ? (
-              <>
-                <Text style={[styles.label, { marginTop: 14 }]}>현재 계급</Text>
-                <View style={styles.rankWrap}>
-                  {ranksFor(personnelType).map((r) => (
-                    <TouchableOpacity
-                      key={r}
-                      style={[styles.rankChip, officerRank === r && styles.rankChipActive]}
-                      onPress={() => setOfficerRank(r)}
-                    >
-                      <Text style={[styles.rankChipText, officerRank === r && styles.rankChipTextActive]}>
-                        {r}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <Text style={[styles.label, { marginTop: 14 }]}>의무복무 개월 수</Text>
-                <TextInput
-                  style={styles.monthsInput}
-                  value={monthsInput}
-                  onChangeText={(t) => setMonthsInput(t.replace(/[^0-9]/g, ''))}
-                  placeholder="예) 부사관 48, 장교 36"
-                  placeholderTextColor={tc.textLight}
-                  keyboardType="number-pad"
-                  maxLength={3}
+              <View style={{ marginTop: sp.lg }}>
+                <Txt role="label" tone="secondary" style={s.label}>입대일</Txt>
+                <DatePickerField
+                  value={enlistDate}
+                  onChange={setEnlistDate}
+                  maximumDate={new Date()}
+                  placeholder="입대일을 선택하세요"
                 />
-                <Text style={styles.termNote}>
-                  ⓘ 간부는 의무복무기간이 다양해 직접 입력합니다. 병사 진급·계급 체계는 적용되지 않습니다.
-                </Text>
-              </>
-            ) : (
-              <Text style={styles.termNote}>
-                ⓘ 군복무 단축이 반영된 현행 복무기간 기준입니다.
-              </Text>
-            )}
+              </View>
 
-            <View style={styles.formBtnRow}>
-              {info && (
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => loadData()}>
-                  <Text style={styles.cancelBtnText}>취소</Text>
-                </TouchableOpacity>
+              {/* 구분 — 3-up */}
+              <Txt role="label" tone="secondary" style={s.label}>구분</Txt>
+              <Grid columns={3} gap={sp.sm}>
+                {PERSONNEL_TYPES.map((t) => (
+                  <SelectTile
+                    key={t.key}
+                    icon={t.icon}
+                    label={t.label}
+                    selected={personnelType === t.key}
+                    onPress={() => setPersonnelType(t.key)}
+                  />
+                ))}
+              </Grid>
+
+              {/* 군별 — 2-up. 예전엔 width:'47.5%' + gap:8 이라 오른쪽이 너덜너덜했다 */}
+              <Txt role="label" tone="secondary" style={s.label}>군별</Txt>
+              <Grid columns={2} gap={sp.sm}>
+                {BRANCHES.map((b) => (
+                  <SelectTile
+                    key={b.key}
+                    icon={b.icon}
+                    label={b.label}
+                    sub={officer ? undefined : `${b.months}개월`}
+                    selected={branch === b.key}
+                    onPress={() => setBranch(b.key)}
+                  />
+                ))}
+              </Grid>
+
+              {officer ? (
+                <>
+                  <Txt role="label" tone="secondary" style={s.label}>현재 계급</Txt>
+                  <View style={s.chipWrap}>
+                    {ranksFor(personnelType).map((rk) => (
+                      <Chip
+                        key={rk}
+                        label={rk}
+                        selected={officerRank === rk}
+                        onPress={() => setOfficerRank(rk)}
+                      />
+                    ))}
+                  </View>
+
+                  <Txt role="label" tone="secondary" style={s.label}>총 복무 개월 수</Txt>
+                  <View style={s.stepperRow}>
+                    <PressScale
+                      onPress={() => setMonthsInput(String(Math.max(1, (parseInt(monthsInput, 10) || 0) - 1)))}
+                      haptic="select"
+                      style={s.stepBtn}
+                    >
+                      <Ionicons name="remove" size={18} color={tc.primary} />
+                    </PressScale>
+
+                    <TextInput
+                      style={s.stepInput}
+                      value={monthsInput}
+                      onChangeText={(t) => setMonthsInput(t.replace(/[^0-9]/g, ''))}
+                      keyboardType="number-pad"
+                      placeholder="예: 36"
+                      placeholderTextColor={tc.textLight}
+                      maxLength={3}
+                    />
+
+                    <PressScale
+                      onPress={() => setMonthsInput(String(Math.min(240, (parseInt(monthsInput, 10) || 0) + 1)))}
+                      haptic="select"
+                      style={s.stepBtn}
+                    >
+                      <Ionicons name="add" size={18} color={tc.primary} />
+                    </PressScale>
+                  </View>
+
+                  <View style={s.chipWrap}>
+                    {[24, 36, 48].map((v) => (
+                      <Chip
+                        key={v}
+                        label={`${v}개월`}
+                        size="sm"
+                        selected={parseInt(monthsInput, 10) === v}
+                        onPress={() => setMonthsInput(String(v))}
+                      />
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <Txt role="caption" tone="light" style={{ marginTop: sp.md }}>
+                  * 병사는 군별 의무복무기간이 자동 적용됩니다 ({selectedBranch?.months}개월)
+                </Txt>
               )}
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                <Text style={styles.saveBtnText}>저장 및 계산</Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
-        ) : (
-          info && (
-            /* ── 입대정보 요약 (저장 후) ── */
-            <FadeInView>
-              <Card style={styles.summaryCard}>
-                <View style={styles.summaryHeader}>
-                  <SectionTitle icon="shield-checkmark-outline" size={16}>입대 정보</SectionTitle>
-                  <TouchableOpacity
-                    style={styles.editInfoBtn}
-                    onPress={() => setEditing(true)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="create-outline" size={14} color={tc.primary} />
-                    <Text style={styles.editInfoBtnText}>입대정보 수정하기</Text>
-                  </TouchableOpacity>
-                </View>
 
-                <View style={styles.summaryGrid}>
-                  <View style={styles.summaryItem}>
-                    <Text style={styles.summaryLabel}>입대일</Text>
-                    <Text style={styles.summaryValue}>{formatDateKo(info.enlistDate)}</Text>
-                  </View>
-                  <View style={styles.summaryItem}>
-                    <Text style={styles.summaryLabel}>전역일</Text>
-                    <Text style={[styles.summaryValue, { color: tc.accent }]}>{formatDateKo(info.dischargeDate)}</Text>
-                  </View>
-                  <View style={styles.summaryItem}>
-                    <Text style={styles.summaryLabel}>구분 · 군별</Text>
-                    <Text style={styles.summaryValue}>{BRANCH_LABEL[info.branch]} · {typeLabel}</Text>
-                  </View>
-                  <View style={styles.summaryItem}>
-                    <Text style={styles.summaryLabel}>복무 기간</Text>
-                    <Text style={styles.summaryValue}>{info.months}개월</Text>
-                  </View>
-                </View>
-
-                <View style={styles.ddayBox}>
-                  <Text style={styles.ddayLabel}>전역까지</Text>
-                  <Text style={styles.ddayValue}>
-                    {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-Day!' : '전역 완료!'}
-                  </Text>
-                </View>
-              </Card>
-            </FadeInView>
-          )
-        )}
-
-        {/* ── 진급일 관리 + 캘린더 (정보 있고, 편집 중이 아닐 때) ── */}
-        {info && !editing && (
-          <>
-            {/* 진급일 관리 (병사 전용) */}
-            {!infoOfficer && (
-              <Card style={styles.promoCard}>
-                <TouchableOpacity
-                  style={styles.promoHeaderRow}
-                  onPress={() => setPromoOpen((v) => !v)}
-                  activeOpacity={0.75}
-                >
-                  <View style={{ flex: 1 }}>
-                    <SectionTitle icon="medal-outline" size={16} style={{ marginBottom: 4 }}>진급일 관리</SectionTitle>
-                    <Text style={styles.promoDesc}>조기진급·부대 차이가 있을 경우 수정하세요</Text>
-                  </View>
-                  <Text style={styles.promoToggle}>{promoOpen ? '▲' : '▼'}</Text>
-                </TouchableOpacity>
-
-                {promoOpen && activePromo && (
-                  <View style={styles.promoBody}>
-                    <View style={[styles.promoHint, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
-                      <Ionicons name="information-circle-outline" size={13} color={tc.primary} />
-                      <Text style={[styles.promoHintText, { flex: 1 }]}>
-                        기본값: 입대일 기준 +2개월(일병) / +8개월(상병) / +14개월(병장)
-                      </Text>
-                    </View>
-
-                    <DatePickerField
-                      label="일병 진급일"
-                      value={activePromo.일병 ?? ''}
-                      onChange={(v) => setEditPromo((p) => ({ ...p, 일병: v }))}
-                      disabled={!editingPromo}
-                      minimumDate={new Date(info.enlistDate)}
-                    />
-                    <DatePickerField
-                      label="상병 진급일"
-                      value={activePromo.상병 ?? ''}
-                      onChange={(v) => setEditPromo((p) => ({ ...p, 상병: v }))}
-                      disabled={!editingPromo}
-                      minimumDate={new Date(info.enlistDate)}
-                    />
-                    <DatePickerField
-                      label="병장 진급일"
-                      value={activePromo.병장 ?? ''}
-                      onChange={(v) => setEditPromo((p) => ({ ...p, 병장: v }))}
-                      disabled={!editingPromo}
-                      minimumDate={new Date(info.enlistDate)}
-                    />
-
-                    {editingPromo ? (
-                      <View style={styles.promoBtnRow}>
-                        <TouchableOpacity style={styles.promoResetBtn} onPress={handleResetPromo}>
-                          <Text style={styles.promoResetBtnText}>기본값 초기화</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.promoCancelBtn} onPress={() => setEditingPromo(false)}>
-                          <Text style={styles.promoCancelBtnText}>취소</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.promoSaveBtn} onPress={handleSavePromo}>
-                          <Text style={styles.promoSaveBtnText}>저장</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={[styles.promoEditBtn, { flexDirection: 'row', justifyContent: 'center', gap: 6 }]}
-                        onPress={handleStartEditPromo}
-                      >
-                        <Ionicons name="create-outline" size={15} color={tc.primary} />
-                        <Text style={styles.promoEditBtnText}>진급일 수정하기</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-              </Card>
-            )}
-
-            {/* 휴가·일정 캘린더 */}
-            <Card style={styles.calendarCard}>
-              <SectionTitle icon="calendar-outline" size={16} style={{ marginBottom: 4 }}>휴가 · 일정 캘린더</SectionTitle>
-              <Text style={styles.calendarSub}>날짜를 탭하면 그날의 휴가·일정을 볼 수 있어요</Text>
-              <View style={{ marginTop: 10 }}>
-                <EventCalendar records={leaveRecords} bonusRecords={bonusRecords} todos={todos} />
+              <View style={s.btnRow}>
+                {info ? (
+                  <Button
+                    title="취소"
+                    variant="ghost"
+                    onPress={() => { setEditing(false); loadData(); }}
+                    style={{ flex: 1 }}
+                  />
+                ) : null}
+                <Button title="저장" icon="checkmark" onPress={handleSave} style={{ flex: 1 }} />
               </View>
             </Card>
+          </Section>
+        ) : info ? (
+          /* ── 요약 히어로 ──
+             예전의 2×2 라벨/값 격자 + 별도 ddayBox(같은 정보 중복)를
+             D-N 하나 + 여정 레일 하나로 바꾼다. */
+          <Section index={0}>
+            <HeroCard>
+              <View style={s.heroTop}>
+                <View style={s.chipRow}>
+                  <Chip label={`${branchLabel} · ${typeLabel}`} size="sm" tone="accent" />
+                  <Chip label={`${info.months}개월`} size="sm" style={s.heroChip} textStyle={{ color: tc.heroText }} />
+                </View>
 
-          </>
-        )}
-      </ScrollView>
+                <Chip
+                  label="수정"
+                  icon="create-outline"
+                  size="sm"
+                  onPress={() => setEditing(true)}
+                  style={s.heroChip}
+                  textStyle={{ color: tc.heroText }}
+                />
+              </View>
 
-      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
-      <View style={styles.adFooter}>
-        <AdBanner unit={AD_UNITS.DISCHARGE_BOTTOM} />
-      </View>
-    </View>
+              <View style={s.heroAmount}>
+                <Txt role="subtitle" tone="heroMuted">D-</Txt>
+                <AnimatedNumber
+                  value={Math.max(0, daysLeft)}
+                  style={[ty.hero, { color: tc.heroText }]}
+                />
+              </View>
+
+              {/* 여정 레일: [● 입대] ——— [○ 전역], 채워진 선이 복무 진행률 */}
+              <View style={s.rail}>
+                <View style={[s.railDot, { backgroundColor: tc.accentLight }]} />
+                <View style={s.railTrack}>
+                  <ProgressBar progress={progress} height={3} tone="hero" delay={320} />
+                </View>
+                <View
+                  style={[
+                    s.railDot,
+                    s.railDotEnd,
+                    daysLeft <= 0 && { backgroundColor: tc.accentLight },
+                  ]}
+                />
+              </View>
+
+              <View style={s.railLabels}>
+                <View>
+                  <Txt role="micro" tone="heroMuted">입대</Txt>
+                  <Txt role="caption" tone="hero">{formatDateKo(info.enlistDate)}</Txt>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Txt role="micro" tone="heroMuted">전역</Txt>
+                  <Txt role="caption" tone="hero">{formatDateKo(info.dischargeDate)}</Txt>
+                </View>
+              </View>
+            </HeroCard>
+          </Section>
+        ) : null}
+
+        {/* ── 진급일 관리 (병사만) ── */}
+        {info && !infoOfficer && activePromo ? (
+          <Section index={1}>
+            <Animated.View layout={m.layout(LinearTransition.springify())}>
+              <Card>
+                <PressScale onPress={togglePromo} haptic="select" scale={0.995}>
+                  <SectionTitle
+                    icon="ribbon-outline"
+                    right={
+                      <Animated.View style={chevronStyle}>
+                        <Ionicons name="chevron-down" size={18} color={tc.textLight} />
+                      </Animated.View>
+                    }
+                  >
+                    진급일 관리
+                  </SectionTitle>
+                </PressScale>
+
+                {promoOpen ? (
+                  <Animated.View entering={m.enter(FadeInDown, 0, motion.duration.base)}>
+                    <Txt role="caption" tone="secondary" style={{ marginTop: sp.sm }}>
+                      실제 진급일이 다르면 직접 수정하세요.
+                    </Txt>
+
+                    <View style={{ marginTop: sp.md }}>
+                      {PROMO_RANKS.map((rk) => (
+                        <View key={rk} style={{ marginBottom: sp.md }}>
+                          <Txt role="label" tone="secondary" style={s.label}>{rk} 진급일</Txt>
+                          <DatePickerField
+                            value={activePromo?.[rk] ?? ''}
+                            onChange={(d) => setEditPromo((p) => ({ ...p, [rk]: d }))}
+                            disabled={!editingPromo}
+                            placeholder="날짜를 선택하세요"
+                          />
+                        </View>
+                      ))}
+                    </View>
+
+                    {editingPromo ? (
+                      <>
+                        <View style={s.btnRow}>
+                          <Button
+                            title="취소"
+                            variant="ghost"
+                            onPress={() => { setEditingPromo(false); setEditPromo(null); }}
+                            style={{ flex: 1 }}
+                          />
+                          <Button title="저장" onPress={handleSavePromo} style={{ flex: 1 }} />
+                        </View>
+                        <Button
+                          title="기본값으로 초기화"
+                          variant="ghost"
+                          size="sm"
+                          onPress={handleResetPromo}
+                          textStyle={{ color: tc.danger }}
+                          style={s.resetBtn}
+                        />
+                      </>
+                    ) : (
+                      <Button
+                        title="진급일 수정"
+                        icon="create-outline"
+                        variant="secondary"
+                        full
+                        onPress={handleStartEditPromo}
+                        style={{ marginTop: sp.sm }}
+                      />
+                    )}
+                  </Animated.View>
+                ) : null}
+              </Card>
+            </Animated.View>
+          </Section>
+        ) : null}
+
+        {/* ── 휴가·일정 캘린더 ── */}
+        {info ? (
+          <Section index={2}>
+            <Card style={{ overflow: 'hidden' }}>
+              <SectionTitle icon="calendar-outline">휴가·일정 캘린더</SectionTitle>
+              <View style={{ marginTop: sp.md }}>
+                <EventCalendar
+                  records={leaveRecords}
+                  bonusRecords={bonusRecords}
+                  todos={todos}
+                />
+              </View>
+            </Card>
+          </Section>
+        ) : null}
+      </Screen>
+
+      <AdInterstitial visible={adVisible} onClose={closeAd} />
+    </>
   );
 }
 
-const makeStyles = (tc) => StyleSheet.create({
-  scrollFlex: { flex: 1 },
-  adFooter: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    backgroundColor: tc.card,
-    borderTopWidth: 1,
-    borderTopColor: tc.border,
-  },
-  container:  { flex: 1, backgroundColor: tc.background },
-  scroll:     { padding: 16, paddingBottom: 24 },
-  topBar:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  pageTitle:  { fontSize: 26, fontWeight: '800', color: tc.primary },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: tc.text, marginBottom: 4 },
-  label:      { fontSize: 14, fontWeight: '600', color: tc.textSecondary, marginBottom: 9 },
-  termNote:   { fontSize: 12, color: tc.textLight, marginTop: 10, marginLeft: 2 },
+/* 선택 타일 — 채워진 primary + 흰 아이콘.
+   예전의 15% 알파 틴트 선택 표시는 싸구려로 읽혔다. */
+function SelectTile({ icon, label, sub, selected, onPress }) {
+  const tc = useThemeColors();
+  const s = useMemo(() => makeStyles(tc), [tc]);
 
-  typeRow:            { flexDirection: 'row', gap: 8, marginTop: 8 },
-  typeBtn:            { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: tc.border, backgroundColor: tc.background },
-  typeBtnActive:      { borderColor: tc.primary, backgroundColor: `${tc.primary}15` },
-  typeEmoji:          { fontSize: 20, marginBottom: 4 },
-  typeLabel:          { fontSize: 14, fontWeight: '700', color: tc.textSecondary },
-  typeLabelActive:    { color: tc.primary },
-  monthsInput:        { backgroundColor: tc.background, borderWidth: 1.5, borderColor: tc.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16, color: tc.text, marginTop: 4 },
-  rankWrap:           { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  rankChip:           { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1.5, borderColor: tc.border, backgroundColor: tc.background },
-  rankChipActive:     { borderColor: tc.primary, backgroundColor: `${tc.primary}15` },
-  rankChipText:       { fontSize: 14, fontWeight: '700', color: tc.textSecondary },
-  rankChipTextActive: { color: tc.primary },
+  return (
+    <PressScale
+      onPress={onPress}
+      haptic="select"
+      style={[s.tile, selected && { backgroundColor: tc.primary, borderColor: tc.primary }]}
+      accessibilityState={{ selected }}
+    >
+      <Ionicons name={icon} size={20} color={selected ? tc.onPrimary : tc.textSecondary} />
+      <Txt
+        role="bodySm"
+        style={{ fontWeight: '700', color: selected ? tc.onPrimary : tc.text }}
+        numberOfLines={1}
+      >
+        {label}
+      </Txt>
+      {sub ? (
+        <Txt
+          role="micro"
+          style={{ color: selected ? tc.onPrimary : tc.textLight, opacity: selected ? 0.8 : 1 }}
+        >
+          {sub}
+        </Txt>
+      ) : null}
+    </PressScale>
+  );
+}
 
-  branchRow:          { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4, marginTop: 8 },
-  branchBtn:          { width: '47.5%', alignItems: 'center', paddingVertical: 16, borderRadius: 12, borderWidth: 1.5, borderColor: tc.border, backgroundColor: tc.background },
-  branchBtnActive:    { borderColor: tc.primary, backgroundColor: `${tc.primary}15` },
-  branchEmoji:        { fontSize: 24, marginBottom: 5 },
-  branchLabel:        { fontSize: 15, fontWeight: '700', color: tc.textSecondary },
-  branchLabelActive:  { color: tc.primary },
-  branchMonths:       { fontSize: 12, color: tc.textLight, marginTop: 3 },
-  branchMonthsActive: { color: tc.primaryLight },
+const makeStyles = (tc) =>
+  StyleSheet.create({
+    label: { marginTop: sp.lg, marginBottom: sp.sm },
 
-  formBtnRow:  { flexDirection: 'row', gap: 10, marginTop: 20 },
-  saveBtn:     { flex: 2, backgroundColor: tc.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
-  saveBtnText: { color: tc.white, fontWeight: '700', fontSize: 17 },
-  cancelBtn:   { flex: 1, backgroundColor: tc.background, borderRadius: 12, paddingVertical: 16, alignItems: 'center', borderWidth: 1.5, borderColor: tc.border },
-  cancelBtnText: { color: tc.textSecondary, fontWeight: '600', fontSize: 16 },
+    tile: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: sp.xs,
+      minHeight: 78,
+      paddingVertical: sp.md,
+      paddingHorizontal: sp.xs,
+      borderRadius: r.md,
+      backgroundColor: tc.surfaceSunken,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: tc.surfaceSunkenBorder,
+    },
 
-  /* 입대정보 요약 */
-  summaryCard:    { paddingVertical: 18 },
-  summaryHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  editInfoBtn:    { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: tc.primary },
-  editInfoBtnText:{ fontSize: 13, fontWeight: '700', color: tc.primary },
-  summaryGrid:    { flexDirection: 'row', flexWrap: 'wrap' },
-  summaryItem:    { width: '50%', marginBottom: 14 },
-  summaryLabel:   { fontSize: 12.5, color: tc.textSecondary, marginBottom: 4 },
-  summaryValue:   { fontSize: 15, fontWeight: '700', color: tc.text },
-  ddayBox:        { alignItems: 'center', paddingVertical: 18, backgroundColor: tc.primary, borderRadius: 12, marginTop: 2 },
-  ddayLabel:      { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
-  ddayValue:      { fontSize: 44, fontWeight: '900', color: tc.white, letterSpacing: -1 },
+    chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: sp.sm, marginTop: sp.sm },
+    stepperRow: { flexDirection: 'row', alignItems: 'center', gap: sp.sm },
+    stepBtn: {
+      width: 44,
+      height: 48,
+      borderRadius: r.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: tc.primarySoft,
+    },
+    stepInput: {
+      flex: 1,
+      height: 48,
+      borderRadius: r.sm,
+      backgroundColor: tc.surfaceSunken,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: tc.surfaceSunkenBorder,
+      textAlign: 'center',
+      ...ty.bodyLg,
+      fontWeight: '700',
+      color: tc.text,
+      padding: 0,
+    },
 
-  /* 진급일 관리 */
-  promoCard:        { marginTop: 4, paddingBottom: 8 },
-  promoHeaderRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  promoDesc:        { fontSize: 12, color: tc.textSecondary, marginTop: 2 },
-  promoToggle:      { fontSize: 16, color: tc.textSecondary, fontWeight: '700', marginTop: 2 },
-  promoBody:        { marginTop: 16 },
-  promoHint:        { backgroundColor: `${tc.primary}12`, borderRadius: 10, padding: 12, marginBottom: 14 },
-  promoHintText:    { fontSize: 12, color: tc.primary, fontWeight: '600', lineHeight: 18 },
-  promoBtnRow:      { flexDirection: 'row', gap: 8, marginTop: 8 },
-  promoResetBtn:    { flex: 1.2, paddingVertical: 13, borderRadius: 10, borderWidth: 1.5, borderColor: '#E53935', alignItems: 'center' },
-  promoResetBtnText:{ color: '#E53935', fontWeight: '700', fontSize: 12 },
-  promoCancelBtn:   { flex: 1, paddingVertical: 13, borderRadius: 10, borderWidth: 1.5, borderColor: tc.border, alignItems: 'center' },
-  promoCancelBtnText: { color: tc.textSecondary, fontWeight: '600', fontSize: 14 },
-  promoSaveBtn:     { flex: 1.2, paddingVertical: 13, borderRadius: 10, backgroundColor: tc.primary, alignItems: 'center' },
-  promoSaveBtnText: { color: tc.white, fontWeight: '700', fontSize: 14 },
-  promoEditBtn:     { marginTop: 8, paddingVertical: 14, borderRadius: 10, borderWidth: 1.5, borderColor: tc.primary, alignItems: 'center' },
-  promoEditBtnText: { color: tc.primary, fontWeight: '700', fontSize: 15 },
+    btnRow: { flexDirection: 'row', gap: sp.sm, marginTop: sp.xl },
+    resetBtn: { alignSelf: 'center', marginTop: sp.md, borderWidth: 0 },
 
-  /* 캘린더 */
-  calendarCard: { marginTop: 4, paddingVertical: 16 },
-  calendarSub:  { fontSize: 12, color: tc.textSecondary },
-});
+    heroTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: sp.sm,
+    },
+    chipRow: { flexDirection: 'row', gap: sp.sm, flexShrink: 1 },
+    heroChip: { backgroundColor: 'rgba(255,255,255,0.12)' },
+    heroAmount: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: sp.xxs,
+      marginTop: sp.lg,
+      marginBottom: sp.xl,
+    },
+
+    rail: { flexDirection: 'row', alignItems: 'center', gap: sp.sm },
+    railTrack: { flex: 1 },
+    railDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: tc.accentLight,
+    },
+    railDotEnd: {
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderColor: 'rgba(255,255,255,0.4)',
+    },
+    railLabels: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: sp.sm,
+    },
+  });

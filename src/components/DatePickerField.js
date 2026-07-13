@@ -130,9 +130,10 @@ export default function DatePickerField({
 }
 
 const makeStyles = (tc) => StyleSheet.create({
-  container: {
-    marginBottom: 14,
-  },
+  // marginBottom 없음 — 세로 간격은 부모(Section)가 준다.
+  // 예전엔 여기 marginBottom:14 가 박혀 있어서, 옆에 나란히 놓는 버튼마다
+  // 같은 값의 마진 핵으로 높이를 맞춰야 했다.
+  container: {},
   label: {
     fontSize: 14,
     fontWeight: '600',
@@ -142,17 +143,18 @@ const makeStyles = (tc) => StyleSheet.create({
   button: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: tc.background,
-    borderWidth: 1.5,
-    borderColor: tc.border,
+    backgroundColor: tc.surfaceSunken,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: tc.surfaceSunkenBorder,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 10,
   },
   buttonDisabled: {
-    backgroundColor: '#F0F0F0',
-    borderColor: '#D0D0D0',
+    backgroundColor: tc.surfaceSunken,
+    borderColor: tc.surfaceSunkenBorder,
+    opacity: 0.6,
   },
   textDisabled: {
     color: tc.textSecondary,
@@ -177,7 +179,7 @@ const makeStyles = (tc) => StyleSheet.create({
   // iOS 모달
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: tc.scrim,
   },
   modalBox: {
     backgroundColor: tc.card,

@@ -1,68 +1,33 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, TextInput, Alert, Animated, Easing,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState, useCallback, useMemo } from 'react';
+import { Alert, StyleSheet, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useThemeColors } from '../theme/ThemeContext';
 import Card from '../components/Card';
 import SectionTitle from '../components/SectionTitle';
-import FadeInView from '../components/FadeInView';
-import AdBanner from '../components/AdBanner';
-import MenuButton from '../components/MenuButton';
+import ProgressBar from '../components/ProgressBar';
+import SetupRequired from '../components/SetupRequired';
+import {
+  Screen,
+  AppHeader,
+  Section,
+  HeroCard,
+  Button,
+  Chip,
+  StatTile,
+  ListRow,
+  Divider,
+  Txt,
+  AnimatedNumber,
+} from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import { loadMilitaryInfo, loadSalaryInfo, saveSalaryInfo, loadRankPromotions } from '../utils/storage';
-import SetupRequired from '../components/SetupRequired';
 import { calcServedMonths, calcRankFromPromotions } from '../utils/dateUtils';
 import { isOfficer, personnelLabel } from '../constants/serviceTerms';
 import { getOfficerBasePay } from '../constants/militaryRanks';
 import { calcHobong } from '../utils/officerUtils';
-
-/* ─── 계급별 표준 월급 (2024년 기준) ───────────────────────── */
-/* 진급 기준: 이병 0~1개월, 일병 2~7개월, 상병 8~13개월, 병장 14개월~ */
-const SALARY_GUIDE = [
-  { rank: '이병', emoji: '🪖', months: '0 ~ 1개월',  amount: 640000,  start: 0,  end: 1   },
-  { rank: '일병', emoji: '⭐', months: '2 ~ 7개월',  amount: 800000,  start: 2,  end: 7   },
-  { rank: '상병', emoji: '⭐⭐', months: '8 ~ 13개월', amount: 1000000, start: 8,  end: 13  },
-  { rank: '병장', emoji: '👑', months: '14개월~',    amount: 1250000, start: 14, end: 999 },
-];
-
-function formatMoney(n) {
-  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
-/* 수령 진행률 바 — 퍼센트 변화 시 부드럽게 차오름 */
-function AnimatedProgressFill({ percent, color }) {
-  const w = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const a = Animated.timing(w, {
-      toValue: percent,
-      duration: 750,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    });
-    a.start();
-    return () => a.stop();
-  }, [percent, w]);
-  const width = w.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'], extrapolate: 'clamp' });
-  return (
-    <Animated.View style={{ width, height: '100%', backgroundColor: color, borderRadius: 6 }} />
-  );
-}
-
-/* 계급명으로 월급 반환 */
-function getSalaryByRank(rank) {
-  const g = SALARY_GUIDE.find((s) => s.rank === rank);
-  return g ? g.amount : SALARY_GUIDE[SALARY_GUIDE.length - 1].amount;
-}
-
-/* 복무 개월 수로 표준 월급 반환 (진급일 미설정 fallback) */
-function getStandardMonthly(servedMonths) {
-  const g = SALARY_GUIDE.find((s) => servedMonths >= s.start && servedMonths <= s.end);
-  return g ? g.amount : SALARY_GUIDE[SALARY_GUIDE.length - 1].amount;
-}
+import { SALARY_GUIDE, getSalaryByRank, getRankByMonths, formatMoney } from '../constants/salaryGuide';
+import { haptic } from '../utils/haptics';
+import { useThemeColors } from '../theme/ThemeContext';
+import { radius as r, space as sp, type as ty } from '../theme/tokens';
 
 /* 표준 기준 총 복무 예상 수령액 */
 function calcStandardTotal(totalM) {
@@ -75,15 +40,15 @@ function calcStandardTotal(totalM) {
 }
 
 export default function SalaryScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
   const tc = useThemeColors();
-  const styles = useMemo(() => makeStyles(tc), [tc]);
-  const [militaryInfo,  setMilitaryInfo]  = useState(undefined);
-  const [salaryInfo,    setSalaryInfo]    = useState(null);
-  const [promotions,    setPromotions]    = useState(null);
-  const [customMode,    setCustomMode]    = useState(false);
-  const [customSalary,  setCustomSalary]  = useState('');
-  const [totalMonths,   setTotalMonths]   = useState('');
+  const s = useMemo(() => makeStyles(tc), [tc]);
+
+  const [militaryInfo, setMilitaryInfo] = useState(undefined);
+  const [salaryInfo, setSalaryInfo] = useState(null);
+  const [promotions, setPromotions] = useState(null);
+  const [customMode, setCustomMode] = useState(false);
+  const [customSalary, setCustomSalary] = useState('');
+  const [totalMonths, setTotalMonths] = useState('');
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -98,23 +63,30 @@ export default function SalaryScreen({ navigation }) {
     } else if (mi) {
       setTotalMonths(String(mi.months));
     }
-    const promo = await loadRankPromotions(mi?.enlistDate);
-    setPromotions(promo);
+    setPromotions(await loadRankPromotions(mi?.enlistDate));
   };
 
   const handleSave = async () => {
     const salary = parseInt(customSalary.replace(/,/g, ''), 10);
     const months = parseInt(totalMonths, 10);
-    if (isNaN(salary) || salary < 0) { Alert.alert('오류', '월급을 올바르게 입력해주세요.'); return; }
-    if (isNaN(months) || months < 1 || months > 240) { Alert.alert('오류', '복무 개월 수를 올바르게 입력해주세요 (1~240).'); return; }
+    if (isNaN(salary) || salary < 0) {
+      haptic.warning();
+      Alert.alert('오류', '월급을 올바르게 입력해주세요.');
+      return;
+    }
+    if (isNaN(months) || months < 1 || months > 240) {
+      haptic.warning();
+      Alert.alert('오류', '복무 개월 수를 올바르게 입력해주세요 (1~240).');
+      return;
+    }
     const si = { monthlyAmount: salary, totalMonths: months };
     await saveSalaryInfo(si);
     setSalaryInfo(si);
     setCustomMode(false);
-    Alert.alert('저장 완료', '급여 정보가 저장되었습니다!');
+    haptic.success();
   };
 
-  const handleResetToStandard = async () => {
+  const handleResetToStandard = () => {
     Alert.alert('표준 급여로 초기화', '직접 입력한 급여를 삭제하고 표준 급여표를 사용할까요?', [
       { text: '취소', style: 'cancel' },
       {
@@ -131,284 +103,273 @@ export default function SalaryScreen({ navigation }) {
     ]);
   };
 
-  if (militaryInfo === undefined) return null;
+  if (militaryInfo === undefined) return <Screen scroll={false} />;
   if (!militaryInfo) return <SetupRequired />;
 
-  const officer        = isOfficer(militaryInfo.personnelType);
-  const servedMonths   = calcServedMonths(militaryInfo.enlistDate);
-  const officerRank    = militaryInfo.officerRank ?? null;
-  // 간부: 선택 계급의 2025 초임(1호봉) 참고값 (없으면 null → 직접입력 유도)
-  const officerBase    = officer ? getOfficerBasePay(officerRank) : null;
-  const hobong         = officer ? calcHobong(militaryInfo.enlistDate) : null;
+  const officer = isOfficer(militaryInfo.personnelType);
+  const servedMonths = calcServedMonths(militaryInfo.enlistDate);
+  const officerRank = militaryInfo.officerRank ?? null;
+  const officerBase = officer ? getOfficerBasePay(officerRank) : null;
+  const hobong = officer ? calcHobong(militaryInfo.enlistDate) : null;
 
-  const currentRank    = officer
+  const currentRank = officer
     ? (officerRank ?? personnelLabel(militaryInfo.personnelType))
-    : (calcRankFromPromotions(promotions)
-        ?? (SALARY_GUIDE.find((s) => servedMonths >= s.start && servedMonths <= s.end)?.rank ?? '이병'));
+    : (calcRankFromPromotions(promotions) ?? getRankByMonths(servedMonths));
 
   // 우선순위: 직접입력 > (간부)초임 참고값 > (병사)봉급표
   const currentMonthly = salaryInfo
     ? salaryInfo.monthlyAmount
-    : (officer ? (officerBase ?? 0) : getSalaryByRank(currentRank));
+    : officer ? (officerBase ?? 0) : getSalaryByRank(currentRank);
+
   const displayTotalMonths = salaryInfo?.totalMonths ?? militaryInfo?.months ?? 0;
-  const totalSalary        = salaryInfo
+  const totalSalary = salaryInfo
     ? salaryInfo.monthlyAmount * salaryInfo.totalMonths
-    : (officer ? (officerBase ? officerBase * displayTotalMonths : 0) : calcStandardTotal(militaryInfo.months));
+    : officer
+      ? (officerBase ? officerBase * displayTotalMonths : 0)
+      : calcStandardTotal(militaryInfo.months);
   const earnedSalary = salaryInfo
     ? salaryInfo.monthlyAmount * Math.min(servedMonths, salaryInfo.totalMonths)
-    : (officer ? (officerBase ? officerBase * Math.min(servedMonths, displayTotalMonths) : 0) : calcStandardTotal(servedMonths));
-  const earnedPercent = totalSalary > 0
-    ? Math.min(100, Math.floor((earnedSalary / totalSalary) * 100))
-    : 0;
-  const isCustom    = !!salaryInfo;
-  // 간부 + 직접입력X + 초임 참고값도 없음 → 직접 입력 필요
-  const needInput   = officer && !salaryInfo && !officerBase;
-  // 간부 초임 참고값으로 추정 표시 중 (직접입력 권장)
+    : officer
+      ? (officerBase ? officerBase * Math.min(servedMonths, displayTotalMonths) : 0)
+      : calcStandardTotal(servedMonths);
+
+  const earnedRatio = totalSalary > 0 ? Math.min(1, earnedSalary / totalSalary) : 0;
+  const earnedPercent = Math.floor(earnedRatio * 100);
+
+  const isCustom = !!salaryInfo;
+  const needInput = officer && !salaryInfo && !officerBase;
   const officerEstimate = officer && !salaryInfo && !!officerBase;
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scrollFlex}
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 10 }]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.topBar}>
-          <Text style={styles.pageTitle}>급여 계산</Text>
-          <MenuButton navigation={navigation} current="salary" />
-        </View>
-
-        {/* ━━ ① 이번 달 예상 급여 (메인 카드) ━━ */}
-        <FadeInView>
-        <Card style={styles.mainCard}>
-          {/* 계급 뱃지 행 */}
-          <View style={styles.mainTop}>
-            <View style={styles.rankPill}>
-              <Text style={styles.rankPillText}>{currentRank}</Text>
-            </View>
-            {isCustom && (
-              <View style={styles.customPill}>
-                <Text style={styles.customPillText}>직접 입력</Text>
-              </View>
-            )}
-            {officerEstimate && (
-              <View style={styles.estimatePill}>
-                <Text style={styles.customPillText}>초임 기준 추정</Text>
-              </View>
-            )}
+    <Screen
+      ad={AD_UNITS.SALARY_BOTTOM}
+      header={<AppHeader title="급여 계산" navigation={navigation} current="salary" />}
+    >
+      {/* ① 이번 달 예상 급여 */}
+      <Section index={0}>
+        <HeroCard>
+          <View style={s.pillRow}>
+            <Chip label={currentRank} size="sm" tone="accent" />
+            {isCustom ? <Chip label="직접 입력" size="sm" /> : null}
+            {officerEstimate ? <Chip label="초임 기준 추정" size="sm" /> : null}
           </View>
 
-          {/* 이번 달 급여 */}
-          <Text style={styles.mainLabel}>이번 달 예상 급여</Text>
+          <Txt role="label" tone="heroMuted" style={{ marginTop: sp.md }}>
+            이번 달 예상 급여
+          </Txt>
+
           {needInput ? (
-            <Text style={styles.mainNeedInput}>아래에서 급여를{'\n'}직접 입력해주세요</Text>
+            <Txt role="subtitle" tone="hero" style={{ marginTop: sp.xs }}>
+              아래에서 급여를{'\n'}직접 입력해주세요
+            </Txt>
           ) : (
-            <Text style={styles.mainAmount}>{formatMoney(currentMonthly)}<Text style={styles.mainAmountUnit}>원</Text></Text>
+            <View style={s.amountRow}>
+              <AnimatedNumber
+                value={currentMonthly}
+                comma
+                style={[ty.hero, { color: tc.heroText }]}
+              />
+              <Txt role="subtitle" tone="hero">원</Txt>
+            </View>
           )}
-          <Text style={styles.mainSub}>
+
+          <Txt role="caption" tone="heroMuted">
             복무 {servedMonths}개월째{officer && hobong ? ` · ${hobong}호봉` : ''}
-          </Text>
-          {officerEstimate && (
-            <Text style={styles.estimateNote}>
+          </Txt>
+
+          {officerEstimate ? (
+            <Txt role="micro" tone="heroMuted" style={{ marginTop: sp.sm }}>
               * 2025년 초임(1호봉) 기준 추정치. 호봉·수당 미반영 — 정확한 금액은 직접 입력하세요.
-            </Text>
-          )}
-        </Card>
-        </FadeInView>
+            </Txt>
+          ) : null}
+        </HeroCard>
+      </Section>
 
-        {/* ━━ ② 급여 현황 ━━ */}
-        <FadeInView delay={90}>
-        <Card style={styles.statusCard}>
-          <SectionTitle icon="wallet-outline" size={16} style={{ marginBottom: 4 }}>급여 현황</SectionTitle>
-
-          {/* 총 수령 예정 */}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>총 수령 예정액</Text>
-            <Text style={styles.totalAmount}>{formatMoney(totalSalary)}원</Text>
-          </View>
-          <Text style={styles.totalSub}>복무 {displayTotalMonths}개월 기준</Text>
-
-          {/* 진행 바 */}
-          <View style={styles.progressSection}>
-            <View style={styles.progressHeader}>
-              <Text style={styles.progressLabel}>현재까지 수령</Text>
-              <Text style={styles.progressPct}>{earnedPercent}%</Text>
-            </View>
-            <View style={styles.progressTrack}>
-              <AnimatedProgressFill percent={earnedPercent} color={tc.primary} />
-            </View>
-            <View style={styles.progressFooter}>
-              <Text style={styles.earnedText}>{formatMoney(earnedSalary)}원 수령</Text>
-              <Text style={styles.remainText}>
-                {formatMoney(Math.max(0, totalSalary - earnedSalary))}원 남음
-              </Text>
-            </View>
-          </View>
-        </Card>
-        </FadeInView>
-
-        {/* ━━ ③ 급여 설정 ━━ */}
+      {/* ② 급여 현황 */}
+      <Section index={1}>
         <Card>
-          <SectionTitle icon="options-outline" size={16} style={{ marginBottom: 4 }}>급여 설정</SectionTitle>
+          <SectionTitle icon="wallet-outline">급여 현황</SectionTitle>
+
+          <View style={s.totalRow}>
+            <View style={{ flex: 1 }}>
+              <Txt role="bodySm" tone="secondary">총 수령 예정액</Txt>
+              <Txt role="micro" tone="light">복무 {displayTotalMonths}개월 기준</Txt>
+            </View>
+            <Txt role="subtitle" numeric style={{ fontWeight: '800' }}>
+              {formatMoney(totalSalary)}원
+            </Txt>
+          </View>
+
+          <View style={s.progressHead}>
+            <Txt role="caption" tone="secondary">현재까지 수령</Txt>
+            <Txt role="label" tone="primary" numeric>{earnedPercent}%</Txt>
+          </View>
+          <ProgressBar progress={earnedRatio} height={10} />
+
+          <View style={s.statRow}>
+            <StatTile label="수령" value={formatMoney(earnedSalary)} unit="원" tone="primary" />
+            <StatTile
+              label="남음"
+              value={formatMoney(Math.max(0, totalSalary - earnedSalary))}
+              unit="원"
+            />
+          </View>
+        </Card>
+      </Section>
+
+      {/* ③ 급여 설정 */}
+      <Section index={2}>
+        <Card>
+          <SectionTitle icon="options-outline">급여 설정</SectionTitle>
 
           {!customMode ? (
-            <View style={styles.settingInfo}>
-              <View style={styles.settingInfoRow}>
-                <Text style={styles.settingInfoLabel}>현재 기준</Text>
-                <Text style={styles.settingInfoValue}>
+            <View style={{ marginTop: sp.md }}>
+              <View style={s.settingRow}>
+                <Txt role="bodySm" tone="secondary">현재 기준</Txt>
+                <Txt role="bodySm" style={{ fontWeight: '700', flexShrink: 1, textAlign: 'right' }}>
                   {isCustom
                     ? `직접 입력 (${formatMoney(salaryInfo.monthlyAmount)}원/월)`
-                    : (officer ? '직접 입력 필요' : '표준 급여표 자동 적용')}
-                </Text>
+                    : officer ? '직접 입력 필요' : '표준 급여표 자동 적용'}
+                </Txt>
               </View>
-              <View style={styles.settingBtnRow}>
-                <TouchableOpacity
-                  style={[styles.editBtn, { flexDirection: 'row' }]}
+
+              <View style={s.btnRow}>
+                <Button
+                  title={isCustom ? '수정' : '직접 입력하기'}
+                  icon={isCustom ? 'create-outline' : 'add'}
+                  variant="secondary"
                   onPress={() => setCustomMode(true)}
-                >
-                  {isCustom && (
-                    <Ionicons name="create-outline" size={15} color={tc.primary} style={{ marginRight: 5 }} />
-                  )}
-                  <Text style={styles.editBtnText}>{isCustom ? '수정' : '직접 입력하기'}</Text>
-                </TouchableOpacity>
-                {isCustom && (
-                  <TouchableOpacity style={styles.resetBtn} onPress={handleResetToStandard}>
-                    <Text style={styles.resetBtnText}>표준으로 초기화</Text>
-                  </TouchableOpacity>
-                )}
+                  style={{ flex: 1 }}
+                />
+                {isCustom ? (
+                  <Button
+                    title="표준으로 초기화"
+                    variant="ghost"
+                    onPress={handleResetToStandard}
+                    style={{ flex: 1 }}
+                  />
+                ) : null}
               </View>
             </View>
           ) : (
-            <>
-              <Text style={styles.formLabel}>월 지급액 (원)</Text>
+            <View style={{ marginTop: sp.md }}>
+              <Txt role="label" tone="secondary" style={s.formLabel}>월 지급액 (원)</Txt>
               <TextInput
-                style={styles.formInput}
+                style={s.input}
                 value={customSalary}
                 onChangeText={(t) => setCustomSalary(t.replace(/[^0-9]/g, ''))}
                 placeholder="예: 1000000"
                 placeholderTextColor={tc.textLight}
                 keyboardType="number-pad"
               />
-              <Text style={styles.formLabel}>총 복무 개월 수</Text>
+
+              <Txt role="label" tone="secondary" style={s.formLabel}>총 복무 개월 수</Txt>
               <TextInput
-                style={styles.formInput}
+                style={s.input}
                 value={totalMonths}
-                onChangeText={setTotalMonths}
+                onChangeText={(t) => setTotalMonths(t.replace(/[^0-9]/g, ''))}
                 placeholder="예: 18"
                 placeholderTextColor={tc.textLight}
                 keyboardType="number-pad"
                 maxLength={3}
               />
-              <View style={styles.btnRow}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => setCustomMode(false)}>
-                  <Text style={styles.cancelBtnText}>취소</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                  <Text style={styles.saveBtnText}>저장</Text>
-                </TouchableOpacity>
+
+              <View style={s.btnRow}>
+                <Button
+                  title="취소"
+                  variant="ghost"
+                  onPress={() => setCustomMode(false)}
+                  style={{ flex: 1 }}
+                />
+                <Button title="저장" onPress={handleSave} style={{ flex: 1 }} />
               </View>
-            </>
+            </View>
           )}
         </Card>
+      </Section>
 
-      </ScrollView>
-
-      {/* ── 고정 배너 광고 (탭바 위, 스크롤 무관 항상 노출) ── */}
-      <View style={styles.adFooter}>
-        <AdBanner unit={AD_UNITS.SALARY_BOTTOM} />
-      </View>
-    </View>
+      {/* ④ 급여 관련 화면 — 지금까지 햄버거 메뉴에만 있어서 아무도 못 찾았다 */}
+      <Section index={3}>
+        <Card pad="none" style={{ paddingHorizontal: 0 }}>
+          {!officer ? (
+            <>
+              <ListRow
+                title="병사 월급 가이드"
+                subtitle="계급별 표준 월급 참고표"
+                icon="list-outline"
+                chevron
+                onPress={() => navigation.navigate('salaryGuide')}
+                style={s.navRow}
+              />
+              <Divider inset={sp.lg + 48} />
+            </>
+          ) : (
+            <>
+              <ListRow
+                title="간부 봉급 참고"
+                subtitle="초임(1호봉) 월 기본급"
+                icon="list-outline"
+                chevron
+                onPress={() => navigation.navigate('officerPay')}
+                style={s.navRow}
+              />
+              <Divider inset={sp.lg + 48} />
+            </>
+          )}
+          <ListRow
+            title="장병내일적금 계산기"
+            subtitle="전역 시 받을 목돈을 미리 계산"
+            icon="calculator-outline"
+            iconTone="accent"
+            chevron
+            onPress={() => navigation.navigate('savings')}
+            style={s.navRow}
+          />
+        </Card>
+      </Section>
+    </Screen>
   );
 }
 
-const makeStyles = (tc) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: tc.background },
-  scrollFlex: { flex: 1 },
-  scroll: { padding: 16, paddingBottom: 24 },
-  adFooter: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    backgroundColor: tc.card,
-    borderTopWidth: 1,
-    borderTopColor: tc.border,
-  },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  pageTitle: { fontSize: 26, fontWeight: '800', color: tc.primary },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: tc.text, marginBottom: 4 },
+const makeStyles = (tc) =>
+  StyleSheet.create({
+    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: sp.sm },
+    amountRow: { flexDirection: 'row', alignItems: 'baseline', gap: sp.xs, marginTop: sp.xxs },
 
-  /* ① 메인 카드 (한 화면에 담기도록 컴팩트) */
-  mainCard: {
-    alignItems: 'center',
-    paddingVertical: 18,
-    backgroundColor: tc.primary,
-  },
-  mainTop: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  rankPill: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: 14, paddingVertical: 5,
-    borderRadius: 20,
-  },
-  rankPillText: { color: tc.white, fontWeight: '700', fontSize: 14 },
-  customPill: {
-    backgroundColor: tc.accent,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 20,
-  },
-  customPillText: { color: tc.white, fontWeight: '700', fontSize: 12 },
-  estimatePill: { backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  estimateNote: { fontSize: 11, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginTop: 8, lineHeight: 16, paddingHorizontal: 8 },
-  mainLabel: { fontSize: 14, color: 'rgba(255,255,255,0.75)', marginBottom: 4 },
-  mainAmount: { fontSize: 38, fontWeight: '900', color: tc.white, letterSpacing: -1 },
-  mainNeedInput: { fontSize: 19, fontWeight: '800', color: tc.white, textAlign: 'center', lineHeight: 26, opacity: 0.95 },
-  mainAmountUnit: { fontSize: 20, fontWeight: '700' },
-  mainSub: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 4 },
+    totalRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sp.sm,
+      marginTop: sp.md,
+      marginBottom: sp.lg,
+    },
+    progressHead: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: sp.sm,
+    },
+    statRow: { flexDirection: 'row', gap: sp.sm, marginTop: sp.lg },
 
-  /* ② 급여 현황 */
-  statusCard: { paddingBottom: 20 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  totalLabel: { fontSize: 14, color: tc.textSecondary },
-  totalAmount: { fontSize: 20, fontWeight: '800', color: tc.text },
-  totalSub: { fontSize: 12, color: tc.textLight, marginBottom: 16, textAlign: 'right' },
-  progressSection: {},
-  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  progressLabel: { fontSize: 13, color: tc.textSecondary, fontWeight: '600' },
-  progressPct: { fontSize: 13, color: tc.primary, fontWeight: '700' },
-  progressTrack: { height: 12, backgroundColor: tc.border, borderRadius: 6, overflow: 'hidden', marginBottom: 8 },
-  progressFooter: { flexDirection: 'row', justifyContent: 'space-between' },
-  earnedText: { fontSize: 13, color: tc.primary, fontWeight: '600' },
-  remainText: { fontSize: 13, color: tc.accent, fontWeight: '600' },
-
-  /* ③ 급여 설정 */
-  settingInfo: {},
-  settingInfoRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: tc.background, borderRadius: 10, padding: 14, marginBottom: 12,
-  },
-  settingInfoLabel: { fontSize: 13, color: tc.textSecondary },
-  settingInfoValue: { fontSize: 13, color: tc.text, fontWeight: '600', flexShrink: 1, textAlign: 'right', marginLeft: 8 },
-  settingBtnRow: { flexDirection: 'row', gap: 10 },
-  editBtn: {
-    flex: 1, backgroundColor: tc.background, borderRadius: 10,
-    paddingVertical: 13, alignItems: 'center',
-    borderWidth: 1.5, borderColor: tc.primary,
-  },
-  editBtnText: { color: tc.primary, fontWeight: '700', fontSize: 15 },
-  resetBtn: {
-    flex: 1, backgroundColor: tc.background, borderRadius: 10,
-    paddingVertical: 13, alignItems: 'center',
-    borderWidth: 1.5, borderColor: tc.danger,
-  },
-  resetBtnText: { color: tc.danger, fontWeight: '700', fontSize: 14 },
-  formLabel: { fontSize: 14, fontWeight: '600', color: tc.textSecondary, marginBottom: 9 },
-  formInput: {
-    backgroundColor: tc.background, borderWidth: 1.5, borderColor: tc.border,
-    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13,
-    fontSize: 16, color: tc.text, marginBottom: 14,
-  },
-  btnRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1.5, borderColor: tc.border, alignItems: 'center' },
-  cancelBtnText: { color: tc.textSecondary, fontWeight: '600', fontSize: 15 },
-  saveBtn: { flex: 2, paddingVertical: 14, borderRadius: 10, backgroundColor: tc.primary, alignItems: 'center' },
-  saveBtnText: { color: tc.white, fontWeight: '700', fontSize: 16 },
-});
+    settingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: sp.md,
+      marginBottom: sp.lg,
+    },
+    btnRow: { flexDirection: 'row', gap: sp.sm },
+    formLabel: { marginBottom: sp.sm, marginTop: sp.sm },
+    input: {
+      backgroundColor: tc.surfaceSunken,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: tc.surfaceSunkenBorder,
+      borderRadius: r.sm,
+      paddingHorizontal: sp.md,
+      paddingVertical: sp.md,
+      ...ty.bodyLg,
+      color: tc.text,
+      marginBottom: sp.sm,
+    },
+    navRow: { paddingHorizontal: sp.lg },
+  });

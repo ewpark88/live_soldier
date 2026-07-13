@@ -188,8 +188,8 @@ const makeStyles = (tc) => StyleSheet.create({
 
   weekRow: { flexDirection: 'row', marginBottom: 4 },
   weekday: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '700', color: tc.textSecondary },
-  sun: { color: '#E53935' },
-  sat: { color: '#1E88E5' },
+  sun: { color: tc.sun },
+  sat: { color: tc.sat },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 1 },

@@ -1,9 +1,10 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../theme/ThemeContext';
+import { type } from '../theme/tokens';
 
 import HomeScreen from '../screens/HomeScreen';
 import DischargeScreen from '../screens/DischargeScreen';
@@ -40,8 +41,14 @@ export default function TabNavigator() {
   const insets = useSafeAreaInsets();
   const COLORS = useThemeColors();
 
-  // 탭바 높이: 아이콘+라벨 기본 56px + 하단 safe area
-  const TAB_BAR_HEIGHT = 56 + insets.bottom;
+  // 탭바 높이.
+  // 예전엔 56 + insets.bottom 이었는데, 안에 들어가는 콘텐츠는
+  // paddingTop 8 + itemPadding 4 + 아이콘 24 + 라벨 ~18 + itemPadding 4 + paddingBottom 8
+  // = 66px 이라 56px 상자에 안 들어갔다. insets.bottom 이 0인 안드로이드 기기
+  // 대부분에서 라벨 아래가 잘려 나갔다.
+  const BAR_CONTENT = 60;
+  const BOTTOM_PAD = Math.max(insets.bottom, 8);
+  const TAB_BAR_HEIGHT = BAR_CONTENT + BOTTOM_PAD;
 
   return (
     <View style={{ flex: 1 }}>
@@ -56,25 +63,28 @@ export default function TabNavigator() {
           tabBarStyle: {
             backgroundColor: COLORS.card,
             borderTopColor: COLORS.border,
-            borderTopWidth: 1,
+            borderTopWidth: StyleSheet.hairlineWidth,
             height: TAB_BAR_HEIGHT,
-            paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
-            paddingTop: 8,
-            // 광고와의 겹침 방지: elevation 높게 유지
+            paddingBottom: BOTTOM_PAD,
+            paddingTop: 6,
+            // 광고와의 겹침 방지: elevation 높게 유지 (안드로이드 z-order상 필요)
             elevation: 8,
-            shadowColor: '#000',
+            shadowColor: COLORS.shadow,
             shadowOffset: { width: 0, height: -2 },
-            shadowOpacity: 0.08,
+            shadowOpacity: 0.06,
             shadowRadius: 8,
           },
           tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: '600',
-            marginBottom: Platform.OS === 'android' ? 2 : 0,
+            ...type.micro,
+            fontWeight: '700',
+            marginTop: 2,
+            marginBottom: 0,
+            // 안드로이드에서 라벨이 잘리는 진짜 원인. 높이만 키워선 안 고쳐진다.
+            includeFontPadding: false,
           },
-          tabBarItemStyle: {
-            paddingVertical: 4,
-          },
+          tabBarIconStyle: { marginTop: 2 },
+          // 예전 paddingVertical:4 가 상자 밖으로 넘치던 주범이었다
+          tabBarItemStyle: { paddingVertical: 0 },
           headerShown: false,
         })}
       >

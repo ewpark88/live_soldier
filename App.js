@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import TabNavigator from './src/navigation/TabNavigator';
 import { initStorage } from './src/utils/storage';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+import { PrefsProvider } from './src/theme/PrefsContext';
 import { configureNotificationHandler, refreshScheduledNotifications } from './src/utils/notifications';
 
 // Expo Go 호환 처리
@@ -79,7 +80,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <ThemedApp />
+        <PrefsProvider>
+          <ThemedApp />
+        </PrefsProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
