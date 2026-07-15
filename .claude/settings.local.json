@@ -45,7 +45,8 @@
       "Bash(awk 'NR<173 && \\(/[^a-zA-Z]s\\\\./ || /tc\\\\./\\)' src/screens/HomeScreen.js)",
       "Bash(eas whoami *)",
       "Bash(eas build *)",
-      "Bash(eas build:list --platform android --limit 5 --non-interactive)"
+      "Bash(eas build:list --platform android --limit 5 --non-interactive)",
+      "Bash(git push *)"
     ]
   }
 }
