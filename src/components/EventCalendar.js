@@ -13,7 +13,7 @@ import { formatDate, formatDateKo, spanDates, daysBetweenInclusive } from '../ut
  */
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function EventCalendar({ records = [], bonusRecords = [], todos = [] }) {
+export default function EventCalendar({ records = [], bonusRecords = [], todos = [], fill = false }) {
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
   const today = useMemo(() => new Date(), []);
@@ -51,6 +51,13 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
     while (arr.length % 7 !== 0) arr.push(null);
     return arr;
   }, [year, month]);
+
+  // 주 단위로 잘라 행으로 만든다 — fill 모드에서 각 행이 flex 로 세로를 채운다.
+  const rows = useMemo(() => {
+    const out = [];
+    for (let i = 0; i < cells.length; i += 7) out.push(cells.slice(i, i + 7));
+    return out;
+  }, [cells]);
 
   const goPrev = () => {
     if (month === 0) { setYear((y) => y - 1); setMonth(11); }
@@ -91,14 +98,18 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
   const usedThisMonth = [...usedSet].filter((d) => d.startsWith(monthPrefix)).length;
 
   return (
-    <View style={s.wrap}>
+    <View style={[s.wrap, fill && s.wrapFill]}>
       {/* 헤더 */}
       <View style={s.header}>
-        <TouchableOpacity onPress={goPrev} hitSlop={HIT}><Text style={s.navArrow}>‹</Text></TouchableOpacity>
+        <TouchableOpacity onPress={goPrev} hitSlop={HIT} style={s.navBtn}>
+          <Ionicons name="chevron-back" size={22} color={tc.primary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={goToday} activeOpacity={0.7}>
           <Text style={s.headerTitle}>{year}년 {month + 1}월</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={goNext} hitSlop={HIT}><Text style={s.navArrow}>›</Text></TouchableOpacity>
+        <TouchableOpacity onPress={goNext} hitSlop={HIT} style={s.navBtn}>
+          <Ionicons name="chevron-forward" size={22} color={tc.primary} />
+        </TouchableOpacity>
       </View>
 
       {/* 요일 */}
@@ -108,39 +119,42 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
         ))}
       </View>
 
-      {/* 날짜 그리드 */}
-      <View style={s.grid}>
-        {cells.map((cell, idx) => {
-          if (!cell) return <View key={idx} style={s.cell} />;
-          const isUsed  = usedSet.has(cell.dateStr);
-          const isBonus = bonusSet.has(cell.dateStr);
-          const isTodo  = todoSet.has(cell.dateStr);
-          const isToday = cell.dateStr === todayStr;
-          const isSel   = cell.dateStr === selected;
-          const dow = idx % 7;
-          return (
-            <TouchableOpacity key={idx} style={s.cell} activeOpacity={0.7} onPress={() => setSelected(cell.dateStr)}>
-              <View style={[
-                s.dayBox,
-                isUsed && s.dayUsed,
-                isSel && !isUsed && s.daySel,
-                isToday && !isSel && s.dayToday,
-              ]}>
-                <Text style={[
-                  s.dayText,
-                  dow === 0 && s.sun,
-                  dow === 6 && s.sat,
-                  isUsed && s.dayTextUsed,
-                  isSel && !isUsed && s.dayTextSel,
-                ]}>
-                  {cell.day}
-                </Text>
-                {isBonus && <Text style={s.bonusStar}>★</Text>}
-              </View>
-              {isTodo && <View style={[s.todoDot, { backgroundColor: isUsed ? tc.white : tc.accent }]} />}
-            </TouchableOpacity>
-          );
-        })}
+      {/* 날짜 그리드 — 주 단위 행. fill 모드에서 각 행이 세로 공간을 균등 분배 */}
+      <View style={[s.grid, fill && s.gridFill]}>
+        {rows.map((row, ri) => (
+          <View key={ri} style={[s.weekLine, fill && s.weekLineFill]}>
+            {row.map((cell, ci) => {
+              if (!cell) return <View key={ci} style={s.cell} />;
+              const isUsed  = usedSet.has(cell.dateStr);
+              const isBonus = bonusSet.has(cell.dateStr);
+              const isTodo  = todoSet.has(cell.dateStr);
+              const isToday = cell.dateStr === todayStr;
+              const isSel   = cell.dateStr === selected;
+              return (
+                <TouchableOpacity key={ci} style={s.cell} activeOpacity={0.7} onPress={() => setSelected(cell.dateStr)}>
+                  <View style={[
+                    s.dayBox,
+                    isUsed && s.dayUsed,
+                    isSel && !isUsed && s.daySel,
+                    isToday && !isSel && s.dayToday,
+                  ]}>
+                    <Text style={[
+                      s.dayText,
+                      ci === 0 && s.sun,
+                      ci === 6 && s.sat,
+                      isUsed && s.dayTextUsed,
+                      isSel && !isUsed && s.dayTextSel,
+                    ]}>
+                      {cell.day}
+                    </Text>
+                    {isBonus && <Text style={s.bonusStar}>★</Text>}
+                  </View>
+                  {isTodo && <View style={[s.todoDot, { backgroundColor: isUsed ? tc.white : tc.accent }]} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
       </View>
 
       {/* 범례 */}
@@ -182,8 +196,9 @@ const HIT = { top: 8, bottom: 8, left: 8, right: 8 };
 
 const makeStyles = (tc) => StyleSheet.create({
   wrap: { paddingVertical: 4 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, marginBottom: 10 },
-  navArrow: { fontSize: 28, color: tc.primary, fontWeight: '700', paddingHorizontal: 12 },
+  wrapFill: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 8 },
+  navBtn: { paddingHorizontal: 8, paddingVertical: 4 },
   headerTitle: { fontSize: 17, fontWeight: '800', color: tc.text },
 
   weekRow: { flexDirection: 'row', marginBottom: 4 },
@@ -191,8 +206,11 @@ const makeStyles = (tc) => StyleSheet.create({
   sun: { color: tc.sun },
   sat: { color: tc.sat },
 
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 1 },
+  grid: {},
+  gridFill: { flex: 1 },
+  weekLine: { flexDirection: 'row' },
+  weekLineFill: { flex: 1, minHeight: 38 },
+  cell: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
   dayBox: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   dayUsed: { backgroundColor: tc.primary },
   daySel: { backgroundColor: tc.highlightBg, borderWidth: 1.5, borderColor: tc.primary },

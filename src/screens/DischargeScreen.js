@@ -11,7 +11,6 @@ import SectionTitle from '../components/SectionTitle';
 import Card from '../components/Card';
 import ProgressBar from '../components/ProgressBar';
 import DatePickerField from '../components/DatePickerField';
-import EventCalendar from '../components/EventCalendar';
 import AdInterstitial from '../components/AdInterstitial';
 import {
   Screen, AppHeader, Section, HeroCard, Grid, Button, Chip,
@@ -22,7 +21,6 @@ import {
   loadMilitaryInfo, saveMilitaryInfo,
   loadRankPromotions, saveRankPromotions, resetRankPromotions, calcDefaultPromotions,
   savePersonnelType, loadPersonnelType,
-  loadLeaveRecords, loadLeaveBonusRecords, loadTodos,
 } from '../utils/storage';
 import { ranksFor } from '../constants/militaryRanks';
 import useShowInterstitial from '../hooks/useShowInterstitial';
@@ -30,12 +28,23 @@ import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
 import {
   calcDischargeDate, calcDaysLeft, calcServedMonths, formatDate, formatDateKo,
+  getMessageForPhase,
 } from '../utils/dateUtils';
 import { BRANCHES, PERSONNEL_TYPES, isOfficer } from '../constants/serviceTerms';
 import { updateDischargeWidget } from '../widget/updateWidget';
 import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
 
 const PROMO_RANKS = ['일병', '상병', '병장'];
+
+/* ─── 복무 단계 (응원 메시지용) ─────────────────────────── */
+function getPhase(daysLeft) {
+  if (daysLeft <= 0) return 'done';
+  if (daysLeft <= 3) return 'd3';
+  if (daysLeft <= 7) return 'd7';
+  if (daysLeft <= 30) return 'd30';
+  if (daysLeft <= 100) return 'd100';
+  return 'normal';
+}
 
 export default function DischargeScreen({ navigation }) {
   const tc = useThemeColors();
@@ -56,9 +65,7 @@ export default function DischargeScreen({ navigation }) {
   const [editingPromo, setEditingPromo] = useState(false);
   const [editPromo, setEditPromo] = useState(null);
 
-  const [leaveRecords, setLeaveRecords] = useState([]);
-  const [bonusRecords, setBonusRecords] = useState([]);
-  const [todos, setTodos] = useState([]);
+  const [message, setMessage] = useState(() => getMessageForPhase('normal'));
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -73,9 +80,7 @@ export default function DischargeScreen({ navigation }) {
       setMonthsInput(String(mi.months ?? ''));
       setEditing(false);
       setPromotions(await loadRankPromotions(mi.enlistDate));
-      setLeaveRecords(await loadLeaveRecords());
-      setBonusRecords(await loadLeaveBonusRecords());
-      setTodos(await loadTodos());
+      setMessage(getMessageForPhase(getPhase(calcDaysLeft(mi.dischargeDate))));
     } else {
       const pt = await loadPersonnelType();
       setInfo(null);
@@ -86,9 +91,6 @@ export default function DischargeScreen({ navigation }) {
       setMonthsInput('');
       setEditing(true);
       setPromotions(null);
-      setLeaveRecords([]);
-      setBonusRecords([]);
-      setTodos([]);
     }
   };
 
@@ -463,17 +465,56 @@ export default function DischargeScreen({ navigation }) {
           </Section>
         ) : null}
 
-        {/* ── 휴가·일정 캘린더 ── */}
+        {/* ── 전역 로드맵 ── */}
         {info ? (
           <Section index={2}>
-            <Card style={{ overflow: 'hidden' }}>
-              <SectionTitle icon="calendar-outline">휴가·일정 캘린더</SectionTitle>
-              <View style={{ marginTop: sp.md }}>
-                <EventCalendar
-                  records={leaveRecords}
-                  bonusRecords={bonusRecords}
-                  todos={todos}
-                />
+            <Card pad="none" style={{ paddingHorizontal: 0 }}>
+              <ListRow
+                title="전역 로드맵"
+                subtitle="다음 진급·호봉과 주요 순간을 한눈에"
+                icon="map"
+                chevron
+                onPress={() => navigation.navigate('roadmap')}
+                style={s.navRow}
+              />
+            </Card>
+          </Section>
+        ) : null}
+
+        {/* ── 장병내일적금 계산기 ── */}
+        {info ? (
+          <Section index={3}>
+            <Card pad="none" style={{ paddingHorizontal: 0 }}>
+              <ListRow
+                title="장병내일적금 계산기"
+                subtitle="전역 시 받을 목돈을 미리 계산"
+                icon="calculator"
+                iconTone="accent"
+                chevron
+                onPress={() => navigation.navigate('savings')}
+                style={s.navRow}
+              />
+            </Card>
+          </Section>
+        ) : null}
+
+        {/* ── 응원 메시지 ── */}
+        {info ? (
+          <Section index={4}>
+            <Card>
+              <View style={s.msgRow}>
+                <Ionicons name="chatbubble-ellipses" size={20} color={tc.primaryLight} />
+                <Txt role="body" style={{ flex: 1 }} numberOfLines={3}>
+                  {message}
+                </Txt>
+                <PressScale
+                  onPress={() => setMessage(getMessageForPhase(getPhase(daysLeft)))}
+                  haptic="select"
+                  style={s.refresh}
+                  accessibilityLabel="다른 메시지 보기"
+                >
+                  <Ionicons name="refresh" size={16} color={tc.primaryLight} />
+                </PressScale>
               </View>
             </Card>
           </Section>
@@ -596,4 +637,8 @@ const makeStyles = (tc) =>
       justifyContent: 'space-between',
       marginTop: sp.sm,
     },
+
+    navRow: { paddingHorizontal: sp.lg },
+    msgRow: { flexDirection: 'row', alignItems: 'center', gap: sp.md },
+    refresh: { padding: sp.xs },
   });
