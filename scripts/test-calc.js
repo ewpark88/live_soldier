@@ -40,7 +40,8 @@ function collectNames(code) {
   return [...names];
 }
 
-const api = loadModule('dateUtils.js', 'officerUtils.js');
+// daily.js 를 먼저 합친다 — dateUtils 의 getMessageForPhase 가 pickDaily/todayStr 을 쓴다
+const api = loadModule('daily.js', 'dateUtils.js', 'officerUtils.js', 'streak.js', 'celebration.js');
 
 /* ─── 미니 어서션 프레임워크 ─────────────────────────────────────────── */
 let pass = 0, fail = 0;
@@ -143,6 +144,102 @@ eq(api.calcHobong(todayPlus(-400)), 2, 'calcHobong: 1년 경과 = 2호봉');
 eq(api.calcHobong(todayPlus(-800)), 3, 'calcHobong: 2년 경과 = 3호봉');
 const hb = api.nextHobongInfo(todayPlus(-400));
 ok(hb && hb.current === 2 && hb.next === 3, 'nextHobongInfo: 현재 2 → 다음 3호봉');
+
+/* ─── 10. 날짜 결정적 선택 (daily.js) ────────────────────────────────── */
+const pool = ['a', 'b', 'c', 'd', 'e'];
+eq(api.pickDaily(pool, '2026-08-07', 'x'), api.pickDaily(pool, '2026-08-07', 'x'),
+   'pickDaily: 같은 날 같은 salt → 항상 같은 값');
+ok(api.pickDaily(pool, '2026-08-07', 'x') !== api.pickDaily(pool, '2026-08-08', 'x'),
+   'pickDaily: 연속 이틀은 절대 같지 않다 (회전이라 구조적으로 불가능)');
+eq(api.dayIndex('2026-08-08') - api.dayIndex('2026-08-07'), 1, 'dayIndex: 하루 = 1');
+eq(api.dayIndex('2027-01-01') - api.dayIndex('2026-12-31'), 1, 'dayIndex: 해를 넘겨도 1');
+eq(api.pickDaily([], '2026-08-07', 'x'), null, 'pickDaily: 빈 풀 → null');
+
+/* ─── 11. 출석 스트릭 (streak.js) ────────────────────────────────────── */
+const D = (str, h) => { const [y, m, d] = str.split('-').map(Number); return new Date(y, m - 1, d, h || 12); };
+
+let st = api.checkIn(api.EMPTY_STREAK, D('2026-08-01')).next;
+eq(st.current, 1, '스트릭: 첫 체크인 → 1일');
+
+// 같은 날 재진입은 멱등
+const same = api.checkIn(st, D('2026-08-01', 20));
+eq(same.changed, false, '스트릭: 같은 날 재진입은 변화 없음 (멱등)');
+eq(same.next.current, 1, '스트릭: 같은 날 재진입해도 1일 유지');
+
+st = api.checkIn(st, D('2026-08-02')).next;
+st = api.checkIn(st, D('2026-08-03')).next;
+eq(st.current, 3, '스트릭: 연속 3일');
+eq(st.best, 3, '스트릭: 최고 기록 갱신');
+
+// 하루 빠짐 → 유예로 이어짐
+const frozen = api.checkIn(st, D('2026-08-05'));
+eq(frozen.event, 'freeze', '스트릭: 하루 놓치면 보호가 발동한다');
+eq(frozen.next.current, 4, '스트릭: 보호 사용 시 연속이 이어진다');
+eq(frozen.next.freezeUsed, '2026-08-04', '스트릭: 놓친 날짜가 기록된다');
+
+// 유예 재충전 전에 또 빠지면 리셋
+const broken = api.checkIn(frozen.next, D('2026-08-07'));
+eq(broken.event, 'reset', '스트릭: 2주 안에 또 놓치면 리셋 (보호는 14일에 1회)');
+eq(broken.next.current, 1, '스트릭: 리셋 후 1일부터');
+eq(broken.next.best, 4, '스트릭: 최고 기록은 리셋되지 않는다');
+
+// 이틀 넘게 빠지면 보호와 무관하게 리셋
+const gap = api.checkIn(st, D('2026-08-08'));
+eq(gap.event, 'reset', '스트릭: 이틀 이상 공백은 보호로도 못 잇는다');
+
+// 시계 되감기 방어
+const back = api.checkIn(st, D('2026-07-20'));
+eq(back.changed, false, '스트릭: 날짜를 과거로 돌리면 아무 일도 없다');
+eq(back.next.current, 3, '스트릭: 과거로 돌려도 연속이 깨지지 않는다');
+
+// days 배열 상한
+let long = api.EMPTY_STREAK;
+for (let i = 0; i < 80; i += 1) {
+  const d = new Date(2026, 0, 1 + i, 12);
+  long = api.checkIn(long, d).next;
+}
+eq(long.current, 80, '스트릭: 80일 연속');
+ok(long.days.length <= api.DAYS_WINDOW, `스트릭: days 배열이 ${api.DAYS_WINDOW}개로 제한된다 (무한 증가 방지)`);
+
+eq(api.tierOf(0).key, 'none', '티어: 0일');
+eq(api.tierOf(7).key, 'spark', '티어: 7일 = 불씨');
+eq(api.tierOf(30).key, 'fire', '티어: 30일 = 불꽃');
+eq(api.tierOf(100).key, 'blaze', '티어: 100일 = 화염');
+eq(api.tierOf(365).key, 'beacon', '티어: 365일 = 봉화');
+
+/* ─── 12. 마일스톤 축하 판정 (celebration.js) ────────────────────────── */
+const ms = (key, dday) => ({ key, label: key, dday, done: dday <= 0 });
+const rm = [ms('enlist', -400), ms('r1', -340), ms('r2', -1), ms('discharge', 120)];
+
+// 최초 실행 / 신규 프로필 — 지난 것 전부 마킹, 아무것도 안 띄운다.
+// 이게 없으면 기존 사용자가 업데이트 직후 옛 마일스톤 팝업을 맞는다.
+const seedRun = api.dueMilestone(rm, null);
+eq(seedRun.show, null, '축하: 최초 실행엔 아무것도 띄우지 않는다');
+eq(seedRun.seed, ['enlist', 'r1', 'r2'], '축하: 지난 마일스톤을 전부 조용히 마킹한다');
+
+// 방금 도달한 것만 축하
+const fresh = api.dueMilestone(rm, ['enlist', 'r1']);
+ok(fresh.show && fresh.show.key === 'r2', '축하: 방금 지난 마일스톤을 띄운다');
+
+// 이미 축하한 건 다시 안 띄움
+eq(api.dueMilestone(rm, ['enlist', 'r1', 'r2']).show, null, '축하: 이미 축하한 건 재발화하지 않는다');
+
+// 창(-2..0) 밖의 오래된 항목은 마킹만 하고 안 띄움
+const stale = api.dueMilestone([ms('r1', -340)], []);
+eq(stale.show, null, '축하: 한참 지난 마일스톤은 띄우지 않는다 (입대일 수정 대비)');
+eq(stale.seed, ['r1'], '축하: 그래도 마킹은 한다');
+
+// 여러 개가 동시에 신선해도 하나만
+const multi = api.dueMilestone([ms('a', -2), ms('b', -1), ms('c', 0)], []);
+eq(multi.seed.length, 3, '축하: 신선한 항목은 전부 마킹');
+ok(multi.show && multi.show.key === 'c', '축하: 여러 개여도 가장 최근 하나만 띄운다');
+
+eq(api.dueMilestone([], null).show, null, '축하: 빈 로드맵 안전');
+
+const themes = [{ id: 'steel', lock: { key: 'r2', altKey: 'half' } }, { id: 'x', lock: null }];
+eq(api.unlockedBy('r2', themes).id, 'steel', '해금: key 로 매칭');
+eq(api.unlockedBy('half', themes).id, 'steel', '해금: altKey(간부 대체 조건)로도 매칭');
+eq(api.unlockedBy('enlist', themes), null, '해금: 해당 없음 → null');
 
 /* ─── 결과 출력 ──────────────────────────────────────────────────────── */
 console.log('\n──────────── 계산 로직 테스트 ────────────');

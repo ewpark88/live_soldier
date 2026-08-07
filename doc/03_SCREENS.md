@@ -1,3 +1,25 @@
+> ⚠️ **이 문서는 v1.0.x 기준이라 낡았다 (v1.1 에서 화면 구성이 전면 개편됨).**
+> 개별 화면의 state·계산식은 아직 참고할 만하지만, 화면 목록과 배치는 아래 v1.1
+> 구조를 따른다. 최신 규칙은 `doc/05_DESIGN_SYSTEM.md`.
+>
+> **v1.1 정보 구조**
+> ```
+> RootStack (native-stack)
+> ├─ tabs
+> │   ├─ home      홈      D-Day 히어로(첫 화면 독점) → 오늘의 한마디 → 이번 주
+> │   │                    → 오늘 할 일 → 다음 마일스톤 → 출석 스트릭 → 바로가기
+> │   ├─ calendar  캘린더  [달력 | 휴가 | 일정] 세그먼트
+> │   ├─ salary    급여    급여 허브 (봉급표·적금·혜택 진입점)
+> │   └─ settings  내 정보 프로필 + 바로가기 + 외형/알림/모션/데이터
+> └─ discharge · roadmap · savings · benefits · salaryGuide · officerPay · theme
+> ```
+> - 햄버거 메뉴(`AppMenu`/`MenuButton`)는 삭제됐다. 진입점은 급여 허브 · 내 정보 ·
+>   홈 바로가기로 이설됐다.
+> - `LeaveScreen`/`TodoScreen` 은 더 이상 라우트가 아니다. `CalendarScreen` 안에서
+>   `embedded` 모드로 렌더된다 (본문 로직은 그대로).
+
+---
+
 # 화면(Screen) 상세 문서
 
 ---

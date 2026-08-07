@@ -24,7 +24,7 @@ eas build --platform android --profile production
 
 자세한 배포 절차는 `doc/07_DEPLOY.md` 참고.
 
-## UI / 디자인 시스템 (v1.0.7~)
+## UI / 디자인 시스템 (v1.0.7~, v1.1 갱신)
 
 화면을 새로 만들거나 고치기 전에 **`doc/05_DESIGN_SYSTEM.md` 를 먼저 읽는다.** 핵심만:
 
@@ -39,3 +39,11 @@ eas build --platform android --profile production
 - **`babel.config.js` 를 건드리지 말 것** — `babel-preset-expo@54` 가 reanimated worklets
   플러그인을 자동 주입한다. 수동 추가 시 이중 적용되어 난해한 worklet 에러가 난다.
 - UI 아이콘은 Ionicons. 상수의 `emoji` 필드는 위젯·공유 텍스트가 쓰므로 지우지 않는다.
+- **색은 `src/theme/palettes/` 의 테마 레지스트리가 소유한다** (v1.1~, 테마 11종).
+  `src/constants/colors.js` 는 하위호환 shim 이다. 팔레트 파일과
+  `theme/contrastPairs.js` 는 `tokens.js` 처럼 **런타임 라이브러리 import 금지** —
+  위젯 헤드리스 런타임과 맨 Node 검증 스크립트가 둘 다 이 파일을 로드한다.
+- 팔레트를 건드렸으면 **`npm run theme:check`** 가 통과해야 한다 (576개 대비 페어).
+- 네비게이션은 루트 native-stack + 4탭이다. **라우트 이름은 트리 전체에서 유일**해야
+  하고, `navigate` 버블링은 위로만 간다 — 여러 곳에서 진입하는 화면은 루트 스택에 둔다.
+- `npm test` 는 날짜·스트릭·축하 판정 88건을 검증한다. 순수 로직을 고쳤으면 돌린다.

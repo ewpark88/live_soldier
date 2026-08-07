@@ -1,3 +1,5 @@
+import { pickDaily, todayStr } from './daily';
+
 /**
  * 입대일 + 복무개월 → 전역일 계산
  * 전역일(만료일) = 입대일 + N개월 - 1일.
@@ -185,7 +187,7 @@ export function nextPromotion(promotionDates) {
  * phase 값은 전역까지 남은 일수 기준: done / d3 / d7 / d30 / d100 / normal
  * 남은 일수별 군인 심리를 고려해 메시지를 다르게 제공.
  */
-const PHASE_MESSAGES = {
+export const PHASE_MESSAGES = {
   done: [
     '🎉 전역을 진심으로 축하합니다! 정말 고생 많았어!',
     '드디어 자유다! 그동안 정말 수고 많았어 🫡',
@@ -235,15 +237,21 @@ const PHASE_MESSAGES = {
   ],
 };
 
-/** 복무 단계에 맞는 응원 메시지 1개 (랜덤) */
-export function getMessageForPhase(phase) {
+/**
+ * 복무 단계에 맞는 응원 메시지 1개.
+ *
+ * 예전엔 Math.random() 이라 렌더할 때마다 바뀌었다 — 탭을 왔다갔다하면 문구가
+ * 춤췄다. 이제 날짜에 고정된다: 같은 날엔 몇 번을 불러도 같고, 자정에 정확히
+ * 한 칸 넘어간다. 인자를 안 넘기면 오늘 기준이라 기존 호출부는 그대로 둬도 된다.
+ */
+export function getMessageForPhase(phase, dateStr = todayStr()) {
   const pool = PHASE_MESSAGES[phase] ?? PHASE_MESSAGES.normal;
-  return pool[Math.floor(Math.random() * pool.length)];
+  return pickDaily(pool, dateStr, `msg:${phase}`) ?? pool[0];
 }
 
-/** 단계 무관 랜덤 응원 메시지 (fallback) */
-export function getRandomMessage() {
-  return getMessageForPhase('normal');
+/** 단계 무관 응원 메시지 (fallback) */
+export function getRandomMessage(dateStr = todayStr()) {
+  return getMessageForPhase('normal', dateStr);
 }
 
 /**

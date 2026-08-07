@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useMotion } from '../hooks/useMotion';
+import { useThemeColors } from '../theme/ThemeContext';
 import { motion } from '../theme/tokens';
 
 /**
@@ -59,13 +60,21 @@ const BAND = 64;
 export default function LiveServiceGauge({
   enlistDate,
   dischargeDate,
-  fillColor = '#F5C842',
-  trackColor = 'rgba(255,255,255,0.16)',
-  textColor = 'rgba(255,255,255,0.95)',
-  subColor = 'rgba(255,255,255,0.6)',
+  fillColor,
+  trackColor,
+  textColor,
+  subColor,
 }) {
+  const tc = useThemeColors();
   const m = useMotion();
   const isFocused = useIsFocused();
+
+  // 색 기본값은 테마가 준다. 예전엔 여기에 hex 가 박혀 있어서 테마를 바꿔도
+  // 게이지만 옛 골드로 남았다.
+  const cFill = fillColor ?? tc.accentLight;
+  const cTrack = trackColor ?? tc.heroTrack;
+  const cText = textColor ?? tc.heroText;
+  const cSub = subColor ?? tc.heroTextMuted;
 
   const [{ pct, servedSec }, setLive] = useState(() => calcLive(enlistDate, dischargeDate));
   const [trackW, setTrackW] = useState(0);
@@ -143,20 +152,20 @@ export default function LiveServiceGauge({
     <View>
       <View style={styles.headRow}>
         <View style={styles.liveRow}>
-          <Animated.View style={[styles.dot, { backgroundColor: fillColor }, dotStyle]} />
-          <Text style={[styles.liveLabel, { color: subColor }]}>
+          <Animated.View style={[styles.dot, { backgroundColor: cFill }, dotStyle]} />
+          <Text style={[styles.liveLabel, { color: cSub }]}>
             {done ? '복무 완료' : '실시간 진행률'}
           </Text>
         </View>
-        <Text style={[styles.pct, { color: textColor }]}>
+        <Text style={[styles.pct, { color: cText }]}>
           {intPart}
-          <Text style={[styles.pctDec, { color: subColor }]}>.{decPart}</Text>
-          <Text style={[styles.pctUnit, { color: subColor }]}> %</Text>
+          <Text style={[styles.pctDec, { color: cSub }]}>.{decPart}</Text>
+          <Text style={[styles.pctUnit, { color: cSub }]}> %</Text>
         </Text>
       </View>
 
-      <View style={[styles.track, { backgroundColor: trackColor }]} onLayout={onTrackLayout}>
-        <Animated.View style={[styles.fill, { backgroundColor: fillColor }, fillStyle]}>
+      <View style={[styles.track, { backgroundColor: cTrack }]} onLayout={onTrackLayout}>
+        <Animated.View style={[styles.fill, { backgroundColor: cFill }, fillStyle]}>
           <Animated.View style={[styles.shimmer, { width: BAND }, shimmerStyle]} />
         </Animated.View>
 
@@ -165,7 +174,7 @@ export default function LiveServiceGauge({
         ) : null}
       </View>
 
-      <Text style={[styles.sub, { color: subColor }]}>
+      <Text style={[styles.sub, { color: cSub }]}>
         {done
           ? '전역! 복무를 마쳤습니다'
           : `복무 ${clock.days.toLocaleString()}일  ${clock.hms} 흐르는 중`}

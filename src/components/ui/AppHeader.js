@@ -6,9 +6,10 @@ import Animated, {
   useAnimatedStyle,
   Extrapolation,
 } from 'react-native-reanimated';
+import { useNavigation } from '@react-navigation/native';
 import { useThemeColors } from '../../theme/ThemeContext';
 import { space as sp, type as ty } from '../../theme/tokens';
-import MenuButton from '../MenuButton';
+import PressScale from './PressScale';
 
 /**
  * 화면 상단 바.
@@ -20,14 +21,14 @@ import MenuButton from '../MenuButton';
  *
  * @param scrollY  Reanimated SharedValue — 주면 스크롤에 따라 제목이 줄고
  *                 아래 헤어라인이 서서히 나타난다
+ * @param back     루트 스택으로 띄운 화면에서 왼쪽에 뒤로가기를 그린다
  */
 export default function AppHeader({
   title,
   subtitle,
   icon,
-  navigation,
-  current,
-  menu = true,
+  back = false,
+  onBack,
   right,
   left,
   scrollY,
@@ -35,6 +36,7 @@ export default function AppHeader({
   style,
 }) {
   const tc = useThemeColors();
+  const nav = useNavigation();
   const styles = useMemo(() => makeStyles(tc), [tc]);
 
   const titleStyle = useAnimatedStyle(() => {
@@ -54,6 +56,17 @@ export default function AppHeader({
   return (
     <View style={[styles.wrap, style]}>
       <View style={styles.row}>
+        {back ? (
+          <PressScale
+            onPress={onBack ?? (() => nav.goBack())}
+            scale={0.9}
+            style={styles.back}
+            accessibilityRole="button"
+            accessibilityLabel="뒤로"
+          >
+            <Ionicons name="chevron-back" size={26} color={tc.text} />
+          </PressScale>
+        ) : null}
         {left}
 
         <Animated.View style={[styles.titleWrap, titleStyle]}>
@@ -70,10 +83,7 @@ export default function AppHeader({
           ) : null}
         </Animated.View>
 
-        <View style={styles.actions}>
-          {right}
-          {menu ? <MenuButton navigation={navigation} current={current} /> : null}
-        </View>
+        {right ? <View style={styles.actions}>{right}</View> : null}
       </View>
 
       <Animated.View style={[styles.rule, { backgroundColor: tc.border }, ruleStyle]} />
@@ -91,6 +101,7 @@ const makeStyles = (tc) =>
       paddingHorizontal: sp.lg,
       gap: sp.md,
     },
+    back: { marginLeft: -sp.sm, width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
     titleWrap: { flex: 1, transformOrigin: 'left center' },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: sp.sm },
     title: { ...ty.title, color: tc.text, flexShrink: 1 },

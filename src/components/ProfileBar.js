@@ -12,6 +12,7 @@ import {
 } from '../utils/storage';
 import { pickProfilePhoto } from '../utils/imagePicker';
 import { updateDischargeWidget } from '../widget/updateWidget';
+import { refreshScheduledNotifications } from '../utils/notifications';
 
 const BRANCH_LABEL = { army: '육군', navy: '해군', airforce: '공군', marines: '해병대' };
 
@@ -70,7 +71,13 @@ export default function ProfileBar({ onChange, onDark = false }) {
 
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
 
-  const notify = () => { reload(); onChange && onChange(); updateDischargeWidget(); };
+  const notify = () => {
+    reload();
+    onChange && onChange();
+    updateDischargeWidget();
+    // 프로필이 바뀌면 알림 본문의 이름과 대상 데이터가 통째로 달라진다
+    refreshScheduledNotifications().catch(() => {});
+  };
 
   const handleSwitch = async (id) => {
     if (id === activeId) return;

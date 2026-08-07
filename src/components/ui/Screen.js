@@ -26,6 +26,10 @@ import AdFooter from './AdFooter';
  * @param headerInScroll  true 면 헤더가 콘텐츠와 함께 스크롤돼 올라간다 (홈)
  * @param padded          좌우 16px 거터. false 면 풀블리드 (홈 히어로)
  * @param ad              AD_UNITS.X — 주면 하단 광고 푸터를 그린다
+ * @param standalone      루트 스택으로 띄운 화면 (아래에 탭바가 없다).
+ *                        하단 safe area 를 이 화면이 직접 책임진다.
+ * @param overlay         루트 최상단에 얹는 노드 (홈의 접히는 상단 바 등).
+ *                        pointerEvents="box-none" 이라 콘텐츠 터치를 막지 않는다.
  */
 export default function Screen({
   children,
@@ -35,6 +39,8 @@ export default function Screen({
   padded = true,
   background,
   ad,
+  standalone = false,
+  overlay,
   onScroll,
   scrollRef,
   refreshControl,
@@ -60,7 +66,8 @@ export default function Screen({
   const pad = {
     paddingTop: contentTop,
     paddingHorizontal: padded ? sp.lg : 0,
-    paddingBottom: sp.xxl,
+    // 광고 푸터가 있으면 그쪽이 하단 inset 을 먹으므로 콘텐츠는 더 안 밀어낸다.
+    paddingBottom: sp.xxl + (standalone && !ad ? insets.bottom : 0),
   };
 
   return (
@@ -84,7 +91,13 @@ export default function Screen({
         <View style={[styles.root, pad, contentContainerStyle]}>{content}</View>
       )}
 
-      {ad ? <AdFooter unit={ad} /> : null}
+      {ad ? <AdFooter unit={ad} safeBottom={standalone} /> : null}
+
+      {overlay ? (
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          {overlay}
+        </View>
+      ) : null}
     </View>
   );
 }

@@ -1,160 +1,49 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import Animated, {
-  Easing,
-  FadeIn,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
+import { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useThemeColors } from '../theme/ThemeContext';
-import LiveServiceGauge from '../components/LiveServiceGauge';
 import ProfileBar from '../components/ProfileBar';
-import MenuButton from '../components/MenuButton';
 import OnboardingScreen from '../components/OnboardingScreen';
 import AdInterstitial from '../components/AdInterstitial';
-import Card from '../components/Card';
-import SectionTitle from '../components/SectionTitle';
-import EventCalendar from '../components/EventCalendar';
-import {
-  Screen, Section, HeroCard, Chip, StatTile,
-  EmptyState, Txt, AnimatedNumber, PressScale, AdFooter,
-} from '../components/ui';
+import StreakCard from '../components/StreakCard';
+import HomeHero from '../components/home/HomeHero';
+import HomeTopBar from '../components/home/HomeTopBar';
+import DailyCard from '../components/home/DailyCard';
+import WeekStrip from '../components/home/WeekStrip';
+import TodayTodos from '../components/home/TodayTodos';
+import NextMilestone from '../components/home/NextMilestone';
+import QuickActions from '../components/home/QuickActions';
+import { Screen, Section, EmptyState } from '../components/ui';
+import AdBanner from '../components/AdBanner';
 import { AD_UNITS } from '../constants/adUnits';
 import { RANK_IMAGES } from '../constants/rankImages';
 import {
   loadMilitaryInfo, loadLeaveRecords, loadLeaveTotal,
   loadLeaveBonusRecords, loadRankPromotions, listProfiles,
-  loadPersonnelType, savePersonnelType, loadTodos,
+  loadPersonnelType, savePersonnelType, loadTodos, toggleTodo,
 } from '../utils/storage';
 import { shareDischarge } from '../utils/shareUtils';
 import { refreshScheduledNotifications } from '../utils/notifications';
 import useShowInterstitial from '../hooks/useShowInterstitial';
-import { useMotion } from '../hooks/useMotion';
+import { useDailyHero } from '../hooks/useDailyHero';
+import { useStreak } from '../state/StreakContext';
 import { haptic } from '../utils/haptics';
 import {
-  calcDaysLeft, calcServedDays, calcRank, calcRankFromPromotions,
-  formatDateKo, nextPromotion,
+  calcDaysLeft, calcServedDays, calcRank, calcRankFromPromotions, nextPromotion,
 } from '../utils/dateUtils';
-import { isOfficer, personnelLabel, BRANCHES } from '../constants/serviceTerms';
-import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
+import { buildRoadmap } from '../utils/roadmapUtils';
+import { isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { getPhase, PHASE_META } from '../constants/phases';
+import { space as sp } from '../theme/tokens';
 
-/* ─── 복무 단계 ───────────────────────────────────────────── */
-function getPhase(daysLeft) {
-  if (daysLeft <= 0) return 'done';
-  if (daysLeft <= 3) return 'd3';
-  if (daysLeft <= 7) return 'd7';
-  if (daysLeft <= 30) return 'd30';
-  if (daysLeft <= 100) return 'd100';
-  return 'normal';
-}
-
-/**
- * 단계별 히어로 설정.
- *
- * 예전엔 screenBg 로 "화면 전체 배경"을 크림색으로 물들였는데, 그게 정확히
- * 촌스러워지는 지점이었고 다크모드도 깨뜨렸다. 이제 단계는 히어로만 표현한다.
- */
-const PHASE_CFG = {
-  done: {
-    gradient: ['#1E4A3F', '#0D2721'], accent: '#FFD24A', glow: true, embers: 'dense',
-    milestone: { icon: 'trophy', text: '드디어 전역이다!!' },
-  },
-  d3: {
-    gradient: ['#204A3F', '#0F2B25'], accent: '#FFCF45', glow: true, embers: 'normal',
-    milestone: { icon: 'ribbon', text: '전역 3일 전!! 거의 다 왔다!' },
-  },
-  d7: {
-    gradient: ['#245043', '#12302A'], accent: '#F7C53C', glow: true, embers: null,
-    milestone: { icon: 'trophy-outline', text: '전역까지 일주일!' },
-  },
-  d30: {
-    gradient: ['#27584C', '#16362F'], accent: '#F4C04A', glow: false, embers: null,
-    milestone: { icon: 'flame', text: '전역 한 달 전! 조금만 더!' },
-  },
-  d100: {
-    gradient: ['#2A5C50', '#183A32'], accent: '#F0C45E', glow: false, embers: null,
-    milestone: { icon: 'barbell', text: '전역 100일 전! 보인다!' },
-  },
-  normal: {
-    gradient: ['#2A5C50', '#1A3E36'], accent: '#F0C45E', glow: false, embers: null,
-    milestone: null,
-  },
-};
-
-/* ─── 골드 불티 ────────────────────────────────────────────────
-   예전엔 🎆🎊🎉🥳 이모지가 떠다녔다 — 앱에서 가장 촌스러운 요소였고,
-   overflow 클리핑이 없는 카드를 뚫고 위 섹션까지 침범했다.
-   HeroCard 는 항상 overflow:'hidden' 이라 물리적으로 새어나갈 수 없다. */
-function Ember({ index, dense }) {
-  const m = useMotion();
-  const p = useSharedValue(0);
-
-  const size = 2 + (index % 3);
-  const left = 4 + ((index * 7.3) % 92);
-  const drift = ((index % 5) - 2) * 8;
-  const dur = 3200 + (index % 4) * 700;
-
-  useEffect(() => {
-    if (m.reduced) return;
-    p.value = withDelay(
-      index * (dense ? 160 : 300),
-      withRepeat(withTiming(1, { duration: dur, easing: Easing.linear }), -1, false)
-    );
-  }, [m.reduced]);
-
-  const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: -180 * p.value },
-      { translateX: drift * p.value },
-    ],
-    // 떠오르며 밝아졌다가 사그라든다
-    opacity: interpolate(p.value, [0, 0.15, 0.7, 1], [0, 0.5, 0.28, 0]),
-  }));
-
-  if (m.reduced) return null;
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        {
-          position: 'absolute',
-          bottom: 4,
-          left: `${left}%`,
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: '#F0C45E',
-        },
-        style,
-      ]}
-    />
-  );
-}
-
-function EmberField({ dense }) {
-  const count = dense ? 18 : 12;
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {Array.from({ length: count }, (_, i) => (
-        <Ember key={i} index={i} dense={dense} />
-      ))}
-    </View>
-  );
-}
+/* 단계별 히어로 색은 테마 팔레트가 소유한다 — tc.phase[stage].
+   아이콘·문구·불티 밀도는 constants/phases.js 의 PHASE_META. */
 
 export default function HomeScreen({ navigation }) {
   const tc = useThemeColors();
-  const insets = useSafeAreaInsets();
-  const m = useMotion();
   const s = useMemo(() => makeStyles(tc), [tc]);
+  const { streak, days, tier, usedFreeze, justIncremented } = useStreak();
 
   const [info, setInfo] = useState(null);
   const [leaveUsed, setLeaveUsed] = useState(0);
@@ -170,14 +59,19 @@ export default function HomeScreen({ navigation }) {
   const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
   const sessionShown = React.useRef(false);
 
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
+
   useFocusEffect(
     useCallback(() => {
       loadData();
-      if (!sessionShown.current) {
+      // 스트릭이 방금 올라간 순간엔 전면 광고를 띄우지 않는다.
+      // 여기서 광고가 뜨면 리텐션 장치가 통째로 무의미해진다.
+      if (!sessionShown.current && !justIncremented) {
         sessionShown.current = true;
         setTimeout(() => showAd(), 2000);
       }
-    }, [])
+    }, [justIncremented])
   );
 
   const loadData = async () => {
@@ -200,8 +94,6 @@ export default function HomeScreen({ navigation }) {
 
     setTodos(await loadTodos());
     setPromotions(await loadRankPromotions(mi?.enlistDate));
-
-    refreshScheduledNotifications().catch(() => {});
   };
 
   const handleSelectType = async (type) => {
@@ -209,6 +101,20 @@ export default function HomeScreen({ navigation }) {
     setPersonnelType(type);
     navigation.navigate('discharge');
   };
+
+  /* 캘린더 탭의 세그먼트로 이동. 같은 탭 재진입에도 params 가 갱신되도록
+     타임스탬프를 함께 넘긴다 (없으면 두 번째부터 세그먼트가 안 바뀐다). */
+  const goCalendar = (section) =>
+    navigation.navigate('calendar', { section, ts: Date.now() });
+
+  const handleToggleTodo = async (id) => {
+    setTodos(await toggleTodo(id));
+    refreshScheduledNotifications().catch(() => {});
+  };
+
+  const daysLeft = info ? calcDaysLeft(info.dischargeDate) : 0;
+  const phase = getPhase(daysLeft);
+  const daily = useDailyHero(phase);
 
   /* ── 로딩 ── */
   if (!info && personnelType === undefined) {
@@ -223,7 +129,6 @@ export default function HomeScreen({ navigation }) {
           <View style={{ flex: 1 }}>
             <ProfileBar onChange={loadData} />
           </View>
-          <MenuButton navigation={navigation} current="home" />
         </View>
         <OnboardingScreen name={profileName} onSelect={handleSelectType} />
       </Screen>
@@ -238,7 +143,6 @@ export default function HomeScreen({ navigation }) {
           <View style={{ flex: 1 }}>
             <ProfileBar onChange={loadData} />
           </View>
-          <MenuButton navigation={navigation} current="home" />
         </View>
         <EmptyState
           icon="shield-half"
@@ -254,224 +158,130 @@ export default function HomeScreen({ navigation }) {
     );
   }
 
-  const daysLeft = calcDaysLeft(info.dischargeDate);
   const servedDays = calcServedDays(info.enlistDate);
   const officer = isOfficer(info.personnelType);
   const rank = officer
     ? (info.officerRank ?? personnelLabel(info.personnelType))
     : (calcRankFromPromotions(promotions) ?? calcRank(servedDays));
   const leaveLeft = leaveTotal - leaveUsed;
-  const branchLabel = BRANCHES.find((b) => b.key === info.branch)?.label ?? '';
-  const phase = getPhase(daysLeft);
-  const cfg = PHASE_CFG[phase];
+  const cfg = tc.phase[phase];
+  const meta = PHASE_META[phase];
   const promo = officer ? null : nextPromotion(promotions);
   const crest = RANK_IMAGES[rank];
 
-  const ddayText = daysLeft > 0 ? null : daysLeft === 0 ? 'D-Day!' : '전역 완료!';
+  const roadmap = buildRoadmap(info, promotions);
+  const nextMs = roadmap.find((mi) => !mi.done) ?? null;
+  const totalDays = Math.max(1, servedDays + Math.max(0, daysLeft));
+  const msProgress = nextMs ? Math.min(1, servedDays / totalDays) : 0;
 
-  const tapDday = () => {
-    haptic.medium();
-    setReplay((x) => x + 1); // 카운트업을 처음부터 다시 돌린다
-  };
+  const quickActions = [
+    { key: 'leave', icon: 'airplane-outline', label: '휴가 기록', tone: 'primary', onPress: () => goCalendar('leave') },
+    { key: 'salary', icon: 'wallet-outline', label: '급여 계산', tone: 'accent', onPress: () => navigation.navigate('salary') },
+    { key: 'savings', icon: 'calculator-outline', label: '장병내일적금', tone: 'success', onPress: () => navigation.navigate('savings') },
+    { key: 'benefits', icon: 'gift-outline', label: '군인 혜택', tone: 'neutral', onPress: () => navigation.navigate('benefits') },
+  ];
 
   return (
     <>
-      {/* 한 화면 고정 레이아웃 — 히어로(D-Day)는 콘텐츠 높이만큼, 캘린더가 남은
-          공간을 flex 로 꽉 채운다. 스크롤·패럴랙스를 걷어내 둘이 한 화면에 딱 맞는다.
-          데이터는 useFocusEffect 로 탭 진입 때마다 새로고침되므로 당겨서 새로고침은
-          없어도 무방하다. */}
-      <View style={[s.root, { backgroundColor: tc.background }]}>
-        {/* ── 히어로 (풀블리드) ── */}
-        <HeroCard
-          fullBleed
-          gradient={cfg.gradient}
-          sheen
-          contentStyle={[s.heroPad, { paddingTop: insets.top + sp.sm }]}
-          style={s.hero}
-        >
-          {cfg.embers ? <EmberField dense={cfg.embers === 'dense'} /> : null}
+      {/*
+        v1.0.8 은 스크롤을 걷어내 히어로와 월간 캘린더를 한 화면에 넣었다. 그
+        의도(둘이 한 화면에)는 지금 요구와 정면충돌한다 — 스트릭·데일리·마일스톤을
+        그 위에 얹으면 D-Day 가 반드시 작아지기 때문이다.
+        그래서 캘린더를 캘린더 탭에 내주고, 대신 "첫 화면 = 히어로" 계약을 지킨다.
+        스크롤은 더 보고 싶은 사람만 쓰는 깊이다.
+      */}
+      <Screen
+        scroll
+        padded={false}
+        onScroll={onScroll}
+        ad={AD_UNITS.HOME_BOTTOM}
+        /* Screen 은 헤더가 없으면 insets.top 을 콘텐츠에 먹인다. 히어로도 같은
+           값을 갖고 있어서 덮지 않으면 상태바 높이만큼 이중 여백이 생긴다. */
+        contentContainerStyle={{ paddingTop: 0, paddingBottom: sp.md }}
+        overlay={<HomeTopBar scrollY={scrollY} daysLeft={daysLeft} name={profileName} />}
+      >
+        <HomeHero
+          info={info}
+          rank={rank}
+          crest={crest}
+          daysLeft={daysLeft}
+          servedDays={servedDays}
+          leaveLeft={leaveLeft}
+          months={info.months}
+          promo={promo}
+          cfg={cfg}
+          meta={meta}
+          angle={daily.heroAngle}
+          streak={{ count: streak.current, tier }}
+          replayKey={replay}
+          onTapDday={() => { haptic.medium(); setReplay((x) => x + 1); }}
+          onShare={() => shareDischarge(info, rank, profileName)}
+          onReloadProfiles={loadData}
+          onPressStreak={() => {}}
+          onPressPromo={() => navigation.navigate('roadmap')}
+          onPressLeave={() => goCalendar('leave')}
+        />
 
-          <View style={s.topRow}>
-            <View style={{ flex: 1 }}>
-              <ProfileBar onChange={loadData} onDark />
-            </View>
-            <MenuButton navigation={navigation} current="home" color={tc.heroText} />
-          </View>
-
-          {cfg.milestone ? (
-            <Animated.View entering={m.enter(FadeIn, 0, motion.duration.slow)}>
-              <Chip
-                label={cfg.milestone.text}
-                icon={cfg.milestone.icon}
-                tone="accent"
-                style={s.milestone}
-              />
-            </Animated.View>
-          ) : null}
-
-          <View style={s.heroMain}>
-            <View style={{ flex: 1 }}>
-              <Txt role="label" tone="heroMuted" style={s.eyebrow}>전역까지</Txt>
-
-              <PressScale onPress={tapDday} haptic={null} style={s.ddayTap}>
-                {ddayText ? (
-                  <Txt
-                    role="hero"
-                    style={[
-                      { color: cfg.accent },
-                      cfg.glow && s.glow,
-                      cfg.glow && { textShadowColor: cfg.accent },
-                    ]}
-                  >
-                    {ddayText}
-                  </Txt>
-                ) : (
-                  <View style={s.ddayRow}>
-                    <Txt role="subtitle" tone="heroMuted">D-</Txt>
-                    <AnimatedNumber
-                      value={daysLeft}
-                      replayKey={replay}
-                      style={[
-                        ty.display,
-                        { color: cfg.accent },
-                        cfg.glow && s.glow,
-                        cfg.glow && { textShadowColor: cfg.accent },
-                      ]}
-                    />
-                  </View>
-                )}
-              </PressScale>
-
-              <View style={s.dateRow}>
-                <Txt role="caption" tone="heroMuted">
-                  {formatDateKo(info.dischargeDate)}
-                </Txt>
-                <PressScale
-                  onPress={() => shareDischarge(info, rank, profileName)}
-                  haptic="light"
-                  style={s.shareBtn}
-                  accessibilityLabel="전역일 공유"
-                >
-                  <Ionicons name="share-social" size={15} color={tc.heroText} />
-                  <Txt role="micro" tone="hero">자랑하기</Txt>
-                </PressScale>
-              </View>
-            </View>
-
-            {/* 계급장 */}
-            <View style={s.crestWrap}>
-              {cfg.glow ? <View style={[s.crestGlow, { backgroundColor: cfg.accent }]} /> : null}
-              {crest ? (
-                <Image source={crest} style={s.crest} resizeMode="contain" />
-              ) : (
-                <Ionicons
-                  name={info.personnelType === 'officer' ? 'star' : 'ribbon'}
-                  size={36}
-                  color={cfg.accent}
-                />
-              )}
-              <Txt role="caption" tone="hero" style={{ fontWeight: '700' }}>{rank}</Txt>
-            </View>
-          </View>
-
-          <View style={s.gauge}>
-            <LiveServiceGauge
-              enlistDate={info.enlistDate}
-              dischargeDate={info.dischargeDate}
-              fillColor={cfg.accent}
-            />
-          </View>
-
-          <View style={s.statRow}>
-            <StatTile label="복무 일수" value={servedDays} unit="일" onHero countUp />
-            <StatTile label="남은 휴가" value={leaveLeft} unit="일" onHero countUp />
-            {promo ? (
-              <StatTile
-                label={`다음 진급 · ${promo.rank}`}
-                value={`D-${promo.daysLeft}`}
-                onHero
-                onPress={() => navigation.navigate('roadmap')}
-              />
-            ) : (
-              <StatTile label="복무 개월" value={info.months} unit="개월" onHero countUp />
-            )}
-          </View>
-        </HeroCard>
-
-        {/* ── 휴가·일정 캘린더 (남은 공간 flex 로 채움) ── */}
         <View style={s.body}>
-          <Section index={0} gap={0} style={{ flex: 1 }}>
-            <Card style={s.calCard}>
-              <SectionTitle icon="calendar-outline">휴가·일정 캘린더</SectionTitle>
-              <View style={s.calInner}>
-                <EventCalendar
-                  fill
-                  records={leaveRecords}
-                  bonusRecords={bonusRecords}
-                  todos={todos}
-                />
-              </View>
-            </Card>
+          <Section index={0}>
+            <DailyCard
+              message={daily.message}
+              subline={daily.subline}
+              sublineMeta={daily.sublineMeta}
+            />
+          </Section>
+
+          <Section index={1}>
+            <WeekStrip
+              records={leaveRecords}
+              bonusRecords={bonusRecords}
+              todos={todos}
+              attendance={days}
+              onPress={() => goCalendar('leave')}
+            />
+          </Section>
+
+          <Section index={2}>
+            <TodayTodos
+              todos={todos}
+              onToggle={handleToggleTodo}
+              onPressAll={() => goCalendar('todo')}
+            />
+          </Section>
+
+          <Section index={3}>
+            <NextMilestone
+              milestone={nextMs}
+              progress={msProgress}
+              onPress={() => navigation.navigate('roadmap')}
+            />
+          </Section>
+
+          <Section index={4}>
+            <StreakCard streak={streak} days={days} tier={tier} usedFreeze={usedFreeze} />
+          </Section>
+
+          {/* 인라인 광고 — fold 위에는 절대 두지 않는다.
+              AdFooter 는 화면 하단 전용(배경+헤어라인)이라 본문엔 AdBanner 를 직접 쓴다.
+              HOME_TOP 은 지금까지 코드에서 한 번도 안 쓰이던 유닛이다. */}
+          <Section index={5}>
+            <AdBanner unit={AD_UNITS.HOME_TOP} />
+          </Section>
+
+          <Section index={6} gap={0}>
+            <QuickActions items={quickActions} />
           </Section>
         </View>
-
-        <AdFooter unit={AD_UNITS.HOME_BOTTOM} />
-      </View>
+      </Screen>
 
       <AdInterstitial visible={adVisible} onClose={closeAd} />
     </>
   );
 }
 
-const makeStyles = (tc) =>
+const makeStyles = () =>
   StyleSheet.create({
-    root: { flex: 1 },
-    // 캘린더와 한 화면에 담기 위해 세로 리듬을 촘촘히 — 예전 xl(20) 간격들을 md(12)로.
-    hero: { marginBottom: sp.md },
-    heroPad: { paddingHorizontal: sp.lg, paddingBottom: sp.lg },
-
     topRow: { flexDirection: 'row', alignItems: 'center', gap: sp.md },
-
-    milestone: { alignSelf: 'flex-start', marginTop: sp.sm },
-
-    heroMain: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: sp.md,
-      marginTop: sp.sm,
-    },
-    eyebrow: { letterSpacing: 2 },
-    ddayTap: { alignSelf: 'flex-start' },
-    ddayRow: { flexDirection: 'row', alignItems: 'baseline', gap: sp.xxs },
-    glow: { textShadowRadius: 18, textShadowOffset: { width: 0, height: 0 } },
-
-    dateRow: { flexDirection: 'row', alignItems: 'center', gap: sp.md, marginTop: sp.xs },
-    shareBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: sp.xs,
-      paddingVertical: sp.xs,
-      paddingHorizontal: sp.sm,
-      borderRadius: r.pill,
-      backgroundColor: 'rgba(255,255,255,0.12)',
-    },
-
-    crestWrap: { alignItems: 'center', gap: sp.xs, width: 72 },
-    crest: { width: 56, height: 56 },
-    crestGlow: {
-      position: 'absolute',
-      top: 4,
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      opacity: 0.28,
-    },
-
-    gauge: { marginTop: sp.md },
-    statRow: { flexDirection: 'row', gap: sp.sm, marginTop: sp.md },
-
-    // 히어로 아래 남은 세로 공간을 캘린더가 전부 차지한다.
-    body: { flex: 1, paddingHorizontal: sp.lg, paddingBottom: sp.md },
-    calCard: { flex: 1, overflow: 'hidden' },
-    calInner: { flex: 1, marginTop: sp.md },
+    // 히어로만 풀블리드다. 그 아래 섹션들은 표준 거터를 되찾는다.
+    body: { paddingHorizontal: sp.lg, paddingTop: sp.md },
   });

@@ -32,6 +32,7 @@ import {
 } from '../utils/dateUtils';
 import { BRANCHES, PERSONNEL_TYPES, isOfficer } from '../constants/serviceTerms';
 import { updateDischargeWidget } from '../widget/updateWidget';
+import { refreshScheduledNotifications } from '../utils/notifications';
 import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
 
 const PROMO_RANKS = ['일병', '상병', '병장'];
@@ -140,6 +141,7 @@ export default function DischargeScreen({ navigation }) {
     setInfo(mi);
     setEditing(false);
     updateDischargeWidget();
+    refreshScheduledNotifications().catch(() => {});
     haptic.success();
     showAd();
   };
@@ -164,6 +166,7 @@ export default function DischargeScreen({ navigation }) {
     setPromotions(editPromo);
     setEditingPromo(false);
     updateDischargeWidget();
+    refreshScheduledNotifications().catch(() => {});
     haptic.success();
   };
 
@@ -209,8 +212,9 @@ export default function DischargeScreen({ navigation }) {
   return (
     <>
       <Screen
+        standalone
         ad={AD_UNITS.DISCHARGE_BOTTOM}
-        header={<AppHeader title="전역일 계산" navigation={navigation} current="discharge" />}
+        header={<AppHeader title="전역 정보" back />}
       >
         {editing ? (
           /* ── 입력 폼 ── */

@@ -143,7 +143,7 @@ export default function SalaryScreen({ navigation }) {
   return (
     <Screen
       ad={AD_UNITS.SALARY_BOTTOM}
-      header={<AppHeader title="급여 계산" navigation={navigation} current="salary" />}
+      header={<AppHeader title="급여 계산" />}
     >
       {/* ① 이번 달 예상 급여 */}
       <Section index={0}>
@@ -323,6 +323,16 @@ export default function SalaryScreen({ navigation }) {
             iconTone="accent"
             chevron
             onPress={() => navigation.navigate('savings')}
+            style={s.navRow}
+          />
+          <Divider inset={sp.lg + 48} />
+          <ListRow
+            title="군인 혜택 모음"
+            subtitle="금융·교통·문화·자기계발 할인과 지원"
+            icon="gift-outline"
+            iconTone="success"
+            chevron
+            onPress={() => navigation.navigate('benefits')}
             style={s.navRow}
           />
         </Card>

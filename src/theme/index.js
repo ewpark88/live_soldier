@@ -5,3 +5,7 @@
  */
 export { ThemeProvider, useTheme, useThemeColors } from './ThemeContext';
 export { space, gutter, radius, type, tabular, motion, elev } from './tokens';
+export {
+  THEMES, THEME_LIST, DEFAULT_THEME_ID, LEGACY_THEME_ID,
+  getTheme, effectiveScheme, resolvePalette,
+} from './palettes';

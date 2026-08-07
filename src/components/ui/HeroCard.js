@@ -47,10 +47,14 @@ export default function HeroCard({
   const colors = gradient || [tc.heroFrom, tc.heroTo];
   const rad = fullBleed ? 0 : r[radiusKey] ?? r.xl;
 
-  const dir =
-    angle === 'vertical'
-      ? { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } }
-      : { start: { x: 0, y: 0 }, end: { x: 1, y: 1 } };
+  // 'reverse' 는 데일리 히어로가 쓴다 — 같은 색으로 매일 다른 인상을 만들 수 있어
+  // 단계×테마마다 새 그라데이션을 손으로 짜는 것보다 압도적으로 싸다.
+  const DIRS = {
+    vertical: { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } },
+    reverse: { start: { x: 1, y: 0 }, end: { x: 0, y: 1 } },
+    diagonal: { start: { x: 0, y: 0 }, end: { x: 1, y: 1 } },
+  };
+  const dir = DIRS[angle] ?? DIRS.diagonal;
 
   // 대각선 광택이 아주 느리게 한 번씩 훑고 지나간다. 루프 1개.
   const sweep = useSharedValue(-1);

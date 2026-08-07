@@ -3,10 +3,12 @@ import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import TabNavigator from './src/navigation/TabNavigator';
+import RootNavigator from './src/navigation/RootNavigator';
 import { initStorage } from './src/utils/storage';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { PrefsProvider } from './src/theme/PrefsContext';
+import { StreakProvider } from './src/state/StreakContext';
+import { CelebrationProvider } from './src/state/CelebrationContext';
 import { configureNotificationHandler, refreshScheduledNotifications } from './src/utils/notifications';
 
 // Expo Go 호환 처리
@@ -41,7 +43,7 @@ function ThemedApp() {
   return (
     <NavigationContainer theme={navTheme}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-      <TabNavigator />
+      <RootNavigator />
     </NavigationContainer>
   );
 }
@@ -81,7 +83,13 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <PrefsProvider>
-          <ThemedApp />
+          {/* 스트릭 체크인은 하루 1회 실제로 값이 움직였을 때만 알림을 다시 잡는다.
+              예전처럼 홈 포커스마다 재예약하지 않는다. */}
+          <StreakProvider onCheckIn={() => refreshScheduledNotifications()}>
+            <CelebrationProvider>
+              <ThemedApp />
+            </CelebrationProvider>
+          </StreakProvider>
         </PrefsProvider>
       </ThemeProvider>
     </SafeAreaProvider>

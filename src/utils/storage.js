@@ -13,7 +13,9 @@ import { calcDischargeDate, formatDate } from './dateUtils';
  */
 
 const STORE_KEY = '@profiles_v1';
-const THEME_KEY = '@theme_mode';
+const THEME_KEY = '@theme_mode';      // 레거시 — @theme_v2 로 흡수됨 (write-through 유지)
+const THEME_V2_KEY = '@theme_v2';
+const STREAK_KEY = '@streak_v1';
 const PREFS_KEY = '@ui_prefs_v1';
 export const MAX_PROFILES = 12;
 
@@ -50,6 +52,11 @@ function _emptyData() {
     todos:          [],
     rankPromotions: null,
     savingsPlan:    null,   // { monthly, months } 장병내일준비적금 입력값
+    // 이미 축하한 마일스톤 key 목록.
+    //   null = 아직 시딩 전 (기존 사용자/신규 프로필)
+    //   []   = 시딩 완료
+    // 프로필 범위라 프로필 전환·삭제·초기화가 공짜로 올바르게 동작한다.
+    celebrated:     null,
   };
 }
 
@@ -373,6 +380,112 @@ export async function saveThemeMode(mode) {
   try { await AsyncStorage.setItem(THEME_KEY, mode); } catch {}
 }
 
+// ─── 테마 설정 v2 (테마 + 밝기 + 해금) ─────────────────────────────────
+// 기기 범위다. 프로필은 본인/남친/아들이지만 "보는 사람"은 한 명이라,
+// 프로필을 바꿀 때마다 앱이 재도색되면 방향감각이 무너진다.
+//
+//   { themeId, mode, unlocked: [], introSeen }
+//
+// 마이그레이션 원칙: 기존 사용자를 강제로 재도색하지 않는다.
+//   @theme_v2 있음                       → 그대로
+//   없음 + (@theme_mode 또는 프로필 존재) → 기존 사용자 → forest 유지, introSeen:false
+//   없음 + 아무것도 없음                  → 신규 설치   → 기본 테마, introSeen:true
+export const DEFAULT_THEME_SETTINGS = {
+  themeId: 'nightvision',
+  legacyThemeId: 'forest',
+  mode: 'system',
+  unlocked: [],
+  introSeen: true,
+};
+
+export async function loadThemeSettings() {
+  try {
+    const raw = await AsyncStorage.getItem(THEME_V2_KEY);
+    if (raw) {
+      const v = _safeParse(raw, {});
+      return {
+        themeId: typeof v.themeId === 'string' ? v.themeId : DEFAULT_THEME_SETTINGS.themeId,
+        mode: ['system', 'light', 'dark'].includes(v.mode) ? v.mode : 'system',
+        unlocked: Array.isArray(v.unlocked) ? v.unlocked : [],
+        introSeen: v.introSeen !== false,
+      };
+    }
+
+    const [legacyMode, store] = await Promise.all([
+      AsyncStorage.getItem(THEME_KEY),
+      AsyncStorage.getItem(STORE_KEY),
+    ]);
+    const existing = !!legacyMode || !!store;
+
+    const next = existing
+      ? {
+        themeId: DEFAULT_THEME_SETTINGS.legacyThemeId,
+        mode: ['light', 'dark', 'system'].includes(legacyMode) ? legacyMode : 'system',
+        unlocked: [],
+        introSeen: false, // 설정 화면 테마 행에 NEW 배지를 한 번 띄운다
+      }
+      : {
+        themeId: DEFAULT_THEME_SETTINGS.themeId,
+        mode: 'system',
+        unlocked: [],
+        introSeen: true,
+      };
+
+    await AsyncStorage.setItem(THEME_V2_KEY, JSON.stringify(next));
+    return next;
+  } catch {
+    return { themeId: DEFAULT_THEME_SETTINGS.themeId, mode: 'system', unlocked: [], introSeen: true };
+  }
+}
+
+export async function saveThemeSettings(patch) {
+  try {
+    const cur = await loadThemeSettings();
+    const next = { ...cur, ...patch };
+    await AsyncStorage.setItem(THEME_V2_KEY, JSON.stringify(next));
+    // 롤백 안전망 — 구버전이 읽는 키에도 계속 써 둔다 (2릴리스 후 제거)
+    if (patch.mode) await AsyncStorage.setItem(THEME_KEY, patch.mode);
+    return next;
+  } catch {
+    return null;
+  }
+}
+
+/** 해금은 단조 증가한다 — 한 번 열리면 절대 회수하지 않는다 */
+export async function unlockTheme(themeId) {
+  const cur = await loadThemeSettings();
+  if (cur.unlocked.includes(themeId)) return cur;
+  return saveThemeSettings({ unlocked: [...cur.unlocked, themeId] });
+}
+
+// ─── 마일스톤 축하 이력 (프로필 범위) ─────────────────────────────────
+export async function loadCelebrated() {
+  return _getField('celebrated');
+}
+
+/** 합집합으로 저장 — 이미 축하한 항목은 절대 되돌리지 않는다 */
+export async function markCelebrated(keys) {
+  const cur = (await _getField('celebrated')) ?? [];
+  const next = [...new Set([...cur, ...keys])];
+  await _setField('celebrated', next);
+  return next;
+}
+
+// ─── 출석 스트릭 ──────────────────────────────────────────────────────
+// 기기 범위다. "며칠 연속 앱을 열었나"는 프로필(본인/남친/아들)이 아니라
+// 사람의 행동이다. 프로필 2개를 쓰는 사용자가 스트릭을 반으로 쪼개 갖는 건
+// 명백히 틀렸다. clearAllData 에서도 살아남는다.
+export async function loadStreak() {
+  try {
+    const raw = await AsyncStorage.getItem(STREAK_KEY);
+    return _safeParse(raw, null);
+  } catch { return null; }
+}
+
+export async function saveStreak(state) {
+  try { await AsyncStorage.setItem(STREAK_KEY, JSON.stringify(state)); } catch {}
+}
+
 // ─── UI 환경설정 (햅틱 / 애니메이션 줄이기) ────────────────────────────
 // 테마 모드와 마찬가지로 프로필 바깥에 저장한다 — 사람이 아니라 기기 설정이다.
 export const DEFAULT_UI_PREFS = { haptics: true, reduceMotion: false };
@@ -395,7 +508,8 @@ export async function saveUIPrefs(prefs) {
 }
 
 // ─── 전체 데이터 삭제 (모든 프로필/군생활 데이터 초기화) ────────────────
-// 테마 모드 같은 앱 UI 설정은 유지하고, 사용자가 입력한 데이터만 모두 지운다.
+// 테마·해금(@theme_v2)·알림·모션 설정은 유지하고, 사용자가 입력한 데이터만
+// 모두 지운다. 해금은 복무의 결과이지 데이터가 아니라, 회수하면 징벌적이다.
 // 삭제 후 빈 프로필 1개로 재초기화되어 온보딩부터 다시 시작된다.
 export async function clearAllData() {
   await AsyncStorage.multiRemove([

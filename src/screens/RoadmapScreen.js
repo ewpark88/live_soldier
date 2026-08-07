@@ -41,11 +41,11 @@ export default function RoadmapScreen({ navigation }) {
   );
 
   const header = (
-    <AppHeader title="전역 로드맵" navigation={navigation} current="roadmap" />
+    <AppHeader title="전역 로드맵" back />
   );
 
   if (info === undefined) {
-    return <Screen scroll={false} header={header} ad={AD_UNITS.ROADMAP_BOTTOM} />;
+    return <Screen scroll={false} standalone header={header} ad={AD_UNITS.ROADMAP_BOTTOM} />;
   }
 
   // 입대 정보 없음 — 예전엔 이 분기가 패딩 없는 topBar 를 직접 그려서
@@ -53,7 +53,7 @@ export default function RoadmapScreen({ navigation }) {
   // Screen + AppHeader 를 지나므로 구조적으로 재발할 수 없다.
   if (!info) {
     return (
-      <Screen scroll={false} header={header} ad={AD_UNITS.ROADMAP_BOTTOM}>
+      <Screen scroll={false} standalone header={header} ad={AD_UNITS.ROADMAP_BOTTOM}>
         <SetupRequired />
       </Screen>
     );
@@ -81,7 +81,7 @@ export default function RoadmapScreen({ navigation }) {
     : null;
 
   return (
-    <Screen header={header} ad={AD_UNITS.ROADMAP_BOTTOM}>
+    <Screen standalone header={header} ad={AD_UNITS.ROADMAP_BOTTOM}>
       {next ? (
         <Section index={0}>
           <HeroCard>

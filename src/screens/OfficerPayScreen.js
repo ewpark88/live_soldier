@@ -29,9 +29,10 @@ export default function OfficerPayScreen({ navigation }) {
 
   return (
     <Screen
+      standalone
       ad={AD_UNITS.SALARY_MIDDLE}
       header={
-        <AppHeader title="간부 봉급 참고" navigation={navigation} current="officerPay" />
+        <AppHeader title="간부 봉급 참고" back />
       }
     >
       <Section index={0}>

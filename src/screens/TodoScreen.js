@@ -30,6 +30,7 @@ import {
 import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
+import { refreshScheduledNotifications } from '../utils/notifications';
 import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
 
 function getToday() {
@@ -128,7 +129,10 @@ function TodoItem({ item, onToggle, onDelete, last }) {
   );
 }
 
-export default function TodoScreen({ navigation }) {
+/**
+ * 일정 관리. embedded 설명은 LeaveScreen 헤더 주석 참고.
+ */
+export default function TodoScreen({ navigation, embedded = false }) {
   const tc = useThemeColors();
   const m = useMotion();
   const s = useMemo(() => makeStyles(tc), [tc]);
@@ -174,16 +178,27 @@ export default function TodoScreen({ navigation }) {
       note: formNote.trim(),
     }));
     haptic.success();
+    refreshScheduledNotifications().catch(() => {});
     closeSheet();
     showAd();
   };
 
-  const handleToggle = async (id) => setTodos(await toggleTodo(id));
+  const handleToggle = async (id) => {
+    setTodos(await toggleTodo(id));
+    refreshScheduledNotifications().catch(() => {});
+  };
 
   const handleDelete = (id, title) => {
     Alert.alert('삭제', `"${title}"을(를) 삭제할까요?`, [
       { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: async () => setTodos(await deleteTodo(id)) },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          setTodos(await deleteTodo(id));
+          refreshScheduledNotifications().catch(() => {});
+        },
+      },
     ]);
   };
 
@@ -227,23 +242,29 @@ export default function TodoScreen({ navigation }) {
     <>
       <Screen
         ad={AD_UNITS.TODO_BOTTOM}
-        contentContainerStyle={{ paddingBottom: 96 }}
+        contentContainerStyle={{ paddingBottom: 96, ...(embedded ? { paddingTop: sp.xs } : null) }}
         header={
-          <AppHeader
-            title="일정 관리"
-            navigation={navigation}
-            current="todo"
-            right={
-              <Chip
-                label="훈련 추가"
-                icon="flash"
-                size="sm"
-                onPress={() => setSheet('presets')}
-              />
-            }
-          />
+          embedded ? undefined : (
+            <AppHeader
+              title="일정 관리"
+              right={
+                <Chip
+                  label="훈련 추가"
+                  icon="flash"
+                  size="sm"
+                  onPress={() => setSheet('presets')}
+                />
+              }
+            />
+          )
         }
       >
+        {/* 헤더가 없는 임베드 모드에선 훈련 추가 버튼이 갈 곳이 없다 */}
+        {embedded ? (
+          <View style={{ alignItems: 'flex-end', marginBottom: sp.sm }}>
+            <Chip label="훈련 추가" icon="flash" size="sm" onPress={() => setSheet('presets')} />
+          </View>
+        ) : null}
         {/* 요약 + 날짜 필터 */}
         <Section index={0}>
           <Card>

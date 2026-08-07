@@ -34,7 +34,14 @@ const MODAL_NONE = null;
 const MODAL_USE = 'use';
 const MODAL_BONUS = 'bonus';
 
-export default function LeaveScreen({ navigation }) {
+/**
+ * 휴가 관리.
+ *
+ * `embedded` 면 캘린더 탭 안에서 세그먼트 콘텐츠로 렌더된다 — 자기 헤더를
+ * 그리지 않고, 상단 inset 도 부모(CalendarScreen)가 이미 소비했으므로 다시
+ * 먹이지 않는다. 본문 로직은 두 모드가 완전히 동일하다.
+ */
+export default function LeaveScreen({ navigation, embedded = false }) {
   const tc = useThemeColors();
   const m = useMotion();
   const s = useMemo(() => makeStyles(tc), [tc]);
@@ -176,7 +183,8 @@ export default function LeaveScreen({ navigation }) {
     <>
       <Screen
         ad={AD_UNITS.LEAVE_BOTTOM}
-        header={<AppHeader title="휴가 관리" navigation={navigation} current="leave" />}
+        header={embedded ? undefined : <AppHeader title="휴가 관리" />}
+        contentContainerStyle={embedded ? { paddingTop: sp.xs } : undefined}
       >
         {/* 잔여 휴가 — 사람들이 실제로 원하는 유일한 숫자 */}
         <Section index={0}>
@@ -281,10 +289,10 @@ export default function LeaveScreen({ navigation }) {
           <Card pad="none" style={{ paddingHorizontal: 0 }}>
             <ListRow
               title="휴가·일정 달력"
-              subtitle="‘전역’ 탭에서 한눈에 볼 수 있어요"
+              subtitle="이번 달 전체를 한눈에 볼 수 있어요"
               icon="calendar-outline"
               chevron
-              onPress={() => navigation.navigate('discharge')}
+              onPress={() => navigation.navigate('calendar', { section: 'month', ts: Date.now() })}
               style={{ paddingHorizontal: sp.lg }}
             />
           </Card>

@@ -43,14 +43,14 @@ export default function BenefitsScreen({ navigation }) {
 
   return (
     <Screen
+      standalone
       ad={AD_UNITS.SALARY_MIDDLE}
       scrollRef={scrollRef}
       header={
         <AppHeader
           title="군인 혜택 모음"
           subtitle="금융·교통·문화·자기계발 할인과 지원"
-          navigation={navigation}
-          current="benefits"
+          back
         />
       }
     >

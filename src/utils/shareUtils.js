@@ -40,3 +40,53 @@ export async function shareDischarge(info, rank, name) {
     // 사용자가 취소하거나 공유 불가 — 조용히 무시
   }
 }
+
+/**
+ * 마일스톤 축하 공유 메시지.
+ * 기존 buildShareMessage 와 톤·구조를 일부러 맞춘다 (같은 앱의 같은 목소리).
+ */
+export function buildMilestoneMessage(info, milestone, rank, name) {
+  const dleft = calcDaysLeft(info.dischargeDate);
+  const served = calcServedDays(info.enlistDate);
+  const who = name ? `${name} · ` : '';
+  const branch = BRANCH_LABEL[info.branch] ?? '';
+  const ddayText = dleft > 0 ? `전역까지 D-${dleft}` : '전역 완료! 🎉';
+
+  return (
+    `${milestone.emoji ?? '🎖️'} ${milestone.label}!\n` +
+    `${who}${branch} ${rank}\n` +
+    `복무 ${served}일째 · ${ddayText}\n\n` +
+    `'전역까지' 앱에서 함께 카운트다운 🪖\n${STORE_URL}`
+  );
+}
+
+export async function shareMilestone(info, milestone, rank, name) {
+  if (!info?.dischargeDate || !milestone) return;
+  try {
+    await Share.share({ message: buildMilestoneMessage(info, milestone, rank, name) });
+  } catch (e) {
+    // 취소/불가 — 조용히 무시
+  }
+}
+
+/** 출석 스트릭 자랑 (30·100일 티어 도달 시) */
+export function buildStreakMessage(streak, info, name) {
+  const who = name ? `${name} · ` : '';
+  const dleft = info?.dischargeDate ? calcDaysLeft(info.dischargeDate) : null;
+  const dday = dleft != null && dleft > 0 ? `\n전역까지 D-${dleft}` : '';
+
+  return (
+    `🔥 ${streak.current}일 연속 출석!\n` +
+    `${who}최고 기록 ${streak.best}일 · 누적 ${streak.total}일${dday}\n\n` +
+    `'전역까지' 앱에서 함께 카운트다운 🪖\n${STORE_URL}`
+  );
+}
+
+export async function shareStreak(streak, info, name) {
+  if (!streak?.current) return;
+  try {
+    await Share.share({ message: buildStreakMessage(streak, info, name) });
+  } catch (e) {
+    // 취소/불가 — 조용히 무시
+  }
+}

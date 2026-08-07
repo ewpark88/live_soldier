@@ -34,9 +34,10 @@ export default function SalaryGuideScreen({ navigation }) {
 
   return (
     <Screen
+      standalone
       ad={AD_UNITS.SALARY_MIDDLE}
       header={
-        <AppHeader title="병사 월급 가이드" navigation={navigation} current="salaryGuide" />
+        <AppHeader title="병사 월급 가이드" back />
       }
     >
       <Section index={0}>

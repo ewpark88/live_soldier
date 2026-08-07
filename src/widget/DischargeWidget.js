@@ -6,11 +6,19 @@ import { FlexWidget, TextWidget } from 'react-native-android-widget';
  * react-native-android-widget의 FlexWidget/TextWidget으로 구성.
  * (일반 react-native 컴포넌트가 아니라 위젯 전용 렌더러로 그려진다)
  */
-const BG = '#2E5B4F';
-const ACCENT = '#F5C842';
+/* 폴백 상수 — props.theme 가 없을 때만 쓴다.
+   구버전 데이터로 렌더되거나 팔레트 로드가 실패한 레이스를 대비한다. */
+const FALLBACK = {
+  bg: '#2E5B4F',
+  accent: '#F5C842',
+  text: 'rgba(255,255,255,0.85)',
+  muted: 'rgba(255,255,255,0.7)',
+  track: 'rgba(255,255,255,0.22)',
+};
 
 export function DischargeWidget(props = {}) {
   const { empty, name, ddayText, progress = 0, rank, dischargeText } = props;
+  const t = { ...FALLBACK, ...(props.theme || {}) };
 
   const rootStyle = {
     height: 'match_parent',
@@ -18,7 +26,7 @@ export function DischargeWidget(props = {}) {
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: BG,
+    backgroundColor: t.bg,
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -28,10 +36,10 @@ export function DischargeWidget(props = {}) {
   if (empty) {
     return (
       <FlexWidget style={rootStyle} clickAction="OPEN_APP">
-        <TextWidget text="전역까지" style={{ fontSize: 13, color: '#FFFFFF' }} />
+        <TextWidget text="전역까지" style={{ fontSize: 13, color: t.text }} />
         <TextWidget
           text="입대 정보를 입력하세요"
-          style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 6 }}
+          style={{ fontSize: 13, color: t.muted, marginTop: 6 }}
         />
       </FlexWidget>
     );
@@ -52,18 +60,18 @@ export function DischargeWidget(props = {}) {
       >
         <TextWidget
           text={name || '전역까지'}
-          style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}
+          style={{ fontSize: 12, color: t.text }}
         />
         <TextWidget
           text={rank || ''}
-          style={{ fontSize: 12, color: ACCENT, fontWeight: 'bold' }}
+          style={{ fontSize: 12, color: t.accent, fontWeight: 'bold' }}
         />
       </FlexWidget>
 
       {/* 중앙: D-Day */}
       <TextWidget
         text={ddayText}
-        style={{ fontSize: 38, fontWeight: 'bold', color: ACCENT, marginTop: 2 }}
+        style={{ fontSize: 38, fontWeight: 'bold', color: t.accent, marginTop: 2 }}
       />
 
       {/* 하단: 진행률 바 + 전역일 */}
@@ -71,7 +79,7 @@ export function DischargeWidget(props = {}) {
         style={{
           width: 'match_parent',
           height: 6,
-          backgroundColor: 'rgba(255,255,255,0.22)',
+          backgroundColor: t.track,
           borderRadius: 3,
           marginTop: 4,
           flexDirection: 'row',
@@ -82,7 +90,7 @@ export function DischargeWidget(props = {}) {
           style={{
             width: `${pct}%`,
             height: 6,
-            backgroundColor: ACCENT,
+            backgroundColor: t.accent,
             borderRadius: 3,
           }}
         />
@@ -90,7 +98,7 @@ export function DischargeWidget(props = {}) {
 
       <TextWidget
         text={`복무 ${pct}% · ${dischargeText || ''}`}
-        style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 6 }}
+        style={{ fontSize: 11, color: t.muted, marginTop: 6 }}
       />
     </FlexWidget>
   );

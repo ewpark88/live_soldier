@@ -7,33 +7,25 @@ import { useThemeColors } from '../theme/ThemeContext';
 import { type } from '../theme/tokens';
 
 import HomeScreen from '../screens/HomeScreen';
-import DischargeScreen from '../screens/DischargeScreen';
-import RoadmapScreen from '../screens/RoadmapScreen';
-import LeaveScreen from '../screens/LeaveScreen';
+import CalendarScreen from '../screens/CalendarScreen';
 import SalaryScreen from '../screens/SalaryScreen';
-import SalaryGuideScreen from '../screens/SalaryGuideScreen';
-import OfficerPayScreen from '../screens/OfficerPayScreen';
-import SavingsScreen from '../screens/SavingsScreen';
-import BenefitsScreen from '../screens/BenefitsScreen';
-import TodoScreen from '../screens/TodoScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import CelebrationOverlay from './CelebrationOverlay';
 
 const Tab = createBottomTabNavigator();
 
 function getTabIcon(routeName, focused) {
   const icons = {
     home: focused ? 'home' : 'home-outline',
-    discharge: focused ? 'flag' : 'flag-outline',
-    leave: focused ? 'calendar' : 'calendar-outline',
-    salary: focused ? 'cash' : 'cash-outline',
-    todo: focused ? 'checkbox' : 'checkbox-outline',
-    settings: focused ? 'settings' : 'settings-outline',
+    calendar: focused ? 'calendar' : 'calendar-outline',
+    salary: focused ? 'wallet' : 'wallet-outline',
+    settings: focused ? 'person-circle' : 'person-circle-outline',
   };
   return icons[routeName] || 'ellipse-outline';
 }
 
 function getTabLabel(routeName) {
-  const labels = { home: '홈', discharge: '전역', leave: '휴가', salary: '급여', todo: '일정', settings: '설정' };
+  const labels = { home: '홈', calendar: '캘린더', salary: '급여', settings: '내 정보' };
   return labels[routeName] || routeName;
 }
 
@@ -88,45 +80,18 @@ export default function TabNavigator() {
           headerShown: false,
         })}
       >
+        {/* 로드맵·봉급표·적금·혜택은 더 이상 "숨은 탭"이 아니다.
+            루트 스택(RootNavigator)으로 push 된다. */}
         <Tab.Screen name="home" component={HomeScreen} options={{ title: '전역까지', tabBarLabel: '홈' }} />
-        <Tab.Screen name="discharge" component={DischargeScreen} options={{ title: '전역일 계산', tabBarLabel: '전역' }} />
-        {/* 전역 로드맵: 하단 탭엔 숨기고 햄버거 메뉴에서만 진입 */}
-        <Tab.Screen
-          name="roadmap"
-          component={RoadmapScreen}
-          options={{
-            title: '전역 로드맵',
-            tabBarButton: () => null,
-            tabBarItemStyle: { display: 'none' },
-          }}
-        />
-        <Tab.Screen name="leave" component={LeaveScreen} options={{ title: '휴가 관리', tabBarLabel: '휴가' }} />
+        <Tab.Screen name="calendar" component={CalendarScreen} options={{ title: '캘린더', tabBarLabel: '캘린더' }} />
         <Tab.Screen name="salary" component={SalaryScreen} options={{ title: '급여 계산', tabBarLabel: '급여' }} />
-        {/* 병사 월급 가이드·간부 봉급 참고·장병내일적금·군인 혜택: 하단 탭엔 숨기고 햄버거 메뉴에서만 진입 */}
-        <Tab.Screen
-          name="salaryGuide"
-          component={SalaryGuideScreen}
-          options={{ title: '병사 월급 가이드', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
-        />
-        <Tab.Screen
-          name="officerPay"
-          component={OfficerPayScreen}
-          options={{ title: '간부 봉급 참고', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
-        />
-        <Tab.Screen
-          name="savings"
-          component={SavingsScreen}
-          options={{ title: '장병내일적금 계산기', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
-        />
-        <Tab.Screen
-          name="benefits"
-          component={BenefitsScreen}
-          options={{ title: '군인 혜택 모음', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
-        />
-        <Tab.Screen name="todo" component={TodoScreen} options={{ title: '일정 관리', tabBarLabel: '일정' }} />
-        <Tab.Screen name="settings" component={SettingsScreen} options={{ title: '설정', tabBarLabel: '설정' }} />
+        <Tab.Screen name="settings" component={SettingsScreen} options={{ title: '내 정보', tabBarLabel: '내 정보' }} />
       </Tab.Navigator>
 
+      {/* 축하 오버레이는 앱 전체에서 정확히 한 번만 마운트된다.
+          화면별로 붙이면 탭 전환마다 이중 발화한다. NavigationContainer 안이라
+          "테마 보러가기"도 동작하고, 어느 탭에 착지하든 뜬다. */}
+      <CelebrationOverlay />
     </View>
   );
 }

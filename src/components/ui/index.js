@@ -26,3 +26,4 @@ export { default as ProgressBar } from '../ProgressBar';
 // 모션
 export { default as AnimatedNumber } from '../motion/AnimatedNumber';
 export { default as BottomSheet } from '../motion/BottomSheet';
+export { default as EmberField } from '../motion/EmberField';

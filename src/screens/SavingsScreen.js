@@ -90,14 +90,14 @@ export default function SavingsScreen({ navigation }) {
 
   return (
     <Screen
+      standalone
       ad={AD_UNITS.SALARY_MIDDLE}
       contentContainerStyle={{ paddingBottom: sp.xxxl }}
       header={
         <AppHeader
           title="장병내일적금"
           subtitle="전역 시 받을 목돈을 미리 계산"
-          navigation={navigation}
-          current="savings"
+          back
         />
       }
     >

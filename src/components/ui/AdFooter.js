@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../../theme/ThemeContext';
 import { space as sp } from '../../theme/tokens';
 import AdBanner from '../AdBanner';
@@ -16,9 +17,13 @@ import AdBanner from '../AdBanner';
  *
  * insets.bottom 패딩도 주지 않는다. 아래에 탭바가 깔려 있고 safe area 는
  * 탭바가 책임진다.
+ *
+ * 단 스택으로 띄운 화면(<Screen standalone>)엔 탭바가 없다. 그땐 safeBottom
+ * 으로 제스처 바만큼 띄워야 배너 아래가 잘리지 않는다.
  */
-export default function AdFooter({ unit }) {
+export default function AdFooter({ unit, safeBottom = false }) {
   const tc = useThemeColors();
+  const insets = useSafeAreaInsets();
   if (!unit?.realId) return null;
 
   return (
@@ -26,6 +31,7 @@ export default function AdFooter({ unit }) {
       style={[
         styles.footer,
         { backgroundColor: tc.background, borderTopColor: tc.border },
+        safeBottom && { paddingBottom: insets.bottom + sp.xs },
       ]}
     >
       <AdBanner unit={unit} />

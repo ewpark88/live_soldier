@@ -44,7 +44,7 @@ export default function Button({
     accent: tc.onGold,
     secondary: tc.primary,
     ghost: tc.primary,
-    danger: tc.white,
+    danger: tc.onDanger,
   };
   const fg = FG[variant] || tc.onPrimary;
 
