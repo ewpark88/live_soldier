@@ -11,7 +11,6 @@ import SectionTitle from '../components/SectionTitle';
 import Card from '../components/Card';
 import ProgressBar from '../components/ProgressBar';
 import DatePickerField from '../components/DatePickerField';
-import AdInterstitial from '../components/AdInterstitial';
 import {
   Screen, AppHeader, Section, HeroCard, Grid, Button, Chip,
   ListRow, Txt, AnimatedNumber, PressScale,
@@ -52,7 +51,7 @@ export default function DischargeScreen({ navigation }) {
   const tc = useThemeColors();
   const m = useMotion();
   const s = useMemo(() => makeStyles(tc), [tc]);
-  const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
+  const { show: showAd } = useShowInterstitial();
 
   const [enlistDate, setEnlistDate] = useState('');
   const [branch, setBranch] = useState('army');
@@ -539,7 +538,6 @@ export default function DischargeScreen({ navigation }) {
         ) : null}
       </Screen>
 
-      <AdInterstitial visible={adVisible} onClose={closeAd} />
     </>
   );
 }

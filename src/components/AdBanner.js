@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
 import { radius as r, space as sp, type as ty } from '../theme/tokens';
+import { getAdUnitId } from '../constants/adUnits';
 
 // Expo Go에서는 네이티브 모듈 없음 → 플레이스홀더로 대체
 let BannerAd = null;
@@ -27,19 +28,20 @@ try {
 export default function AdBanner({ unit, style }) {
   const tc = useThemeColors();
   const styles = useMemo(() => makeStyles(tc), [tc]);
-  if (!unit?.realId) return null;
+  const unitId = getAdUnitId(unit, 'banner');
+  if (!unitId) return null;
 
   if (BannerAd && BannerAdSize) {
     return (
       <View style={[styles.wrapper, style]}>
         <Text style={styles.adTag}>광고</Text>
         <BannerAd
-          unitId={unit.realId}
+          unitId={unitId}
           size={BannerAdSize.BANNER}
           requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-          onAdFailedToLoad={(error) =>
-            console.warn(`[AdBanner] ${unit.id} 실패:`, error.message)
-          }
+          onAdFailedToLoad={(error) => {
+            if (__DEV__) console.warn(`[AdBanner] ${unit.id} 실패:`, error?.message);
+          }}
         />
       </View>
     );

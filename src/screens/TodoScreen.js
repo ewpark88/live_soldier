@@ -14,7 +14,6 @@ import SectionTitle from '../components/SectionTitle';
 import RangeCalendar from '../components/RangeCalendar';
 import DatePickerField from '../components/DatePickerField';
 import SetupRequired from '../components/SetupRequired';
-import AdInterstitial from '../components/AdInterstitial';
 import {
   Screen, AppHeader, Section, Grid, Button, Chip, StatTile,
   Divider, EmptyState, Txt, BottomSheet, PressScale,
@@ -138,7 +137,7 @@ export default function TodoScreen({ navigation, embedded = false }) {
   const s = useMemo(() => makeStyles(tc), [tc]);
   const today = getToday();
 
-  const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
+  const { show: showAd } = useShowInterstitial();
 
   const [militaryInfo, setMilitaryInfo] = useState(undefined);
   const [todos, setTodos] = useState([]);
@@ -361,7 +360,6 @@ export default function TodoScreen({ navigation, embedded = false }) {
         </PressScale>
       </Animated.View>
 
-      <AdInterstitial visible={adVisible} onClose={closeAd} />
 
       {/* 훈련 프리셋 시트 — 예전엔 화면 중간에서 펼쳐지며 아래 목록을 통째로
           밀어냈다. 시트로 빼면 레이아웃 이동이 0이 된다. */}

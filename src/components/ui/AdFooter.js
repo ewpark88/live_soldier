@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../../theme/ThemeContext';
 import { space as sp } from '../../theme/tokens';
 import AdBanner from '../AdBanner';
+import { getAdUnitId } from '../../constants/adUnits';
 
 /**
  * 광고 푸터 — <Screen ad={...}> 이 알아서 그린다. 화면이 직접 쓸 일은 없다.
@@ -24,7 +25,7 @@ import AdBanner from '../AdBanner';
 export default function AdFooter({ unit, safeBottom = false }) {
   const tc = useThemeColors();
   const insets = useSafeAreaInsets();
-  if (!unit?.realId) return null;
+  if (!getAdUnitId(unit, 'banner')) return null;
 
   return (
     <View

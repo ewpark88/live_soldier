@@ -12,7 +12,6 @@ import ProgressBar from '../components/ProgressBar';
 import DatePickerField from '../components/DatePickerField';
 import RangeCalendar from '../components/RangeCalendar';
 import SetupRequired from '../components/SetupRequired';
-import AdInterstitial from '../components/AdInterstitial';
 import {
   Screen, AppHeader, Section, HeroCard, Button, Chip, StatTile,
   ListRow, Divider, EmptyState, Txt, AnimatedNumber, BottomSheet, PressScale,
@@ -45,7 +44,7 @@ export default function LeaveScreen({ navigation, embedded = false }) {
   const tc = useThemeColors();
   const m = useMotion();
   const s = useMemo(() => makeStyles(tc), [tc]);
-  const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
+  const { show: showAd } = useShowInterstitial();
 
   const [militaryInfo, setMilitaryInfo] = useState(undefined);
   const [records, setRecords] = useState([]);
@@ -362,7 +361,6 @@ export default function LeaveScreen({ navigation, embedded = false }) {
         </Section>
       </Screen>
 
-      <AdInterstitial visible={adVisible} onClose={closeAd} />
 
       {/* 추가 시트 (사용 / 포상 공용) */}
       <BottomSheet visible={modalType !== MODAL_NONE} onClose={closeModal}>

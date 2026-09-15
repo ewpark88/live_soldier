@@ -5,7 +5,6 @@ import { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimate
 import { useThemeColors } from '../theme/ThemeContext';
 import ProfileBar from '../components/ProfileBar';
 import OnboardingScreen from '../components/OnboardingScreen';
-import AdInterstitial from '../components/AdInterstitial';
 import StreakCard from '../components/StreakCard';
 import HomeHero from '../components/home/HomeHero';
 import HomeTopBar from '../components/home/HomeTopBar';
@@ -43,7 +42,7 @@ import { space as sp } from '../theme/tokens';
 export default function HomeScreen({ navigation }) {
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
-  const { streak, days, tier, usedFreeze, justIncremented } = useStreak();
+  const { streak, days, tier, usedFreeze, justIncremented, ready: streakReady } = useStreak();
 
   const [info, setInfo] = useState(null);
   const [leaveUsed, setLeaveUsed] = useState(0);
@@ -56,7 +55,7 @@ export default function HomeScreen({ navigation }) {
   const [todos, setTodos] = useState([]);
   const [replay, setReplay] = useState(0);
 
-  const { adVisible, show: showAd, handleClose: closeAd } = useShowInterstitial();
+  const { show: showAd } = useShowInterstitial();
   const sessionShown = React.useRef(false);
 
   const scrollY = useSharedValue(0);
@@ -67,11 +66,16 @@ export default function HomeScreen({ navigation }) {
       loadData();
       // 스트릭이 방금 올라간 순간엔 전면 광고를 띄우지 않는다.
       // 여기서 광고가 뜨면 리텐션 장치가 통째로 무의미해진다.
-      if (!sessionShown.current && !justIncremented) {
-        sessionShown.current = true;
-        setTimeout(() => showAd(), 2000);
-      }
-    }, [justIncremented])
+      //
+      // streakReady 를 기다리는 이유: 콜드 스타트에서는 홈이 먼저 포커스되고
+      // 스트릭 판정이 나중에 끝난다. ready 전에 예약하면 justIncremented 가
+      // 아직 false 라 축하 연출 위로 광고가 떨어진다.
+      if (!streakReady || sessionShown.current || justIncremented) return undefined;
+      sessionShown.current = true;
+      // 앱 로드 직후 노출은 AdMob 정책상 피한다
+      const timer = setTimeout(() => { showAd(); }, 6000);
+      return () => clearTimeout(timer);   // 화면을 벗어나면 띄우지 않는다
+    }, [justIncremented, streakReady, showAd])
   );
 
   const loadData = async () => {
@@ -274,7 +278,6 @@ export default function HomeScreen({ navigation }) {
         </View>
       </Screen>
 
-      <AdInterstitial visible={adVisible} onClose={closeAd} />
     </>
   );
 }

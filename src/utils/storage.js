@@ -13,6 +13,7 @@ import { calcDischargeDate, calcPromotionDate, formatDate } from './dateUtils';
  */
 
 const STORE_KEY = '@profiles_v1';
+const STORE_BACKUP_KEY = '@profiles_v1.bak';  // 손상 감지 시 원본 보존용
 const THEME_KEY = '@theme_mode';      // 레거시 — @theme_v2 로 흡수됨 (write-through 유지)
 const THEME_V2_KEY = '@theme_v2';
 const STREAK_KEY = '@streak_v1';
@@ -29,6 +30,16 @@ const LEGACY = {
   TODOS:           '@todos',
   RANK_PROMOTIONS: '@rank_promotions',
 };
+
+function _warn(msg, e) {
+  if (__DEV__) console.warn('[storage] ' + msg + ':', e && e.message ? e.message : e);
+}
+
+/** 프로필이 하나도 없는 기본 저장소 (읽기 실패 시 이번 세션 한정 폴백) */
+function _emptyStore() {
+  const profile = _newProfile('본인');
+  return { activeId: profile.id, profiles: [profile] };
+}
 
 /** 안전한 JSON 파싱 — 손상/널이면 fallback 반환 */
 function _safeParse(raw, fallback) {
@@ -101,20 +112,42 @@ async function _migrateLegacy() {
 
 /* ─── 저장소 로드/세이브 (자가 마이그레이션) ───────────────────────────── */
 async function _loadStore() {
-  const raw = await AsyncStorage.getItem(STORE_KEY);
+  let raw = null;
+  try {
+    raw = await AsyncStorage.getItem(STORE_KEY);
+  } catch (e) {
+    // 저장소 자체를 못 읽는 상황 — 덮어쓰면 안 된다. 빈 저장소로 이번 세션만 버틴다.
+    _warn('저장소를 읽을 수 없습니다', e);
+    return _emptyStore();
+  }
+
   if (raw) {
     try {
       const store = JSON.parse(raw);
       if (store && Array.isArray(store.profiles) && store.profiles.length) return store;
-    } catch {}
+    } catch (e) {
+      _warn('저장소가 손상되었습니다', e);
+    }
+    // 값은 있는데 못 쓰는 상태 → 덮어쓰기 전에 원본을 백업해 둔다.
+    // 예전에는 여기서 곧바로 _saveStore(migrated) 를 호출해 프로필 전체가 사라졌다.
+    try {
+      await AsyncStorage.setItem(STORE_BACKUP_KEY, raw);
+    } catch (e) {
+      _warn('손상 저장소 백업 실패', e);
+    }
   }
+
   const migrated = await _migrateLegacy();
   await _saveStore(migrated);
   return migrated;
 }
 
 async function _saveStore(store) {
-  await AsyncStorage.setItem(STORE_KEY, JSON.stringify(store));
+  try {
+    await AsyncStorage.setItem(STORE_KEY, JSON.stringify(store));
+  } catch (e) {
+    _warn('저장 실패', e);
+  }
 }
 
 function _activeIndex(store) {
@@ -124,9 +157,15 @@ function _activeIndex(store) {
 
 /* 활성 프로필의 data 필드 1개 읽기 */
 async function _getField(key) {
-  const store = await _loadStore();
-  const p = store.profiles[_activeIndex(store)];
-  return p && p.data ? p.data[key] : undefined;
+  try {
+    const store = await _loadStore();
+    const p = store.profiles[_activeIndex(store)];
+    return p && p.data ? p.data[key] : undefined;
+  } catch (e) {
+    // 화면이 로딩 상태로 영구히 멈추지 않도록 undefined 로 떨어뜨린다
+    _warn(`'${key}' 읽기 실패`, e);
+    return undefined;
+  }
 }
 
 /* 활성 프로필의 data 필드 1개 쓰기 */
