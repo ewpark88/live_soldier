@@ -177,14 +177,14 @@ let _scheduled = 0;
  * 60건 캡에 걸리면 조용히 건너뛴다 (우선순위가 높은 것부터 호출된다).
  */
 async function scheduleAt(dateStr, title, body, opts = {}) {
-  if (!Notifications) return;
-  if (_scheduled >= MAX_SCHEDULED) return;
+  if (!Notifications) return false;
+  if (_scheduled >= MAX_SCHEDULED) return false;
 
   const { hour = HOUR, channel = CHANNEL_ID } = opts;
   const when = parseDate(dateStr);
-  if (!when) return;
+  if (!when) return false;
   when.setHours(hour, 0, 0, 0);
-  if (when.getTime() <= Date.now()) return; // 과거는 스킵
+  if (when.getTime() <= Date.now()) return false; // 과거는 스킵
 
   try {
     await Notifications.scheduleNotificationAsync({
@@ -205,8 +205,8 @@ async function scheduleAt(dateStr, title, body, opts = {}) {
  * 문구를 쓴다 — 매일 알림에선 그게 맞는 절충이다.
  */
 async function scheduleDaily(hour, title, body) {
-  if (!Notifications) return;
-  if (_scheduled >= MAX_SCHEDULED) return;
+  if (!Notifications) return false;
+  if (_scheduled >= MAX_SCHEDULED) return false;
   try {
     await Notifications.scheduleNotificationAsync({
       content: { title, body, ...(Platform.OS === 'android' ? { channelId: CHANNEL_DAILY } : {}) },
@@ -259,17 +259,18 @@ let _rerun = null;        // 진행 중에 들어온 요청 (null 이면 없음)
  * 진행 중인 약속을 그냥 돌려주면, 그 사이에 바뀐 일정·설정이 반영되지 않는다.
  * force 요청이 하나라도 섞이면 재실행도 force 로 돈다.
  */
-export function refreshScheduledNotifications(opts = {}) {
+export function refreshScheduledNotifications(opts) {
+  const o = opts || {};
   if (_refreshing) {
-    _rerun = { force: !!(opts.force || (_rerun && _rerun.force)) };
+    _rerun = { force: !!(o.force || (_rerun && _rerun.force)) };
     return _refreshing;
   }
-  _refreshing = _refreshScheduledNotifications(opts)
+  _refreshing = _refreshScheduledNotifications(o)
     .finally(() => {
       _refreshing = null;
       const next = _rerun;
       _rerun = null;
-      if (next) refreshScheduledNotifications(next);
+      if (next) refreshScheduledNotifications(next).catch(() => {});
     });
   return _refreshing;
 }
@@ -339,12 +340,14 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
   _scheduled = 0;
 
   const disc = info.dischargeDate;
+  // 전역 하루 전 09시 알림이 실제로 잡혔는지 — 전야(21시) 억제 여부를 여기에 건다
+  let dischargeEveScheduled = false;
 
   if (prefs.discharge) {
     await scheduleAt(addDaysStr(disc, -100), '전역 D-100 🔥', `${who}전역까지 100일 남았어요! 이제 보입니다.`);
     await scheduleAt(addDaysStr(disc, -30),  '전역 D-30 🔥',  `${who}전역 한 달 전! 가장 설레는 시기예요.`);
     await scheduleAt(addDaysStr(disc, -7),   '전역 D-7 🏆',   `${who}전역까지 일주일! 끝까지 무사고로.`);
-    await scheduleAt(addDaysStr(disc, -1),   '전역 D-1 🎖️',   `${who}내일이면 전역입니다! 마지막 밤 잘 보내요.`);
+    dischargeEveScheduled = await scheduleAt(addDaysStr(disc, -1), '전역 D-1 🎖️', `${who}내일이면 전역입니다! 마지막 밤 잘 보내요.`);
     await scheduleAt(disc,                    '전역을 축하합니다! 🎉', `${who}국방의 의무를 마쳤습니다. 정말 고생 많았어요!`);
 
     await scheduleAt(addDaysStr(info.enlistDate, 99), '입대 100일 💯', `${who}벌써 입대 100일! 잘 적응하고 있어요.`);
@@ -363,7 +366,12 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
   // 따라서 둘이 같은 날에 겹치는 건 전역뿐이다 —
   // 'D-1'(전역 하루 전 09시) 과 '내일은 전역!'(전역 하루 전 21시).
   // 입대 100일·진급일은 전야와 당일이 서로 다른 날이라 의도된 한 쌍이다.
-  const coveredByDischarge = prefs.discharge ? new Set(['discharge']) : new Set();
+  //
+  // 단, D-1 이 '실제로 잡혔을 때'만 억제한다. 전역 전날 09시가 지난 뒤 앱을
+  // 열면 D-1 은 과거라 건너뛰는데, 그때 전야까지 막으면 전역 전날에 알림이
+  // 하나도 가지 않는다 — 이 앱에서 가장 중요한 알림이다.
+  const coveredByDischarge = new Set();
+  if (dischargeEveScheduled) coveredByDischarge.add('discharge');
 
   if (prefs.milestone) {
     const roadmap = buildRoadmap(info, promoForSig);

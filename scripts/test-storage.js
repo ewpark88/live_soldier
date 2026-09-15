@@ -111,7 +111,7 @@ function reset() { store = {}; failReads = false; }
   ok(after !== null, '손상: 백업 스냅샷에서 복구');
   eq(after.branch, 'navy', '손상: 복구된 데이터가 원래 값');
   eq((await S.loadTodos()).length, 1, '손상: 할일도 함께 복구');
-  ok(S.__test_parseable ? true : store['@profiles_v1'] !== undefined, '손상: 저장소가 정상 상태로 복원됨');
+  ok(store['@profiles_v1'] !== undefined, '손상: 저장소가 정상 상태로 복원됨');
   eq(JSON.parse(store['@profiles_v1']).profiles.length, 1, '손상: 복원된 저장소가 파싱 가능');
 
   /* ── 저장소 자체를 못 읽을 때 ── */
@@ -168,6 +168,36 @@ function reset() { store = {}; failReads = false; }
   for (let i = 0; i < 40; i++) todos = await S.addTodo({ title: `t${i}`, date: '2025-06-01' });
   eq(todos.length, 40, '할일: 40건 저장');
   eq(new Set(todos.map((t) => t.id)).size, 40, '할일: 같은 밀리초에도 id 고유');
+  /* 읽기 실패 폴백은 영속화되면 안 된다 —
+     안드로이드의 전형적 실패는 '읽기만 실패'(CursorWindow 초과)다.
+     이때 만든 임시 빈 프로필이 저장되면 원본과 백업이 둘 다 날아간다. */
+  reset();
+  await S.saveMilitaryInfo({ enlistDate: '2025-01-02', branch: 'navy', months: 20 });
+  const goodLive = store['@profiles_v1'];
+  const goodBak = store['@profiles_v1.bak'];
+  failReads = true;
+  await S.saveMilitaryInfo({ enlistDate: '2026-06-06', branch: 'army', months: 18 });
+  failReads = false;
+  eq(store['@profiles_v1'], goodLive, '읽기 실패: 임시 상태가 원본을 덮어쓰지 않음');
+  eq(store['@profiles_v1.bak'], goodBak, '읽기 실패: 임시 상태가 백업을 덮어쓰지 않음');
+  eq((await S.loadMilitaryInfo()).branch, 'navy', '읽기 복구 후 원래 데이터 유지');
+
+  /* 전체 삭제는 백업도 지워야 한다 — 남겨두면 손상 복구가 지운 데이터를 되살린다 */
+  reset();
+  await S.saveMilitaryInfo({ enlistDate: '2025-01-02', branch: 'army', months: 18 });
+  await S.saveTodos([{ id: 'x', title: '비밀', date: '2025-06-01', done: false }]);
+  ok(store['@profiles_v1.bak'] !== undefined, '삭제 전: 백업 존재');
+  await S.clearAllData();
+  // 삭제 후 _saveStore(fresh) 가 백업을 다시 만든다 — 그건 정상이다.
+  // 중요한 건 '지운 데이터'가 백업에 남아 있지 않다는 것.
+  ok(!(store['@profiles_v1.bak'] || '').includes('비밀'), '전체 삭제: 백업에 지운 데이터가 남지 않음');
+  eq(JSON.parse(store['@profiles_v1.bak']).profiles[0].data.todos, [], '전체 삭제: 백업도 빈 상태');
+  eq(await S.loadMilitaryInfo(), null, '전체 삭제: 입대정보 없음');
+  eq(await S.loadTodos(), [], '전체 삭제: 할일 없음');
+  const afterClear = store['@profiles_v1'];
+  store['@profiles_v1'] = afterClear.slice(0, 10);
+  eq(await S.loadTodos(), [], '전체 삭제 후 손상: 지운 데이터가 부활하지 않음');
+
 
   console.log('\n──────────── 저장소 테스트 ────────────');
   if (fail === 0) {

@@ -8,6 +8,7 @@ import Animated, {
   useSharedValue,
   withDelay,
   withRepeat,
+  cancelAnimation,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
@@ -107,7 +108,8 @@ export default function LiveServiceGauge({
     });
   }, [pct, m.reduced]);
 
-  // 루프 2개 — 둘 다 UI 스레드, 포커스 아닐 땐 안 돈다
+  // 루프 3개 — 모두 UI 스레드. 포커스를 벗어나거나 전역하면 '정지'까지 해야 한다.
+  // 예전엔 가드가 재시작만 막아서, 다른 탭으로 옮겨도 루프가 계속 돌았다.
   useEffect(() => {
     if (m.reduced || !isFocused || done) return;
 
@@ -131,6 +133,14 @@ export default function LiveServiceGauge({
       -1,
       false
     );
+    return () => {
+      cancelAnimation(shimmer);
+      cancelAnimation(edge);
+      cancelAnimation(dot);
+      shimmer.value = 0;
+      edge.value = 0;
+      dot.value = 1;
+    };
   }, [m.reduced, isFocused, done]);
 
   const onTrackLayout = useCallback((e) => setTrackW(e.nativeEvent.layout.width), []);

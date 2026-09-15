@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
 import { formatDate, formatDateKo, daysBetweenInclusive, parseDate } from '../utils/dateUtils';
 
@@ -95,14 +96,14 @@ export default function RangeCalendar({
     <View style={s.wrap}>
       {/* 헤더 */}
       <View style={s.header}>
-        <TouchableOpacity onPress={goPrev} hitSlop={HIT}>
-          <Text style={s.navArrow}>‹</Text>
+        <TouchableOpacity onPress={goPrev} hitSlop={HIT} accessibilityRole="button" accessibilityLabel="이전 달">
+          <Ionicons name="chevron-back" size={22} color={tc.primary} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={goToday} activeOpacity={0.7}>
+        <TouchableOpacity onPress={goToday} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="오늘로 이동">
           <Text style={s.headerTitle}>{year}년 {month + 1}월</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={goNext} hitSlop={HIT}>
-          <Text style={s.navArrow}>›</Text>
+        <TouchableOpacity onPress={goNext} hitSlop={HIT} accessibilityRole="button" accessibilityLabel="다음 달">
+          <Ionicons name="chevron-forward" size={22} color={tc.primary} />
         </TouchableOpacity>
       </View>
 

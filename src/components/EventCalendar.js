@@ -101,13 +101,13 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
     <View style={[s.wrap, fill && s.wrapFill]}>
       {/* 헤더 */}
       <View style={s.header}>
-        <TouchableOpacity onPress={goPrev} hitSlop={HIT} style={s.navBtn}>
+        <TouchableOpacity onPress={goPrev} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="이전 달">
           <Ionicons name="chevron-back" size={22} color={tc.primary} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={goToday} activeOpacity={0.7}>
+        <TouchableOpacity onPress={goToday} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="오늘로 이동">
           <Text style={s.headerTitle}>{year}년 {month + 1}월</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={goNext} hitSlop={HIT} style={s.navBtn}>
+        <TouchableOpacity onPress={goNext} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="다음 달">
           <Ionicons name="chevron-forward" size={22} color={tc.primary} />
         </TouchableOpacity>
       </View>

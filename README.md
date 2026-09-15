@@ -26,7 +26,7 @@ React Native (Expo) 기반 군 복무 관리 앱입니다.
     │   ├── Card.js                 # 카드 컴포넌트
     │   ├── ProgressBar.js          # 진행률 바
     │   ├── AdBanner.js             # 배너 광고 플레이스홀더
-    │   └── AdInterstitial.js       # 전면 광고 플레이스홀더
+    │   └── ErrorBoundary.js        # (해당 없음 — 현재 구조는 doc/01_README.md 참고)
     └── utils/
         ├── dateUtils.js            # 날짜 계산 유틸리티
         └── storage.js              # AsyncStorage CRUD 유틸리티
@@ -88,13 +88,13 @@ npx expo start --ios
 - AsyncStorage 저장
 
 ### 휴가 관리
-- 총 휴가 일수 설정 (기본: 21일)
+- 총 휴가 일수 설정 (기본: 군종별 — 육군·해병대 24 / 해군 27 / 공군 28일)
 - 휴가 기록 추가 (날짜, 일수, 메모)
 - 사용/잔여 휴가 자동 계산
 - 리스트 중간 광고 플레이스홀더
 
 ### 급여 계산
-- 2024년 기준 계급별 월급 참고표
+- 2026년 기준 계급별 월급 참고표 (`src/constants/salaryGuide.js`, SALARY_YEAR)
 - 직접 월급 입력 가능
 - 총 수령 예정액 / 현재까지 수령액 계산
 
@@ -117,7 +117,9 @@ npx expo install expo-ads-admob
 npx expo install react-native-google-mobile-ads
 ```
 
-`AdBanner.js`, `AdInterstitial.js` 파일을 실제 AdMob 컴포넌트로 교체하세요.
+AdMob 은 이미 연동돼 있습니다. 광고 단위는 `src/constants/adUnits.js`,
+전면광고 인스턴스와 빈도 제한은 `src/utils/adManager.js` 가 관리합니다.
+개발 빌드(`__DEV__`)에서는 Google 테스트 광고 ID 가 자동으로 쓰입니다.
 
 ---
 

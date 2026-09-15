@@ -43,6 +43,13 @@ export const CONTRAST_PAIRS = [
   { fg: 'warning', bg: 'warningSoft', min: 4.5, label: 'warning 텍스트' },
   { fg: 'textSecondary', bg: 'surfaceSunken', min: 4.5, label: 'Chip neutral / 가라앉은 표면' },
 
+  // StatTile·ListRow 의 accent 톤. 여기 없던 탓에 tc.accent(#D99A2B) 를 쓴
+  // 라이트 테마 타일이 2.18:1 로 나가면서도 검사를 통과했다.
+  { fg: 'accentText', bg: 'surfaceSunken', min: 4.5, label: 'StatTile accent 값' },
+  { fg: 'primary', bg: 'surfaceSunken', min: 4.5, label: 'StatTile primary 값' },
+  { fg: 'success', bg: 'surfaceSunken', min: 4.5, label: 'StatTile success 값' },
+  { fg: 'danger', bg: 'surfaceSunken', min: 4.5, label: 'StatTile danger 값' },
+
   // 솔리드 위 글자
   { fg: 'onDanger', bg: 'danger', min: 4.5, label: 'Button danger' },
   { fg: 'primary', bg: 'card', min: 3.0, label: 'primary 아이콘' },

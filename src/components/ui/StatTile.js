@@ -33,7 +33,7 @@ export default function StatTile({
   const TONE_FG = {
     neutral: tc.text,
     primary: tc.primary,
-    accent: tc.accent,
+    accent: tc.accentText,   // tc.accent 는 라이트 테마에서 2.18:1 — Chip 과 같은 accentText 를 쓴다
     success: tc.success,
     danger: tc.danger,
   };

@@ -21,8 +21,16 @@ function _fullYearsSince(dateStr) {
 
   const now = new Date();
   let years = now.getFullYear() - y;
+
+  // 그 해에 해당일이 없으면(2월 29일 임관자의 평년) 그 달 말일을 주년으로 본다.
+  // nextHobongInfo 도 같은 클램프를 쓰므로, 이걸 빼면 두 함수가 하루 어긋나
+  // 승급 당일에 '3호봉 · 다음 승급 D-0' 같은 모순이 화면에 뜬다.
+  const lastDayThisYear = new Date(now.getFullYear(), m, 0).getDate();
+  const anniversaryDay = Math.min(d, lastDayThisYear);
+
   const beforeAnniversary =
-    now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d);
+    now.getMonth() + 1 < m ||
+    (now.getMonth() + 1 === m && now.getDate() < anniversaryDay);
   if (beforeAnniversary) years -= 1;
   return Math.max(0, years);
 }

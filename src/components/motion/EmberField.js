@@ -6,6 +6,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
+  cancelAnimation,
   withTiming,
 } from 'react-native-reanimated';
 import { useMotion } from '../../hooks/useMotion';
@@ -80,13 +81,14 @@ export default function EmberField({ density = 'normal', color, rise = 180, cycl
   const progress = useSharedValue(0);
 
   useEffect(() => {
-    if (m.reduced || !density || !color) return;
+    if (m.reduced || !density || !color) return undefined;
     progress.value = 0;
     progress.value = withRepeat(
       withTiming(1, { duration: cycle, easing: Easing.linear }),
       -1,
       false
     );
+    return () => { cancelAnimation(progress); progress.value = 0; };
   }, [m.reduced, density, color, cycle]);
 
   if (m.reduced || !density || !color) return null;

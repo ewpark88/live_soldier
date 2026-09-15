@@ -44,7 +44,7 @@ dischargeDate = calcDischargeDate(enlistDate, months)
 daysLeft      = calcDaysLeft(dischargeDate)
 progress      = calcProgress(enlistDate, dischargeDate)
 servedDays    = calcServedDays(enlistDate)
-rank          = calcRankFromPromotions(rankPromotions) ?? calcRank(servedDays)
+rank          = calcRankFromPromotions(rankPromotions) ?? calcRankByEnlistDate(enlistDate)
 
 // 휴가 집계
 usedDays  = leaveRecords.reduce((s, r) => s + r.days, 0)
@@ -134,7 +134,7 @@ handleSavePromo():
 militaryInfo      // null이면 SetupRequired 표시
 leaveRecords      // 연가 기록 배열
 leaveBonusRecords // 포상휴가 기록 배열
-leaveTotal        // 총 연가 (기본 21일)
+leaveTotal        // 총 연가 (미설정이면 군종 기본값: 육군·해병 24 / 해군 27 / 공군 28)
 modal             // MODAL_NONE | MODAL_USE | MODAL_BONUS
 form              // { date, days, memo }
 ```
@@ -210,7 +210,7 @@ guideOpen      // 표준 월급 참고표 토글
 ### 계급 결정 흐름
 ```
 calcRankFromPromotions(rankPromotions) → 진급일 기준
-  └── null이면 calcRank(servedDays) → 복무일수 기준
+  └── null이면 calcRankByEnlistDate(enlistDate) → 달력 개월 기준
 ```
 
 ### 커스텀 월급 저장

@@ -7,6 +7,7 @@ import Animated, {
   useSharedValue,
   withDelay,
   withRepeat,
+  cancelAnimation,
   withTiming,
 } from 'react-native-reanimated';
 import { useThemeColors } from '../../theme/ThemeContext';
@@ -59,7 +60,8 @@ export default function HeroCard({
   // 대각선 광택이 아주 느리게 한 번씩 훑고 지나간다. 루프 1개.
   const sweep = useSharedValue(-1);
   useEffect(() => {
-    if (!sheen || m.reduced) return;
+    if (!sheen || m.reduced) return undefined;
+    sweep.value = -1;   // 멈췄던 위치에서 다시 시작하면 카드 중앙에서 튀어나온다
     sweep.value = withDelay(
       600,
       withRepeat(
@@ -68,6 +70,7 @@ export default function HeroCard({
         false
       )
     );
+    return () => { cancelAnimation(sweep); sweep.value = -1; };
   }, [sheen, m.reduced]);
 
   const sheenStyle = useAnimatedStyle(() => ({

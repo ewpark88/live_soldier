@@ -47,7 +47,10 @@ function _warn(msg, e) {
 /** 프로필이 하나도 없는 기본 저장소 (읽기 실패 시 이번 세션 한정 폴백) */
 function _emptyStore() {
   const profile = _newProfile('본인');
-  return { activeId: profile.id, profiles: [profile] };
+  // __degraded: 저장소를 못 읽어서 만든 임시 상태라는 표시.
+  // 이게 백업까지 덮어쓰면 (안드로이드의 전형적 실패인 '읽기만 실패' 상황에서)
+  // 살아 있던 원본과 백업이 둘 다 날아간다.
+  return { activeId: profile.id, profiles: [profile], __degraded: true };
 }
 
 /** 안전한 JSON 파싱 — 손상/널이면 fallback 반환 */
@@ -172,15 +175,20 @@ function _parseStore(raw) {
 let _lastSnapshot = null;
 async function _snapshot(raw) {
   if (raw === _lastSnapshot) return;
-  _lastSnapshot = raw;
   try {
     await AsyncStorage.setItem(STORE_BACKUP_KEY, raw);
+    _lastSnapshot = raw;   // 성공한 뒤에 표시한다 — 먼저 찍으면 실패해도 재시도되지 않는다
   } catch (e) {
     _warn('스냅샷 저장 실패', e);
   }
 }
 
 async function _saveStore(store) {
+  if (store && store.__degraded) {
+    // 읽기 실패로 만든 임시 상태는 절대 영속화하지 않는다
+    _warn('임시 상태라 저장을 건너뜁니다', '__degraded');
+    return;
+  }
   let json;
   try {
     json = JSON.stringify(store);
@@ -636,6 +644,7 @@ export async function saveUIPrefs(prefs) {
 export async function clearAllData() {
   await AsyncStorage.multiRemove([
     STORE_KEY,
+    STORE_BACKUP_KEY,   // 백업을 남기면 손상 복구 경로가 삭제한 데이터를 되살린다
     LEGACY.MILITARY_INFO,
     LEGACY.LEAVE_RECORDS,
     LEGACY.LEAVE_TOTAL,
@@ -644,6 +653,8 @@ export async function clearAllData() {
     LEGACY.TODOS,
     LEGACY.RANK_PROMOTIONS,
   ]);
+  _lastSnapshot = null;   // 메모리 캐시도 비워야 다음 저장이 백업을 새로 쓴다
+
   // 빈 프로필 1개로 재생성
   const fresh = { activeId: null, profiles: [_newProfile('본인')] };
   fresh.activeId = fresh.profiles[0].id;

@@ -61,7 +61,7 @@ AdBanner.js
   ├── try { import BannerAd } catch → Expo Go 플레이스홀더
   └── 실 기기: 각 화면별 고유 AdUnit ID 사용
 
-AdInterstitial.js
+adManager.js (전면광고 단일 인스턴스)
   ├── try { import InterstitialAd } catch → null (Expo Go)
   ├── 모듈 레벨에서 InterstitialAd.createForAdRequest() 한 번 생성
   ├── LOADED 이벤트 → 탭 전환 시 .show()
@@ -116,8 +116,8 @@ calcRankFromPromotions(rankPromotions)
   │     일병 날짜 <= 오늘 → '일병'
   │     나머지 → '이병'
   │
-  └── null 반환 → calcRank(servedDays) fallback
-        30.44일 = 평균 1개월
+  └── null 반환 → calcRankByEnlistDate(enlistDate) fallback
+        달력 기준 복무 개월수 (예전 30.44일 근사는 진급일과 어긋나 제거)
         0~2개월 → 이병
         2~8개월 → 일병
         8~14개월 → 상병

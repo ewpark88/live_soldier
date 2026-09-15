@@ -47,7 +47,7 @@
 ```
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `id` | string | `Date.now().toString()` |
+| `id` | string | `타임스탬프_순번` — 같은 밀리초 충돌 방지 |
 | `date` | string | `"YYYY-MM-DD"` |
 | `days` | number | 사용 일수 |
 | `memo` | string | 메모 (선택) |
@@ -108,7 +108,7 @@
 ```
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `id` | string | `Date.now().toString()` |
+| `id` | string | `타임스탬프_순번` — 같은 밀리초 충돌 방지 |
 | `text` | string | 할 일 내용 |
 | `date` | string | 시작일 `"YYYY-MM-DD"` |
 | `endDate` | string \| undefined | 종료일 (범위 모드일 때) |

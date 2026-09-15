@@ -248,7 +248,18 @@ const hb2 = api.nextHobongInfo(yearsAgoStr(2));
 eq(hb2.current, 3, 'nextHobongInfo: 2주년이면 현재 3호봉');
 eq(hb2.next, 4, 'nextHobongInfo: 다음은 4호봉');
 eq(hb2.nextDate, yearsAgoStr(-1), 'nextHobongInfo: 다음 승급일 = 1년 뒤 같은 날');
-eq(api.nextHobongInfo('2024-02-29').nextDate.slice(5), '02-28', 'nextHobongInfo: 윤일 임관자는 평년 2월 말일로 클램프');
+/* 윤일 임관자: calcHobong 과 nextHobongInfo 가 같은 날 넘어가야 한다.
+   한쪽만 말일 클램프를 하면 승급 당일에 '현재 N호봉 · 다음 승급 D-0' 이 뜬다. */
+const leapCommission = '2024-02-29';
+ok(api.nextHobongInfo(leapCommission).daysLeft > 0, 'nextHobongInfo: 윤일 임관자도 D-0 모순 없음');
+eq(api.nextHobongInfo(leapCommission).current, api.calcHobong(leapCommission), '윤일 임관자: 두 함수의 현재 호봉 일치');
+/* 월말 임관자 전반 */
+for (const cd of ['2024-01-31', '2023-12-31', '2024-03-31', '2024-02-29', '2023-06-10']) {
+  const info = api.nextHobongInfo(cd);
+  ok(info && info.daysLeft > 0, `nextHobongInfo(${cd}): 다음 승급은 항상 미래`);
+  eq(info.current, api.calcHobong(cd), `nextHobongInfo(${cd}): calcHobong 과 일치`);
+  eq(info.next, info.current + 1, `nextHobongInfo(${cd}): next = current + 1`);
+}
 eq(api.nextHobongInfo(null), null, 'nextHobongInfo: 값 없으면 null');
 eq(api.nextHobongInfo('bad'), null, 'nextHobongInfo: 잘못된 날짜 → null');
 

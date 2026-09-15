@@ -35,7 +35,7 @@ export default function ListRow({
 
   const TONE = {
     primary: { fg: tc.primary, bg: tc.primarySoft },
-    accent: { fg: tc.accent, bg: tc.accentSoft },
+    accent: { fg: tc.accentText, bg: tc.accentSoft },   // tc.accent 는 라이트에서 2.21:1
     success: { fg: tc.success, bg: tc.successSoft },
     danger: { fg: tc.danger, bg: tc.dangerSoft },
     neutral: { fg: tc.textSecondary, bg: tc.surfaceSunken },

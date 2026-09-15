@@ -127,13 +127,15 @@ live_soldier/
 │   │   └── TodoScreen.js       # 할 일 관리
 │   ├── components/
 │   │   ├── AdBanner.js         # 배너 광고 컴포넌트
-│   │   ├── AdInterstitial.js   # 전면 광고 컴포넌트
 │   │   ├── Card.js             # 공통 카드 UI
 │   │   ├── DatePickerField.js  # 날짜 선택 필드 (네이티브 피커)
 │   │   ├── ProgressBar.js      # 진행률 바
 │   │   └── SetupRequired.js    # 군 정보 미설정 안내 화면
 │   └── utils/
 │       ├── dateUtils.js        # 날짜 계산 유틸리티
+│       ├── storage.js         # 프로필 저장소 (멀티 프로필)
+│       ├── adManager.js       # 전면광고 인스턴스/빈도 관리
+│       └── notifications.js   # 로컬 알림 예약
 │       └── storage.js          # AsyncStorage CRUD 헬퍼
 └── doc/                        # ← 이 문서들이 있는 폴더
     ├── 01_README.md

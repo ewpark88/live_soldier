@@ -8,6 +8,7 @@ import Animated, {
   useSharedValue,
   withDelay,
   withRepeat,
+  cancelAnimation,
   withTiming,
 } from 'react-native-reanimated';
 import { useThemeColors } from '../theme/ThemeContext';
@@ -56,12 +57,13 @@ function PulseRing({ color }) {
   const p = useSharedValue(0);
 
   useEffect(() => {
-    if (m.reduced) return;
+    if (m.reduced) return undefined;
     p.value = withRepeat(
       withTiming(1, { duration: 1800, easing: Easing.out(Easing.quad) }),
       -1,
       false
     );
+    return () => { cancelAnimation(p); p.value = 0; };
   }, [m.reduced]);
 
   const style = useAnimatedStyle(() => ({

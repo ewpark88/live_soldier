@@ -48,17 +48,19 @@ export function StreakProvider({ children, onCheckIn }) {
       if (changed) {
         await saveStreak(next);
         setJustIncremented(event === 'continue' || event === 'freeze' || event === 'first');
+        // 스트릭이 실제로 움직였을 때만 알림을 다시 잡는다.
+        // 날짜가 넘어간 바로 이 순간이 '내일 저녁' 리마인더를 다시 깔아야 하는 때다.
+        //
+        // Promise.resolve 로 감싸는 이유: 예전 형태 onCheckIn(...).catch?.() 는
+        // 메서드만 보호해서, 콜백이 Promise 를 안 돌려주면 TypeError 가 났고
+        // try 에 catch 가 없어 setReady(true) 까지 건너뛰었다.
+        if (onCheckIn) {
+          try { await Promise.resolve(onCheckIn(next, event)); } catch { /* 알림 재예약 실패는 무시 */ }
+        }
       } else {
         // 같은 날 재진입 등 변화가 없으면 내려준다. 계속 true 로 두면 축하 연출이
         // 끝난 뒤에도 홈 전면광고가 세션 내내 막힌다.
         setJustIncremented(false);
-        // 스트릭이 실제로 움직였을 때만 알림을 다시 잡는다.
-        // 예전 형태 onCheckIn(...).catch?.() 는 메서드만 보호해서, 콜백이
-        // Promise 를 안 돌려주면 TypeError 가 났고 try 에 catch 가 없어
-        // setReady(true) 까지 건너뛰어 스트릭 UI 가 영영 로딩에 머물렀다.
-        if (onCheckIn) {
-          try { await Promise.resolve(onCheckIn(next, event)); } catch { /* 알림 재예약 실패는 무시 */ }
-        }
       }
     } catch (e) {
       if (__DEV__) console.warn('[Streak] 체크인 실패:', e && e.message);

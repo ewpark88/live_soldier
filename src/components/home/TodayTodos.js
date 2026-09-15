@@ -6,7 +6,7 @@ import SectionTitle from '../SectionTitle';
 import { Txt, PressScale, Chip, EmptyState } from '../ui';
 import { useThemeColors } from '../../theme/ThemeContext';
 import { radius as r, space as sp } from '../../theme/tokens';
-import { formatDate } from '../../utils/dateUtils';
+import { useStreak } from '../../state/StreakContext';
 
 /**
  * 오늘 할 일 — 오늘 + 기한이 지난 미완료만.
@@ -18,12 +18,16 @@ export default function TodayTodos({ todos = [], onToggle, onPressAll, max = 3 }
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
 
+  // 화면마다 new Date() 를 부르면 자정을 넘겼을 때 날짜가 어긋난다 (CLAUDE.md).
+  // StreakContext 의 today 는 AppState 복귀 때 다시 계산된다.
+  const { today } = useStreak();
+
   const items = useMemo(() => {
-    const today = formatDate(new Date());
     return todos
-      .filter((t) => !t.done && t.date && (t.endDate ? t.endDate >= today : t.date <= today))
+      // 기간 일정은 시작일도 봐야 한다. endDate 만 보면 다음 달 휴가가 '오늘 할 일'에 뜬다.
+      .filter((t) => !t.done && t.date && t.date <= today && (t.endDate ? t.endDate >= today : true))
       .sort((a, b) => a.date.localeCompare(b.date));
-  }, [todos]);
+  }, [todos, today]);
 
   const shown = items.slice(0, max);
   const rest = items.length - shown.length;
@@ -52,7 +56,8 @@ export default function TodayTodos({ todos = [], onToggle, onPressAll, max = 3 }
       ) : (
         <View style={s.list}>
           {shown.map((t) => {
-            const overdue = t.date < formatDate(new Date());
+            // 진행 중인 기간 일정(혹한기 3일차 등)을 '지난 일정'으로 표시하지 않는다
+            const overdue = (t.endDate || t.date) < today;
             return (
               <PressScale
                 key={t.id}

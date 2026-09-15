@@ -65,12 +65,11 @@ export default function DatePickerField({
           name={disabled ? 'lock-closed' : 'calendar'}
           size={18}
           color={disabled ? tc.textSecondary : tc.primary}
-          style={styles.calIcon}
         />
         <Text style={[styles.valueText, !value && styles.placeholder, disabled && styles.textDisabled]}>
           {value ? formatDateKo(value) : placeholder}
         </Text>
-        {!disabled && <Text style={styles.arrow}>›</Text>}
+        {!disabled && <Ionicons name="chevron-forward" size={18} color={tc.textLight} />}
       </TouchableOpacity>
 
       {/* Android: 네이티브 다이얼로그 (UI는 OS가 처리) */}

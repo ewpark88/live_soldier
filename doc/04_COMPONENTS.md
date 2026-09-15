@@ -45,40 +45,34 @@ import { AD_UNITS } from '../constants/adUnits';
 
 ---
 
-## 2. AdInterstitial (`src/components/AdInterstitial.js`)
+## 2. 전면 광고 (`src/utils/adManager.js` + `src/hooks/useShowInterstitial.js`)
 
 ### 역할
-전면 광고(Interstitial) 관리. JSX 없음 (UI는 AdMob SDK가 처리).
+전면 광고 관리. 렌더링할 컴포넌트가 없다 — UI 는 AdMob SDK 가 그린다.
 
-### 동작 방식
+### 구조
+인스턴스는 `adManager` 가 **앱 전체에서 하나만** 소유하고 리스너도 한 번만 등록한다.
+예전에는 화면마다 `<AdInterstitial />` 을 렌더해서 같은 모듈 싱글톤에 리스너가
+중복 등록되고, 인스턴스별 loadedRef 때문에 광고 없이 하루 한도만 소진됐다.
+
 ```js
-// 모듈 레벨에서 단 한 번 생성
-const interstitial = InterstitialAd.createForAdRequest(AD_UNITS.INTERSTITIAL_TAB.realId);
-
-// 이벤트 리스너
-LOADED  → adLoaded = true
-CLOSED  → adLoaded = false, 자동으로 interstitial.load() 호출
-ERROR   → adLoaded = false
+// 화면에서는 훅만 쓴다
+const { show: showAd } = useShowInterstitial();
+// ... 저장/추가 등 주요 동작을 마친 뒤
+showAd();
 ```
 
-### 전역 함수 export
-```js
-export function showInterstitialAd() {
-  if (adLoaded) interstitial.show();
-}
-```
+### 빈도 제한 (`adManager`)
+- 하루 최대 2회, 최소 30분 간격
+- 카운트는 `AdEventType.OPENED`(실제 노출) 후에만 차감한다
+- 로드 전 호출은 한도를 쓰지 않고 건너뛴다
+- ERROR 후에도 간격을 늘려가며 최대 3회 재시도
+- `show()` 후 CLOSED 가 오지 않는 경우를 대비한 5분 안전장치
 
-### TabNavigator에서 사용
-```js
-// 탭 전환 시 10% 확률로 광고 표시
-if (Math.random() < 0.1) {
-  setTimeout(() => showInterstitialAd(), 400);
-}
-```
+### 광고 ID
+`getAdUnitId(unit, kind)` 를 반드시 거친다 — `__DEV__` 면 Google 테스트 ID.
+개발 빌드에서 실제 광고를 띄우면 AdMob 이 무효 트래픽으로 보고 계정을 정지시킬 수 있다.
 
-### 주의 사항
-- Expo Go에서는 try/catch로 전체 무시됨 (`showInterstitialAd()` 호출해도 아무 일 없음)
-- `<AdInterstitial />` 을 App.js 또는 TabNavigator 안에 반드시 렌더링해야 이벤트 리스너가 등록됨
 
 ---
 
@@ -227,7 +221,10 @@ if (militaryInfo === null) {
 | `calcProgress(enlistDate, dischargeDate)` | string, Date | number 0~100 | 복무 진행률 |
 | `calcServedDays(enlistDate)` | string | number | 복무한 일수 |
 | `calcServedMonths(enlistDate)` | string | number | 복무한 개월수 |
-| `calcRank(servedDays)` | number | string | 복무일 기준 계급 |
+| `rankFromServedMonths(months)` | number | string | 복무 개월수 → 계급 (판정 단일 기준) |
+| `calcRankByEnlistDate(enlistDate)` | string | string | 입대일 → 현재 계급 |
+| `parseDate(value)` | string/Date | Date/null | 'YYYY-MM-DD' → 로컬 자정 (UTC 파싱 회피) |
+| `calcPromotionDate(enlistDate, months)` | string, number | string/null | 진급일 (말일 클램프, -1일 없음) |
 | `calcRankFromPromotions(promotionDates)` | Object | string/null | 진급일 기준 계급 |
 | `nextPromotion(promotionDates)` | Object | `{rank,date,daysLeft}`/null | 다음 진급 D-Day (병장 완료 시 null) |
 | `formatDate(date)` | Date | string | `'YYYY-MM-DD'` 포맷 |

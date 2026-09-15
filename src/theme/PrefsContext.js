@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { loadUIPrefs, saveUIPrefs, DEFAULT_UI_PREFS } from '../utils/storage';
 import { setHapticsEnabled } from '../utils/haptics';
 
@@ -25,13 +25,18 @@ export function PrefsProvider({ children }) {
     return () => { alive = false; };
   }, []);
 
+  // 업데이터는 순수해야 한다 — React 는 업데이터를 두 번 호출할 수 있고
+  // (StrictMode·동시 렌더), 그러면 AsyncStorage 쓰기가 중복된다.
+  // 다음 상태를 ref 로 붙잡아 계산한 뒤, 부수효과는 바깥에서 한 번만 돌린다.
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
+
   const update = (patch) => {
-    setPrefs((prev) => {
-      const next = { ...prev, ...patch };
-      setHapticsEnabled(next.haptics);
-      saveUIPrefs(next);
-      return next;
-    });
+    const next = { ...prefsRef.current, ...patch };
+    prefsRef.current = next;
+    setPrefs(next);
+    setHapticsEnabled(next.haptics);
+    saveUIPrefs(next);
   };
 
   const value = useMemo(
