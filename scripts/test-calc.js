@@ -45,6 +45,7 @@ function collectNames(code) {
 // daily.js 를 먼저 합친다 — dateUtils 의 getMessageForPhase 가 pickDaily/todayStr 을 쓴다
 const api = loadModule(
   'constants/serviceTerms.js',   // roadmapUtils 가 isOfficer 를 쓴다
+  'constants/salaryGuide.js',    // 계급 구간이 dateUtils 와 일치하는지 대조한다
   'daily.js', 'dateUtils.js', 'officerUtils.js', 'streak.js', 'celebration.js',
   'roadmapUtils.js', 'savingsUtils.js',
 );
@@ -211,14 +212,31 @@ for (const days of [1, 2, 5, 7, 30]) {
 }
 
 /* ─── 8. 휴가 잔여 계산(화면 로직 재현) ──────────────────────────────── */
+/* 화면 로직 재현 — 이 계산은 LeaveScreen 이 인라인으로 한다 */
 function leaveLeft(base, bonusRecords, useRecords) {
-  const bonusDays = bonusRecords.reduce((s, r) => s + (r.days || 0), 0);
-  const usedDays  = useRecords.reduce((s, r) => s + (r.days || 0), 0);
-  return (base + bonusDays) - usedDays;
+  const bonus = bonusRecords.reduce((s, r) => s + (r.days || 0), 0);
+  const used = useRecords.reduce((s, r) => s + (r.days || 0), 0);
+  return base + bonus - used;
 }
-eq(leaveLeft(21, [], []), 21, '휴가: 기본 21, 사용/포상 없음 → 21');
-eq(leaveLeft(21, [{ days: 4 }, { days: 2 }], [{ days: 3 }]), 24, '휴가: 21+6포상-3사용 = 24');
-eq(leaveLeft(21, [], [{ days: 10 }, { days: 15 }]), -4, '휴가: 초과 사용 시 음수 허용(경고 표시용)');
+eq(leaveLeft(24, [], []), 24, '휴가: 기본 24, 사용/포상 없음 → 24');
+eq(leaveLeft(24, [{ days: 4 }, { days: 2 }], [{ days: 3 }]), 27, '휴가: 24+6포상-3사용 = 27');
+eq(leaveLeft(24, [], [{ days: 10 }, { days: 15 }]), -1, '휴가: 초과 사용 시 음수 허용(경고 표시용)');
+
+/* 기본값은 군종에서 온다 — 예전에는 군종과 무관하게 21일 고정이었다.
+   (21은 단축 이전 육군 21개월 시절 값) */
+eq(api.resolveLeaveDays('army'), 24, 'resolveLeaveDays: 육군 24일');
+eq(api.resolveLeaveDays('marines'), 24, 'resolveLeaveDays: 해병대 24일');
+eq(api.resolveLeaveDays('navy'), 27, 'resolveLeaveDays: 해군 27일');
+eq(api.resolveLeaveDays('airforce'), 28, 'resolveLeaveDays: 공군 28일');
+eq(api.resolveLeaveDays('unknown'), 24, 'resolveLeaveDays: 모르는 군종은 육군 기준');
+ok(api.BRANCHES.every((b) => b.leaveDays > 21), '연가 기본값이 단축 이전 값(21)에 머물지 않는다');
+
+/* 군종별 복무개월 — 전역일 계산의 입력이다 */
+eq(api.resolveServiceMonths('army'), 18, 'resolveServiceMonths: 육군 18개월');
+eq(api.resolveServiceMonths('marines'), 18, 'resolveServiceMonths: 해병대 18개월');
+eq(api.resolveServiceMonths('navy'), 20, 'resolveServiceMonths: 해군 20개월');
+eq(api.resolveServiceMonths('airforce'), 21, 'resolveServiceMonths: 공군 21개월');
+eq(api.resolveServiceMonths(null), 18, 'resolveServiceMonths: 없으면 육군 기준');
 
 /* ─── 9. 간부 호봉 ───────────────────────────────────────────────────── */
 eq(api.calcHobong(todayPlus(0)), 1,   'calcHobong: 임관 당일 = 1호봉');
@@ -412,6 +430,37 @@ const pkgVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), '
 ok(!!gradleVersion, '버전: build.gradle 에서 versionName 을 읽을 수 있다');
 eq(appJsonVersion, gradleVersion, '버전: app.json expo.version == build.gradle versionName');
 eq(pkgVersion, gradleVersion, '버전: package.json version == build.gradle versionName');
+
+/* ─── 계급 구간 교차 검증 ─────────────────────────────────────────────
+ * salaryGuide.getRankByMonths(봉급 구간)와 dateUtils.rankFromServedMonths
+ * (계급 판정)는 경계가 같아야 한다. 두 소스 주석이 '테스트가 검증한다'고
+ * 적어두고 있었지만 실제로는 없었다. */
+let rankMismatch = 0;
+for (let mo = 0; mo <= 36; mo += 1) {
+  if (api.getRankByMonths(mo) !== api.rankFromServedMonths(mo)) rankMismatch += 1;
+}
+eq(rankMismatch, 0, '계급 구간: 0~36개월 전 구간에서 봉급표와 판정 기준이 일치');
+eq(api.getRankByMonths(2), '일병', '계급 구간: 2개월 경계');
+eq(api.getRankByMonths(8), '상병', '계급 구간: 8개월 경계');
+eq(api.getRankByMonths(14), '병장', '계급 구간: 14개월 경계');
+eq(api.rankFromServedMonths(999), '병장', '계급 구간: 큰 값도 병장');
+eq(api.getRankByMonths(999), '병장', '계급 구간: 봉급표도 큰 값에서 병장');
+
+/* ─── DST 고정 날짜 가드 ──────────────────────────────────────────────
+ * calcProgress 를 밀리초 비율로 되돌리면 DST 구간에서 1% 어긋난다.
+ * '오늘 기준 ±50일' 로만 검증하면 1년 중 절반은 DST 가 창 밖이라 조용히
+ * 통과한다. 미국 DST 전환을 확실히 품는 고정 구간으로 못 박는다. */
+eq(api.calcProgress('2024-01-01', '2024-12-31'), api.calcProgress('2024-01-01', '2024-12-31'), 'DST: 진행률 결정적');
+eq(api.daysBetweenInclusive('2024-03-01', '2024-03-31'), 31, 'DST: 봄 전환을 품은 3월 전체');
+eq(api.daysBetweenInclusive('2024-11-01', '2024-11-30'), 30, 'DST: 가을 전환을 품은 11월 전체');
+eq(api.daysBetweenInclusive('2024-03-10', '2024-03-10'), 1, 'DST: 전환 당일 하루');
+eq(api.daysBetweenInclusive('2024-11-03', '2024-11-03'), 1, 'DST: 가을 전환 당일 하루');
+/* 전환을 사이에 둔 구간의 전역일·D-day 가 정확해야 한다 */
+eq(ymd(api.calcDischargeDate('2024-02-01', 2)), '2024-03-31', 'DST: 봄 전환을 넘는 전역일');
+eq(ymd(api.calcDischargeDate('2024-10-01', 2)), '2024-11-30', 'DST: 가을 전환을 넘는 전역일');
+eq(api.spanDates('2024-03-09', 3), ['2024-03-09', '2024-03-10', '2024-03-11'], 'DST: 봄 전환을 넘는 span');
+eq(api.spanDates('2024-11-02', 3), ['2024-11-02', '2024-11-03', '2024-11-04'], 'DST: 가을 전환을 넘는 span');
+eq(api.endDateFromSpan('2024-03-09', 3), '2024-03-11', 'DST: 봄 전환 endDateFromSpan');
 
 /* ─── 결과 출력 ──────────────────────────────────────────────────────── */
 console.log('\n──────────── 계산 로직 테스트 ────────────');

@@ -159,12 +159,28 @@ for (const theme of THEME_LIST) {
     const pairs = [
       ...CONTRAST_PAIRS,
       ...PHASE_STAGES.flatMap((stage) =>
-        PHASE_PAIRS.map((q) => ({
-          fg: `phase.${stage}.${q.fg}`,
-          bg: `phase.${stage}.${q.bg}`,
-          min: q.min,
-          label: `${q.label} · ${stage}`,
-        }))
+        PHASE_PAIRS.flatMap((q) => {
+          if (!q.bg.endsWith('.@all')) {
+            return [{
+              fg: `phase.${stage}.${q.fg}`,
+              bg: `phase.${stage}.${q.bg}`,
+              min: q.min,
+              label: `${q.label} · ${stage}`,
+            }];
+          }
+          // @all — 배열 길이만큼 전개한다 (테마마다 스톱 수가 다르다)
+          const base = q.bg.slice(0, -'.@all'.length);
+          const arr = pick(p, `phase.${stage}.${base}`);
+          if (!Array.isArray(arr)) {
+            return [{ fg: `phase.${stage}.${q.fg}`, bg: `phase.${stage}.${base}`, min: q.min, label: `${q.label} · ${stage}` }];
+          }
+          return arr.map((_, i) => ({
+            fg: `phase.${stage}.${q.fg}`,
+            bg: `phase.${stage}.${base}.${i}`,
+            min: q.min,
+            label: `${q.label} · ${stage} · 스톱${i + 1}/${arr.length}`,
+          }));
+        })
       ),
     ];
 

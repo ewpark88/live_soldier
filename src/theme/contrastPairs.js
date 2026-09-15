@@ -62,8 +62,9 @@ export const CONTRAST_PAIRS = [
 export const PHASE_STAGES = ['normal', 'd100', 'd30', 'd7', 'd3', 'done'];
 
 export const PHASE_PAIRS = [
-  { fg: 'accent', bg: 'gradient.@last', min: 4.5, label: 'D-Day 숫자' },
-  { fg: 'accent', bg: 'gradient.0', min: 4.5, label: 'D-Day 숫자 (그라데이션 시작)' },
+  // @all — 그라데이션의 '모든' 스톱을 검사한다. 양 끝만 보면 3스톱 테마
+  // (aurora)의 중간 색이 통째로 빠지는데, D-Day 숫자는 그 위도 지나간다.
+  { fg: 'accent', bg: 'gradient.@all', min: 4.5, label: 'D-Day 숫자' },
 ];
 
 /**

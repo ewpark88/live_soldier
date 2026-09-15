@@ -43,7 +43,18 @@ eas build --platform android --profile production
   `src/constants/colors.js` 는 하위호환 shim 이다. 팔레트 파일과
   `theme/contrastPairs.js` 는 `tokens.js` 처럼 **런타임 라이브러리 import 금지** —
   위젯 헤드리스 런타임과 맨 Node 검증 스크립트가 둘 다 이 파일을 로드한다.
-- 팔레트를 건드렸으면 **`npm run theme:check`** 가 통과해야 한다 (576개 대비 페어).
+- 팔레트를 건드렸으면 **`npm run theme:check`** 가 통과해야 한다 (660개 대비 페어).
+  그라데이션은 양 끝이 아니라 **모든 스톱**을 검사한다 — aurora 만 3스톱이라
+  중간 색이 한 번도 검사되지 않아 D-Day 숫자 대비가 2.4:1 까지 떨어져 있었다.
 - 네비게이션은 루트 native-stack + 4탭이다. **라우트 이름은 트리 전체에서 유일**해야
   하고, `navigate` 버블링은 위로만 간다 — 여러 곳에서 진입하는 화면은 루트 스택에 둔다.
-- `npm test` 는 날짜·스트릭·축하 판정 88건을 검증한다. 순수 로직을 고쳤으면 돌린다.
+- `npm test` 는 5개 스위트를 돌린다. 순수 로직을 고쳤으면 반드시 돌린다.
+  - `test-calc.js` (217) 날짜·계급·로드맵·적금·스트릭·축하
+  - `test-clock.js` (29) **시계를 특정 날짜로 고정**해야만 드러나는 것
+    (윤일 임관자 호봉, DST 전환을 품은 구간) — 상대 날짜 테스트로는 못 잡는다
+  - `test-storage.js` (40) AsyncStorage 목 위에서 실제 저장소 로직
+  - `test-notifications.js` (11) expo-notifications 목 위에서 예약 로직
+  - `test-tz.js` 위 두 날짜 스위트를 **10개 시간대**에서 반복
+- **테스트가 통과한다고 끝이 아니다.** 화면 파일은 계산 테스트가 로드하지 않으므로
+  `npx expo export --platform android` 로 번들까지 확인한다. 실제로 문자열 파손이
+  `npm test` 를 통과하고 번들에서 잡힌 적이 있다.

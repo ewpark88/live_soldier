@@ -65,10 +65,10 @@ export default {
     phase: {
       normal: { gradient: ['#2B1B6B', '#4A2A8A', '#0F1B4A'], accent: '#8FD9FF', glow: false },
       d100: { gradient: ['#33206E', '#5E2E93', '#12183F'], accent: '#A8C6FF', glow: false },
-      d30: { gradient: ['#3D2170', '#7A2E86', '#151439'], accent: '#C6A6FF', glow: false },
-      d7: { gradient: ['#4C2270', '#9B317A', '#1A1136'], accent: '#FF9ACB', glow: true },
-      d3: { gradient: ['#5E246B', '#C13C77', '#200F32'], accent: '#FFB27A', glow: true },
-      done: { gradient: ['#7A2C63', '#F0578A', '#2A0F2E'], accent: '#FFD98A', glow: true },
+      d30: { gradient: ['#3D2170', '#6B2876', '#151439'], accent: '#C6A6FF', glow: false },
+      d7: { gradient: ['#4C2270', '#7C2762', '#1A1136'], accent: '#FF9ACB', glow: true },
+      d3: { gradient: ['#5E246B', '#8B2B56', '#200F32'], accent: '#FFB27A', glow: true },
+      done: { gradient: ['#7A2C63', '#A33B5E', '#2A0F2E'], accent: '#FFD98A', glow: true },
     },
   },
   dark: {
@@ -125,10 +125,10 @@ export default {
     phase: {
       normal: { gradient: ['#2B1B6B', '#4A2A8A', '#0F1B4A'], accent: '#8FD9FF', glow: false },
       d100: { gradient: ['#33206E', '#5E2E93', '#12183F'], accent: '#A8C6FF', glow: false },
-      d30: { gradient: ['#3D2170', '#7A2E86', '#151439'], accent: '#C6A6FF', glow: false },
-      d7: { gradient: ['#4C2270', '#9B317A', '#1A1136'], accent: '#FF9ACB', glow: true },
-      d3: { gradient: ['#5E246B', '#C13C77', '#200F32'], accent: '#FFB27A', glow: true },
-      done: { gradient: ['#7A2C63', '#F0578A', '#2A0F2E'], accent: '#FFD98A', glow: true },
+      d30: { gradient: ['#3D2170', '#6B2876', '#151439'], accent: '#C6A6FF', glow: false },
+      d7: { gradient: ['#4C2270', '#7C2762', '#1A1136'], accent: '#FF9ACB', glow: true },
+      d3: { gradient: ['#5E246B', '#8B2B56', '#200F32'], accent: '#FFB27A', glow: true },
+      done: { gradient: ['#7A2C63', '#A33B5E', '#2A0F2E'], accent: '#FFD98A', glow: true },
     },
   },
 };
