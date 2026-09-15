@@ -13,6 +13,7 @@ import {
   loadMilitaryInfo, loadRankPromotions, loadTodos, listProfiles, loadStreak,
 } from './storage';
 import { buildRoadmap } from './roadmapUtils';
+import { parseDate, formatDate } from './dateUtils';
 import { isOfficer } from '../constants/serviceTerms';
 
 const NOTIF_KEY = '@notif_enabled';      // 레거시 마스터 플래그 (write-through 유지)
@@ -180,9 +181,10 @@ async function scheduleAt(dateStr, title, body, opts = {}) {
   if (_scheduled >= MAX_SCHEDULED) return;
 
   const { hour = HOUR, channel = CHANNEL_ID } = opts;
-  const when = new Date(dateStr);
+  const when = parseDate(dateStr);
+  if (!when) return;
   when.setHours(hour, 0, 0, 0);
-  if (isNaN(when.getTime()) || when.getTime() <= Date.now()) return; // 과거는 스킵
+  if (when.getTime() <= Date.now()) return; // 과거는 스킵
 
   try {
     await Notifications.scheduleNotificationAsync({
@@ -225,12 +227,10 @@ function _todayStr() {
 }
 
 function addDaysStr(dateStr, n) {
-  const d = new Date(dateStr);
+  const d = parseDate(dateStr);
+  if (!d) return dateStr;
   d.setDate(d.getDate() + n);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
+  return formatDate(d);
 }
 
 /**

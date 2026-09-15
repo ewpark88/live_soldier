@@ -30,6 +30,29 @@ function _ymdParts(dateStr) {
   return { y, m: mo, d };
 }
 
+/**
+ * 'YYYY-MM-DD' → 로컬 자정 Date. 형식이 틀리거나 없는 날짜면 null.
+ *
+ * new Date('2024-06-10') 은 UTC 자정으로 파싱되는데 읽을 때는 로컬 게터를
+ * 쓰므로, UTC 오프셋이 음수인 기기(미주 등)에서는 하루 앞선 날짜가 나온다.
+ * 문자열 → Date 변환은 전부 이 함수를 거친다.
+ */
+export function parseDate(value) {
+  if (value instanceof Date) {
+    return isNaN(value.getTime())
+      ? null
+      : new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  const p = _ymdParts(value);
+  return p ? new Date(p.y, p.m - 1, p.d) : null;
+}
+
+/** 오늘 로컬 자정 */
+export function startOfToday() {
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+}
+
 /** 해당 연·월(0-based)의 일수 */
 function daysInMonth(year, monthIndex) {
   return new Date(year, monthIndex + 1, 0).getDate();
@@ -78,44 +101,39 @@ export function calcPromotionDate(enlistDate, months) {
  * 두 날짜 사이 남은 일수 (D-Day)
  */
 export function calcDaysLeft(targetDate) {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const target = new Date(targetDate);
-  target.setHours(0, 0, 0, 0);
-  const diff = target - now;
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  const target = parseDate(targetDate);
+  if (!target) return 0;
+  return Math.round((target - startOfToday()) / 86400000);
 }
 
 /**
  * 총 복무 일수 대비 오늘까지 복무한 진행률 (0~100)
  */
 export function calcProgress(enlistDate, dischargeDate) {
-  const start = new Date(enlistDate);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(dischargeDate);
-  end.setHours(0, 0, 0, 0);
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+  const start = parseDate(enlistDate);
+  const end = parseDate(dischargeDate);
+  if (!start || !end) return 0;
 
-  const total = end - start;
-  const elapsed = now - start;
+  // 밀리초로 나누면 DST 전환(±1시간)이 낀 구간에서 비율이 1% 어긋난다.
+  // 달력 일수로 환산해서 계산한다.
+  const totalDays = Math.round((end - start) / 86400000);
+  if (totalDays <= 0) return 100;
+  const elapsedDays = Math.round((startOfToday() - start) / 86400000);
 
-  if (elapsed <= 0) return 0;
-  if (elapsed >= total) return 100;
-  return Math.floor((elapsed / total) * 100);
+  if (elapsedDays <= 0) return 0;
+  if (elapsedDays >= totalDays) return 100;
+  return Math.floor((elapsedDays / totalDays) * 100);
 }
 
 /**
  * 복무한 날수
  */
 export function calcServedDays(enlistDate) {
-  const start = new Date(enlistDate);
-  start.setHours(0, 0, 0, 0);
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const diff = now - start;
+  const start = parseDate(enlistDate);
+  if (!start) return 0;
+  const diff = startOfToday() - start;
   if (diff < 0) return 0;
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
+  return Math.round(diff / 86400000);
 }
 
 /** 'YYYY-MM-DD' 가 오늘(로컬)보다 미래인가 */
@@ -128,9 +146,8 @@ export function isFutureDate(dateStr) {
  * Date | 'YYYY-MM-DD' → 'YYYY-MM-DD' · 값이 없거나 잘못되면 ''
  */
 export function formatDate(date) {
-  if (date == null) return '';
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return '';
+  const d = parseDate(date);
+  if (!d) return '';
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
@@ -141,9 +158,8 @@ export function formatDate(date) {
  * Date → 'YYYY년 MM월 DD일'
  */
 export function formatDateKo(date) {
-  if (date == null) return '';
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return '';
+  const d = parseDate(date);
+  if (!d) return '';
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
@@ -155,8 +171,8 @@ export function formatDateKo(date) {
 /** 시작일에서 days일 만큼(시작일 포함)의 'YYYY-MM-DD' 배열 */
 export function spanDates(startStr, days) {
   const out = [];
-  const d = new Date(startStr);
-  if (isNaN(d.getTime())) return out;
+  const d = parseDate(startStr);
+  if (!d) return out;
   const n = Math.max(1, Math.floor(days) || 1);
   for (let i = 0; i < n; i++) {
     out.push(formatDate(d));
@@ -167,8 +183,8 @@ export function spanDates(startStr, days) {
 
 /** 시작일 + days(시작일 포함) → 종료일 'YYYY-MM-DD' (days=1이면 시작일과 동일) */
 export function endDateFromSpan(startStr, days) {
-  const d = new Date(startStr);
-  if (isNaN(d.getTime())) return startStr;
+  const d = parseDate(startStr);
+  if (!d) return startStr;
   const n = Math.max(1, Math.floor(days) || 1);
   d.setDate(d.getDate() + n - 1);
   return formatDate(d);
@@ -177,9 +193,9 @@ export function endDateFromSpan(startStr, days) {
 /** 시작~종료(양끝 포함) 일수. 잘못된 입력이거나 종료<시작이면 0 */
 export function daysBetweenInclusive(startStr, endStr) {
   if (!startStr || !endStr) return 0;
-  const s = new Date(startStr); s.setHours(0, 0, 0, 0);
-  const e = new Date(endStr);   e.setHours(0, 0, 0, 0);
-  if (isNaN(s.getTime()) || isNaN(e.getTime())) return 0;
+  const s = parseDate(startStr);
+  const e = parseDate(endStr);
+  if (!s || !e) return 0;
   const diff = e - s;
   if (diff < 0) return 0;
   return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
@@ -213,16 +229,11 @@ export function calcRank(servedDays) {
  */
 export function calcRankFromPromotions(promotionDates) {
   if (!promotionDates) return null;
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const toDate = (s) => {
-    const d = new Date(s);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  };
-  if (promotionDates.병장 && now >= toDate(promotionDates.병장)) return '병장';
-  if (promotionDates.상병 && now >= toDate(promotionDates.상병)) return '상병';
-  if (promotionDates.일병 && now >= toDate(promotionDates.일병)) return '일병';
+  const now = startOfToday();
+  const reached = (s) => { const d = parseDate(s); return d !== null && now >= d; };
+  if (reached(promotionDates.병장)) return '병장';
+  if (reached(promotionDates.상병)) return '상병';
+  if (reached(promotionDates.일병)) return '일병';
   return '이병';
 }
 
@@ -233,8 +244,7 @@ export function calcRankFromPromotions(promotionDates) {
  */
 export function nextPromotion(promotionDates) {
   if (!promotionDates) return null;
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+  const now = startOfToday();
   const order = [
     { rank: '일병', date: promotionDates.일병 },
     { rank: '상병', date: promotionDates.상병 },
@@ -242,9 +252,8 @@ export function nextPromotion(promotionDates) {
   ];
   for (const p of order) {
     if (!p.date) continue;
-    const d = new Date(p.date);
-    d.setHours(0, 0, 0, 0);
-    if (d > now) return { rank: p.rank, date: p.date, daysLeft: calcDaysLeft(p.date) };
+    const d = parseDate(p.date);
+    if (d && d > now) return { rank: p.rank, date: p.date, daysLeft: calcDaysLeft(p.date) };
   }
   return null; // 병장 진급 완료 (더 이상 진급 없음)
 }
@@ -325,8 +334,9 @@ export function getRandomMessage(dateStr = todayStr()) {
  * 복무 개월 수 계산
  */
 export function calcServedMonths(enlistDate) {
-  const start = new Date(enlistDate);
-  const now = new Date();
+  const start = parseDate(enlistDate);
+  if (!start) return 0;
+  const now = startOfToday();
   let months = (now.getFullYear() - start.getFullYear()) * 12;
   months += now.getMonth() - start.getMonth();
   if (now.getDate() < start.getDate()) months--;

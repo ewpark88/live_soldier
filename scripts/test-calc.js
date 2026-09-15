@@ -124,6 +124,24 @@ eq(api.nextPromotion({ 일병: todayPlus(-300), 상병: todayPlus(-200), 병장:
 /* ─── 6. 날짜 포맷/검증 ──────────────────────────────────────────────── */
 eq(api.formatDate('2024-01-05'), '2024-01-05', 'formatDate');
 eq(api.formatDateKo('2024-01-05'), '2024년 1월 5일', 'formatDateKo');
+
+/* 시간대 안정성 — new Date("YYYY-MM-DD") 는 UTC 자정으로 파싱되므로,
+   UTC 오프셋이 음수인 기기에서는 로컬 게터로 읽을 때 하루 앞선 날짜가 나왔다.
+   TZ=America/New_York 으로 돌리면 예전 코드는 여기서 깨진다. */
+eq(api.formatDate('2024-06-10'), '2024-06-10', '시간대: formatDate 왕복 불변');
+eq(api.formatDate('2024-01-01'), '2024-01-01', '시간대: 연초 왕복 불변');
+eq(api.formatDate('2024-12-31'), '2024-12-31', '시간대: 연말 왕복 불변');
+eq(api.formatDateKo('2024-06-10'), '2024년 6월 10일', '시간대: 한글 포맷 왕복 불변');
+eq(api.formatDate(api.parseDate('2024-03-01')), '2024-03-01', '시간대: parseDate→formatDate 불변');
+eq(api.daysBetweenInclusive('2024-03-01', '2024-03-31'), 31, '시간대: 월 전체 일수');
+eq(api.daysBetweenInclusive('2024-02-28', '2024-03-01'), 3, '시간대: 윤년 2월 경계');
+eq(api.endDateFromSpan('2024-12-30', 5), '2025-01-03', '시간대: 연말 넘김 span');
+eq(api.spanDates('2024-12-31', 2), ['2024-12-31', '2025-01-01'], '시간대: 해 넘김 span');
+eq(api.calcPromotionDate('2024-06-10', 2), '2024-08-10', '시간대: 진급일 불변');
+eq(ymd(api.calcDischargeDate('2024-06-10', 18)), '2025-12-09', '시간대: 전역일 불변');
+/* DST 경계 (미국 3월 둘째 일요일 전후) */
+eq(api.daysBetweenInclusive('2024-03-09', '2024-03-11'), 3, 'DST: 봄 시간 변경 구간 일수');
+eq(api.daysBetweenInclusive('2024-11-02', '2024-11-04'), 3, 'DST: 가을 시간 변경 구간 일수');
 ok(api.isValidDateString('2024-12-31'), 'isValidDateString: 정상');
 ok(!api.isValidDateString('2024-13-40'), 'isValidDateString: 잘못된 월/일');
 ok(!api.isValidDateString('2024-1-5'), 'isValidDateString: 자리수 불충분');

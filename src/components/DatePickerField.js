@@ -6,7 +6,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
-import { formatDate, formatDateKo } from '../utils/dateUtils';
+import { formatDate, formatDateKo, parseDate } from '../utils/dateUtils';
 
 /**
  * 날짜 선택 컴포넌트
@@ -34,7 +34,7 @@ export default function DatePickerField({
   const [show, setShow] = useState(false);
 
   // value가 있으면 해당 날짜, 없으면 오늘
-  const currentDate = value ? new Date(value) : new Date();
+  const currentDate = parseDate(value) ?? new Date();
 
   // Android: 캘린더 다이얼로그에서 선택/취소
   const handleAndroidChange = (event, selectedDate) => {
