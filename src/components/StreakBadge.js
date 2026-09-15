@@ -19,7 +19,7 @@ export default function StreakBadge({ count = 0, tier, onHero = false, onPress }
   if (!count) return null;
 
   const fg = onHero ? tc.heroText : tc.accentText;
-  const bg = onHero ? 'rgba(255,255,255,0.12)' : tc.accentSoft;
+  const bg = onHero ? tc.heroSheen : tc.accentSoft;
   const border = onHero ? tc.heroBorder : 'transparent';
 
   return (

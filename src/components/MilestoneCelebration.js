@@ -126,7 +126,7 @@ const makeStyles = (tc) =>
       paddingHorizontal: sp.md,
       borderRadius: r.md,
       borderWidth: StyleSheet.hairlineWidth,
-      backgroundColor: 'rgba(255,255,255,0.08)',
+      backgroundColor: tc.heroSheen,
     },
 
     actions: { alignSelf: 'stretch', gap: sp.sm, marginTop: sp.xl },

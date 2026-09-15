@@ -75,6 +75,8 @@ export default function LiveServiceGauge({
   const cTrack = trackColor ?? tc.heroTrack;
   const cText = textColor ?? tc.heroText;
   const cSub = subColor ?? tc.heroTextMuted;
+  const cShimmer = tc.gaugeShimmer;   // 게이지 광택 (표면 틴트가 아니라 빛 반사)
+  const cEdge = tc.gaugeEdge;         // 진행 선단 하이라이트
 
   const [{ pct, servedSec }, setLive] = useState(() => calcLive(enlistDate, dischargeDate));
   const [trackW, setTrackW] = useState(0);
@@ -166,11 +168,11 @@ export default function LiveServiceGauge({
 
       <View style={[styles.track, { backgroundColor: cTrack }]} onLayout={onTrackLayout}>
         <Animated.View style={[styles.fill, { backgroundColor: cFill }, fillStyle]}>
-          <Animated.View style={[styles.shimmer, { width: BAND }, shimmerStyle]} />
+          <Animated.View style={[styles.shimmer, { width: BAND, backgroundColor: cShimmer }, shimmerStyle]} />
         </Animated.View>
 
         {!done && trackW > 0 ? (
-          <Animated.View style={[styles.edge, edgeStyle]} pointerEvents="none" />
+          <Animated.View style={[styles.edge, { backgroundColor: cEdge }, edgeStyle]} pointerEvents="none" />
         ) : null}
       </View>
 
@@ -215,7 +217,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.6)',
   },
 
   edge: {
@@ -224,7 +225,6 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 22,
-    backgroundColor: 'rgba(255,255,255,0.85)',
     borderRadius: 7,
   },
 

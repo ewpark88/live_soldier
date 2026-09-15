@@ -111,6 +111,8 @@ export function checkIn(state, now = new Date()) {
   }
 
   return {
+    // brokenFrom 은 리셋 시점에만 의미가 있다. 예전엔 ...base 로 계속 따라다녀
+    // 몇 달 전 값이 @streak_v1 에 남았다. 이어가기/유예 분기에서는 지운다.
     next: { ...base, current: 1, best: s.best, brokenFrom: s.current },
     changed: true,
     event: 'reset',
@@ -137,5 +139,8 @@ export function recentDays(state, n = 7, today = todayStr()) {
 
 /** 오늘 유예가 쓰였는지 (UI 에 솔직히 표시하기 위함) */
 export function freezeActive(state, today = todayStr()) {
-  return !!state?.freezeUsed && dayDiff(state.freezeUsed, today) <= 1;
+  if (!state?.freezeUsed) return false;
+  const d = dayDiff(state.freezeUsed, today);
+  // 음수(기기 시계를 되돌린 경우)까지 참이 되면 배지가 영구히 붙어 있었다.
+  return d >= 0 && d <= 1;
 }

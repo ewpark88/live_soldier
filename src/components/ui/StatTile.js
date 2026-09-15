@@ -103,7 +103,7 @@ const makeStyles = (tc) =>
     },
     onCard: { backgroundColor: tc.surfaceSunken },
     onHero: {
-      backgroundColor: 'rgba(255,255,255,0.08)',
+      backgroundColor: tc.heroSheen,
       borderWidth: StyleSheet.hairlineWidth,
     },
     labelRow: { flexDirection: 'row', alignItems: 'center', gap: sp.xs },

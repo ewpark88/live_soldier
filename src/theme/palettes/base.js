@@ -79,6 +79,10 @@ export const baseLight = {
   heroBorder: 'rgba(255,255,255,0.10)',
   heroSheen: 'rgba(255,255,255,0.12)',
   heroTrack: 'rgba(255,255,255,0.16)',
+  // 실시간 게이지의 광택·선단 하이라이트. 표면 틴트가 아니라 빛 반사라
+  // heroSheen 보다 훨씬 진하다.
+  gaugeShimmer: 'rgba(255,255,255,0.60)',
+  gaugeEdge: 'rgba(255,255,255,0.85)',
 
   // ── 메탈릭 골드 ──────────────────────────────────────────────
   goldFrom: '#F0C45E',
@@ -153,6 +157,8 @@ export const baseDark = {
   heroBorder: 'rgba(255,255,255,0.08)',
   heroSheen: 'rgba(255,255,255,0.10)',
   heroTrack: 'rgba(255,255,255,0.16)',
+  gaugeShimmer: 'rgba(255,255,255,0.50)',
+  gaugeEdge: 'rgba(255,255,255,0.78)',
 
   goldFrom: '#F2C46B',
   goldTo: '#D08F22',

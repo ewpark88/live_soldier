@@ -639,7 +639,7 @@ const makeStyles = (tc) =>
       gap: sp.sm,
     },
     chipRow: { flexDirection: 'row', gap: sp.sm, flexShrink: 1 },
-    heroChip: { backgroundColor: 'rgba(255,255,255,0.12)' },
+    heroChip: { backgroundColor: tc.heroSheen },
     heroAmount: {
       flexDirection: 'row',
       alignItems: 'baseline',
@@ -659,7 +659,7 @@ const makeStyles = (tc) =>
     railDotEnd: {
       backgroundColor: 'transparent',
       borderWidth: 2,
-      borderColor: 'rgba(255,255,255,0.4)',
+      borderColor: tc.heroBorder,
     },
     railLabels: {
       flexDirection: 'row',

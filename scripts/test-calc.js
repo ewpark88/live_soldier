@@ -371,6 +371,27 @@ eq(api.calcSavings({ monthly: -5, months: 10 }).monthly, 0, '적금: 음수 방�
 eq(api.calcSavings({}).total, 0, '적금: 인자 없음 방어');
 eq(api.calcSavingsInterest(100000, 0), 0, '적금: 0개월 이자 0');
 
+/* ─── 버전 일관성 ────────────────────────────────────────────────────
+ * 실제 출시 버전은 android/app/build.gradle 의 versionName 이다 (CLAUDE.md).
+ * app.json 은 EAS 빌드가 무시하지만 설정 화면이 이 값을 보여주므로,
+ * 어긋나면 사용자에게 이전 버전이 표시된다. package.json 도 같이 묶어둔다.
+ */
+const gradleSrc = fs.readFileSync(path.join(ROOT, 'android', 'app', 'build.gradle'), 'utf8');
+const gradleVersion = (() => {
+  const NL = String.fromCharCode(10);
+  const QUOTE = String.fromCharCode(34);
+  const line = gradleSrc.split(NL).find((l) => l.includes('versionName'));
+  if (!line) return undefined;
+  const a = line.indexOf(QUOTE);
+  const b = line.indexOf(QUOTE, a + 1);
+  return a >= 0 && b > a ? line.slice(a + 1, b) : undefined;
+})();
+const appJsonVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'app.json'), 'utf8')).expo.version;
+const pkgVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+ok(!!gradleVersion, '버전: build.gradle 에서 versionName 을 읽을 수 있다');
+eq(appJsonVersion, gradleVersion, '버전: app.json expo.version == build.gradle versionName');
+eq(pkgVersion, gradleVersion, '버전: package.json version == build.gradle versionName');
+
 /* ─── 결과 출력 ──────────────────────────────────────────────────────── */
 console.log('\n──────────── 계산 로직 테스트 ────────────');
 if (fail === 0) {

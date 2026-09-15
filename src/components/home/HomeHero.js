@@ -195,7 +195,7 @@ const makeStyles = (tc) =>
       paddingVertical: sp.xs,
       paddingHorizontal: sp.sm,
       borderRadius: r.pill,
-      backgroundColor: 'rgba(255,255,255,0.12)',
+      backgroundColor: tc.heroSheen,
     },
 
     crestWrap: { alignItems: 'center', gap: sp.xs, width: 72 },

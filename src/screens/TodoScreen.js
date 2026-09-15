@@ -19,7 +19,7 @@ import {
   Divider, EmptyState, Txt, BottomSheet, PressScale,
 } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
-import { TRAINING_PRESETS } from '../constants/trainingPresets';
+import { TRAINING_PRESETS, presetTone } from '../constants/trainingPresets';
 import {
   loadTodos, addTodo, toggleTodo, deleteTodo, loadMilitaryInfo,
 } from '../utils/storage';
@@ -378,8 +378,8 @@ export default function TodoScreen({ navigation, embedded = false }) {
                 haptic="select"
                 style={s.preset}
               >
-                <View style={[s.presetIcon, { backgroundColor: `${p.color}22` }]}>
-                  <Ionicons name={p.icon} size={20} color={p.color} />
+                <View style={[s.presetIcon, { backgroundColor: presetTone(tc, p.tone).bg }]}>
+                  <Ionicons name={p.icon} size={20} color={presetTone(tc, p.tone).fg} />
                 </View>
                 <Txt role="caption" style={{ textAlign: 'center' }} numberOfLines={2}>
                   {p.name}
