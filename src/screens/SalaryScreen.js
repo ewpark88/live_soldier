@@ -126,12 +126,12 @@ export default function SalaryScreen({ navigation }) {
     ? salaryInfo.monthlyAmount * salaryInfo.totalMonths
     : officer
       ? (officerBase ? officerBase * displayTotalMonths : 0)
-      : calcStandardTotal(militaryInfo.months);
+      : calcStandardTotal(displayTotalMonths);
   const earnedSalary = salaryInfo
     ? salaryInfo.monthlyAmount * Math.min(servedMonths, salaryInfo.totalMonths)
     : officer
       ? (officerBase ? officerBase * Math.min(servedMonths, displayTotalMonths) : 0)
-      : calcStandardTotal(Math.min(servedMonths, militaryInfo.months));  // 전역 후 계속 늘지 않도록 상한
+      : calcStandardTotal(Math.min(servedMonths, displayTotalMonths));  // 전역 후 계속 늘지 않도록 상한
 
   const earnedRatio = totalSalary > 0 ? Math.min(1, earnedSalary / totalSalary) : 0;
   const earnedPercent = Math.floor(earnedRatio * 100);

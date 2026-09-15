@@ -5,7 +5,7 @@
  * 경력 환산 등 세부 규정은 부대/개인별로 다르므로, 본 앱은
  * "임관일 + 복무 연수"에 기반한 추정 호봉을 제공한다.
  */
-import { calcDaysLeft } from './dateUtils';
+import { calcDaysLeft, parseDate, formatDate } from './dateUtils';
 
 /**
  * 임관일로부터 지난 만(滿) 연수. 달력 기준으로 세어야 한다.
@@ -46,14 +46,14 @@ export function nextHobongInfo(enlistDate) {
   if (!enlistDate) return null;
   const current = calcHobong(enlistDate);
   // 다음 승급일 = 임관일 + (현재 복무연수+1)년
-  const base = new Date(enlistDate);
-  if (isNaN(base.getTime())) return null;
-  const nextDate = new Date(base);
-  nextDate.setFullYear(base.getFullYear() + current); // current = 복무연수+1 → 다음 주년
-  const yyyy = nextDate.getFullYear();
-  const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
-  const dd = String(nextDate.getDate()).padStart(2, '0');
-  const nextDateStr = `${yyyy}-${mm}-${dd}`;
+  // calcHobong 은 로컬 달력 기준인데 여기만 new Date(문자열) 을 쓰면 UTC 파싱이라
+  // 오프셋이 음수인 기기에서 하루 일찍 나오고, 2월 29일 임관자는 3월 1일로 굴렀다.
+  const base = parseDate(enlistDate);
+  if (!base) return null;
+  const targetYear = base.getFullYear() + current;   // current = 복무연수+1 → 다음 주년
+  const lastDay = new Date(targetYear, base.getMonth() + 1, 0).getDate();
+  const nextDate = new Date(targetYear, base.getMonth(), Math.min(base.getDate(), lastDay));
+  const nextDateStr = formatDate(nextDate);
   return {
     current,
     next: current + 1,

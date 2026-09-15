@@ -244,7 +244,37 @@ function addDaysStr(dateStr, n) {
  *
  * @param {{force?: boolean}} opts  force 면 게이트를 무시하고 다시 잡는다
  */
-export async function refreshScheduledNotifications({ force = false } = {}) {
+let _refreshing = null;   // 진행 중인 재예약
+let _rerun = null;        // 진행 중에 들어온 요청 (null 이면 없음)
+
+/**
+ * 재예약 직렬화.
+ *
+ * 앱 시작 시 App.js 와 StreakProvider.onCheckIn 이 거의 동시에 부른다.
+ * 서명에 '오늘'이 들어간 뒤로는 둘 다 게이트를 통과하므로, 그대로 두면 서로의
+ * cancelAllScheduledNotificationsAsync() 가 상대 예약을 지우고 모듈 전역
+ * _scheduled 카운터까지 뒤엉킨다.
+ *
+ * 진행 중에 또 불리면 즉시 실행하지 않고 '끝나면 한 번 더'로 예약한다.
+ * 진행 중인 약속을 그냥 돌려주면, 그 사이에 바뀐 일정·설정이 반영되지 않는다.
+ * force 요청이 하나라도 섞이면 재실행도 force 로 돈다.
+ */
+export function refreshScheduledNotifications(opts = {}) {
+  if (_refreshing) {
+    _rerun = { force: !!(opts.force || (_rerun && _rerun.force)) };
+    return _refreshing;
+  }
+  _refreshing = _refreshScheduledNotifications(opts)
+    .finally(() => {
+      _refreshing = null;
+      const next = _rerun;
+      _rerun = null;
+      if (next) refreshScheduledNotifications(next);
+    });
+  return _refreshing;
+}
+
+async function _refreshScheduledNotifications({ force = false } = {}) {
   if (!Notifications) return;
   if (!(await isNotifEnabled())) return;
 
@@ -329,12 +359,11 @@ export async function refreshScheduledNotifications({ force = false } = {}) {
 
   // 마일스톤 전야 — 향후 180일 이내만 (최대 7건으로 유계)
   //
-  // prefs.discharge 블록이 이미 당일 알림을 잡는 마일스톤은 건너뛴다.
-  // 예전에는 전역 전날에 'D-1'(09시)과 '내일은 전역!'(21시)이 같이 울렸고,
-  // 입대 100일·진급일도 같은 식으로 두 번씩 갔다.
-  const coveredByDischarge = prefs.discharge
-    ? new Set(['discharge', 'd100in', 'r1', 'r2', 'r3'])
-    : new Set();
+  // 전야 알림은 마일스톤 '하루 전' 21시, discharge 블록은 '당일' 09시다.
+  // 따라서 둘이 같은 날에 겹치는 건 전역뿐이다 —
+  // 'D-1'(전역 하루 전 09시) 과 '내일은 전역!'(전역 하루 전 21시).
+  // 입대 100일·진급일은 전야와 당일이 서로 다른 날이라 의도된 한 쌍이다.
+  const coveredByDischarge = prefs.discharge ? new Set(['discharge']) : new Set();
 
   if (prefs.milestone) {
     const roadmap = buildRoadmap(info, promoForSig);

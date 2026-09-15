@@ -48,6 +48,10 @@ export function StreakProvider({ children, onCheckIn }) {
       if (changed) {
         await saveStreak(next);
         setJustIncremented(event === 'continue' || event === 'freeze' || event === 'first');
+      } else {
+        // 같은 날 재진입 등 변화가 없으면 내려준다. 계속 true 로 두면 축하 연출이
+        // 끝난 뒤에도 홈 전면광고가 세션 내내 막힌다.
+        setJustIncremented(false);
         // 스트릭이 실제로 움직였을 때만 알림을 다시 잡는다.
         // 예전 형태 onCheckIn(...).catch?.() 는 메서드만 보호해서, 콜백이
         // Promise 를 안 돌려주면 TypeError 가 났고 try 에 catch 가 없어

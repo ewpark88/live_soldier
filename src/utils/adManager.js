@@ -80,6 +80,7 @@ let isLoaded = false;
 let isLoading = false;
 let isShowing = false;
 let retry = 0;
+let showGuard = null;
 
 function _init() {
   if (interstitial || !InterstitialAd || !AdEventType) return;
@@ -102,6 +103,7 @@ function _init() {
   });
 
   interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+    if (showGuard) { clearTimeout(showGuard); showGuard = null; }
     isLoaded = false; isShowing = false;
     preloadInterstitial();
   });
@@ -157,6 +159,17 @@ export async function showInterstitial() {
 
   try {
     isShowing = true;
+    // CLOSED 가 끝내 오지 않는 경우(OS 가 광고를 걷어가는 등)에 대비한 안전장치.
+    // 없으면 isShowing 이 true 로 굳어 남은 세션 동안 전면광고가 아예 안 뜬다.
+    if (showGuard) clearTimeout(showGuard);
+    showGuard = setTimeout(() => {
+      if (isShowing) {
+        log('CLOSED 미수신 — 상태 복구');
+        isShowing = false;
+        isLoaded = false;
+        preloadInterstitial();
+      }
+    }, 5 * 60 * 1000);
     interstitial.show();
     return true;
   } catch (e) {

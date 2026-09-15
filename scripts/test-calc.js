@@ -242,6 +242,16 @@ eq(api.calcHobong(yearsAgoStr(0)),     1, 'calcHobong: 임관 당일 = 1호봉')
 eq(api.calcHobong(null),               1, 'calcHobong: 값 없으면 1호봉');
 ok(api.nextHobongInfo(yearsAgoStr(1)).daysLeft > 0, 'nextHobongInfo: 주년 당일엔 다음 승급이 미래여야 함 (D-0 모순 방지)');
 
+/* 승급일 자체가 맞아야 한다 — 예전엔 new Date(문자열) 을 써서 UTC 파싱 탓에
+   하루 일찍 나왔고, 2월 29일 임관자는 3월 1일로 굴렀다. */
+const hb2 = api.nextHobongInfo(yearsAgoStr(2));
+eq(hb2.current, 3, 'nextHobongInfo: 2주년이면 현재 3호봉');
+eq(hb2.next, 4, 'nextHobongInfo: 다음은 4호봉');
+eq(hb2.nextDate, yearsAgoStr(-1), 'nextHobongInfo: 다음 승급일 = 1년 뒤 같은 날');
+eq(api.nextHobongInfo('2024-02-29').nextDate.slice(5), '02-28', 'nextHobongInfo: 윤일 임관자는 평년 2월 말일로 클램프');
+eq(api.nextHobongInfo(null), null, 'nextHobongInfo: 값 없으면 null');
+eq(api.nextHobongInfo('bad'), null, 'nextHobongInfo: 잘못된 날짜 → null');
+
 /* ─── 10. 날짜 결정적 선택 (daily.js) ────────────────────────────────── */
 const pool = ['a', 'b', 'c', 'd', 'e'];
 eq(api.pickDaily(pool, '2026-08-07', 'x'), api.pickDaily(pool, '2026-08-07', 'x'),

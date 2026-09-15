@@ -26,7 +26,7 @@ import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
 import {
-  calcDischargeDate, calcDaysLeft, calcServedMonths, calcProgress, formatDate, formatDateKo,
+  calcDischargeDate, calcDaysLeft, calcProgress, formatDate, formatDateKo,
   isFutureDate, isValidDateString,
   getMessageForPhase,
 } from '../utils/dateUtils';
@@ -204,8 +204,17 @@ export default function DischargeScreen({ navigation }) {
           text: '초기화',
           style: 'destructive',
           onPress: async () => {
+            const defaults = calcDefaultPromotions(info.enlistDate);
+            if (!defaults) {
+              // 입대일이 깨져 있으면 기본값을 만들 수 없다. 저장소를 건드리지 않고
+              // 편집 상태도 유지한다 — null 을 넣으면 편집 카드가 통째로 사라져
+              // 저장·취소 버튼까지 없어진다.
+              haptic.warning();
+              Alert.alert('오류', '입대일이 올바르지 않아 기본값을 계산할 수 없습니다. 입대일을 다시 저장해주세요.');
+              return;
+            }
             await resetRankPromotions();
-            setEditPromo(calcDefaultPromotions(info.enlistDate));
+            setEditPromo(defaults);
           },
         },
       ]
@@ -219,7 +228,6 @@ export default function DischargeScreen({ navigation }) {
   const branchLabel = BRANCHES.find((b) => b.key === info?.branch)?.label ?? '';
 
   // 복무 진행률 — 여정 레일의 채워진 부분
-  const servedMonths = info ? calcServedMonths(info.enlistDate) : 0;
   // 홈 히어로와 같은 기준(일수)을 쓴다. 예전엔 여기만 servedMonths/months 라
   // 같은 프로필인데 전역 탭과 홈의 진행률이 달랐고, 개월 기준이라 5.5%p 씩 뛰었다.
   const progress = info ? calcProgress(info.enlistDate, info.dischargeDate) / 100 : 0;
@@ -421,7 +429,7 @@ export default function DischargeScreen({ navigation }) {
         ) : null}
 
         {/* ── 진급일 관리 (병사만) ── */}
-        {info && !infoOfficer && activePromo ? (
+        {info && !infoOfficer && (activePromo || editingPromo) ? (
           <Section index={1}>
             <Animated.View layout={m.layout(LinearTransition.springify())}>
               <Card>

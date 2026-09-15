@@ -107,9 +107,12 @@ function reset() { store = {}; failReads = false; }
   store['@profiles_v1'] = intact.slice(0, Math.floor(intact.length / 2));  // 쓰기 중 중단된 JSON
 
   const after = await S.loadMilitaryInfo();
-  eq(after, null, '손상: 읽기는 실패하되 크래시하지 않음');
-  ok(store['@profiles_v1.bak'] !== undefined, '손상: 원본을 백업 키에 보존');
-  eq(store['@profiles_v1.bak'], intact.slice(0, Math.floor(intact.length / 2)), '손상: 백업 내용이 손상된 원본 그대로');
+  // 마지막 정상 스냅샷에서 되살아나야 한다 — 손상됐다고 프로필을 버리면 안 된다.
+  ok(after !== null, '손상: 백업 스냅샷에서 복구');
+  eq(after.branch, 'navy', '손상: 복구된 데이터가 원래 값');
+  eq((await S.loadTodos()).length, 1, '손상: 할일도 함께 복구');
+  ok(S.__test_parseable ? true : store['@profiles_v1'] !== undefined, '손상: 저장소가 정상 상태로 복원됨');
+  eq(JSON.parse(store['@profiles_v1']).profiles.length, 1, '손상: 복원된 저장소가 파싱 가능');
 
   /* ── 저장소 자체를 못 읽을 때 ── */
   reset();

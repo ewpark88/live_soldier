@@ -14,7 +14,7 @@ import { resolveLeaveDays } from '../constants/serviceTerms';
  */
 
 const STORE_KEY = '@profiles_v1';
-const STORE_BACKUP_KEY = '@profiles_v1.bak';  // 손상 감지 시 원본 보존용
+const STORE_BACKUP_KEY = '@profiles_v1.bak';  // 마지막으로 정상 파싱된 스냅샷
 
 /* 레코드 id 생성 — Date.now() 만 쓰면 같은 밀리초에 만든 둘이 충돌한다.
    충돌하면 삭제·완료토글이 엉뚱한 항목을 건드린다. */
@@ -131,18 +131,25 @@ async function _loadStore() {
   }
 
   if (raw) {
-    try {
-      const store = JSON.parse(raw);
-      if (store && Array.isArray(store.profiles) && store.profiles.length) return store;
-    } catch (e) {
-      _warn('저장소가 손상되었습니다', e);
+    const parsed = _parseStore(raw);
+    if (parsed) {
+      await _snapshot(raw);   // 마지막 정상 상태를 남겨둔다
+      return parsed;
     }
-    // 값은 있는데 못 쓰는 상태 → 덮어쓰기 전에 원본을 백업해 둔다.
-    // 예전에는 여기서 곧바로 _saveStore(migrated) 를 호출해 프로필 전체가 사라졌다.
+    _warn('저장소가 손상되었습니다', '파싱 실패 또는 형태 불일치');
+
+    // 손상된 값을 그대로 덮어쓰면 프로필이 통째로 사라진다.
+    // 마지막 정상 스냅샷이 있으면 그것으로 되살린다.
     try {
-      await AsyncStorage.setItem(STORE_BACKUP_KEY, raw);
+      const backup = await AsyncStorage.getItem(STORE_BACKUP_KEY);
+      const restored = backup ? _parseStore(backup) : null;
+      if (restored) {
+        _warn('백업에서 복구합니다', '마지막 정상 스냅샷 사용');
+        await _saveStore(restored);
+        return restored;
+      }
     } catch (e) {
-      _warn('손상 저장소 백업 실패', e);
+      _warn('백업 복구 실패', e);
     }
   }
 
@@ -151,12 +158,45 @@ async function _loadStore() {
   return migrated;
 }
 
-async function _saveStore(store) {
+/** 저장소 문자열 → store 객체. 형태가 아니면 null */
+function _parseStore(raw) {
   try {
-    await AsyncStorage.setItem(STORE_KEY, JSON.stringify(store));
+    const store = JSON.parse(raw);
+    if (store && Array.isArray(store.profiles) && store.profiles.length) return store;
+  } catch (e) { /* 아래에서 null */ }
+  return null;
+}
+
+// 내용이 실제로 바뀐 경우에만 스냅샷을 갱신한다.
+// (세션당 1회로 묶으면 그 뒤에 추가된 프로필이 백업에 안 들어간다)
+let _lastSnapshot = null;
+async function _snapshot(raw) {
+  if (raw === _lastSnapshot) return;
+  _lastSnapshot = raw;
+  try {
+    await AsyncStorage.setItem(STORE_BACKUP_KEY, raw);
+  } catch (e) {
+    _warn('스냅샷 저장 실패', e);
+  }
+}
+
+async function _saveStore(store) {
+  let json;
+  try {
+    json = JSON.stringify(store);
+  } catch (e) {
+    _warn('직렬화 실패', e);
+    return;
+  }
+  try {
+    await AsyncStorage.setItem(STORE_KEY, json);
   } catch (e) {
     _warn('저장 실패', e);
+    return;
   }
+  // 방금 쓴 값이 곧 '마지막 정상 상태'다. 읽기 시점에만 스냅샷을 뜨면
+  // 백업이 항상 한 번씩 뒤처져서, 복구해도 마지막 변경이 사라진다.
+  await _snapshot(json);
 }
 
 function _activeIndex(store) {
@@ -179,6 +219,7 @@ async function _getField(key) {
 
 /* 활성 프로필의 data 필드 1개 쓰기 */
 async function _setField(key, value) {
+  // 실패하면 호출부(화면의 저장 핸들러)가 알 수 있게 그대로 던진다.
   const store = await _loadStore();
   const i = _activeIndex(store);
   store.profiles[i] = {
@@ -247,7 +288,11 @@ export async function saveMilitaryInfo(info) {
  * enlistDate/months 가 온전치 않으면 저장된 값을 그대로 돌려준다.
  */
 export async function loadMilitaryInfo() {
-  const info = (await _getField('militaryInfo')) ?? null;
+  return _withRecomputedDischarge((await _getField('militaryInfo')) ?? null);
+}
+
+/** 저장된 입대정보의 파생값(전역일)을 현재 계산식으로 맞춰 돌려준다 */
+function _withRecomputedDischarge(info) {
   if (!info) return null;
 
   const months = Number(info.months);
@@ -393,7 +438,9 @@ export async function listProfiles() {
       id:           p.id,
       name:         p.name,
       photo:        p.photo,
-      militaryInfo: p.data ? p.data.militaryInfo : null,
+      // loadMilitaryInfo 와 같은 보정을 거친다 — widgetData 가 이 경로로 읽으므로
+      // 빼먹으면 앱과 홈 위젯의 전역일이 며칠씩 어긋난다.
+      militaryInfo: _withRecomputedDischarge(p.data ? p.data.militaryInfo : null),
     })),
   };
 }

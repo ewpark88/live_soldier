@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
+import { parseDate } from '../utils/dateUtils';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -33,8 +34,11 @@ import { motion } from '../theme/tokens';
  * 어두운 히어로 위에 올라가므로 기본 색은 밝은 톤(흰색 계열 + 금색).
  */
 function calcLive(enlistDate, dischargeDate) {
-  const start = new Date(enlistDate); start.setHours(0, 0, 0, 0);
-  const end = new Date(dischargeDate); end.setHours(0, 0, 0, 0);
+  // 문자열을 new Date() 에 그대로 넘기면 UTC 자정으로 파싱돼, UTC 오프셋이
+  // 음수인 기기에서 게이지와 초시계가 하루 앞서 간다 (같은 화면의 calcProgress 와 불일치).
+  const start = parseDate(enlistDate);
+  const end = parseDate(dischargeDate);
+  if (!start || !end) return { pct: 0, servedSec: 0 };
   const s = start.getTime();
   const e = end.getTime();
   const now = Date.now();

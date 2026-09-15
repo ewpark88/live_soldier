@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useThemeColors } from '../theme/ThemeContext';
-import { formatDate, formatDateKo, daysBetweenInclusive } from '../utils/dateUtils';
+import { formatDate, formatDateKo, daysBetweenInclusive, parseDate } from '../utils/dateUtils';
 
 /**
  * 기간(from~to) 선택 인라인 캘린더.
@@ -37,7 +37,7 @@ export default function RangeCalendar({
   const todayStr = formatDate(today);
 
   // 보여줄 달: 선택된 시작일 우선, 없으면 오늘
-  const initial = startDate ? new Date(startDate) : today;
+  const initial = parseDate(startDate) ?? today;   // 문자열을 그대로 넘기면 UTC 파싱이라 달이 밀린다
   const [year, setYear]   = useState(initial.getFullYear());
   const [month, setMonth] = useState(initial.getMonth());
 

@@ -84,8 +84,12 @@ export function checkIn(state, now = new Date()) {
     return { next: { ...s, lastSeenTs: ts }, changed: false, event: 'skew' };
   }
 
+  // brokenFrom 은 '방금 끊겼다'는 일회성 정보다. ...s 로 계속 실어 나르면
+  // 몇 달 전 리셋 값이 @streak_v1 에 영구히 남는다. 기본적으로 지우고,
+  // 리셋 분기에서만 다시 채운다.
+  const { brokenFrom: _dropped, ...prev } = s;
   const base = {
-    ...s, last: today, total: s.total + 1,
+    ...prev, last: today, total: s.total + 1,
     days: pushDay(s.days, today), lastSeenTs: ts,
   };
 
@@ -111,8 +115,6 @@ export function checkIn(state, now = new Date()) {
   }
 
   return {
-    // brokenFrom 은 리셋 시점에만 의미가 있다. 예전엔 ...base 로 계속 따라다녀
-    // 몇 달 전 값이 @streak_v1 에 남았다. 이어가기/유예 분기에서는 지운다.
     next: { ...base, current: 1, best: s.best, brokenFrom: s.current },
     changed: true,
     event: 'reset',

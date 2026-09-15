@@ -94,17 +94,28 @@ export default function SavingsScreen({ navigation }) {
 
   // 키 입력마다 저장소에 쓰지 않는다 — 입력이 멎은 뒤 한 번만 기록한다.
   const saveTimer = useRef(null);
-  const persist = useCallback((mo, mn) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      saveSavingsPlan({
-        monthly: parseInt(mo, 10) || 0,
-        months: parseInt(mn, 10) || 0,
-      }).catch(() => {});
-    }, 400);
+  const pendingSave = useRef(null);
+
+  const flushSave = useCallback(() => {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+    const p = pendingSave.current;
+    if (!p) return;
+    pendingSave.current = null;
+    saveSavingsPlan(p).catch(() => {});
   }, []);
 
-  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
+  const persist = useCallback((mo, mn) => {
+    pendingSave.current = {
+      monthly: parseInt(mo, 10) || 0,
+      months: parseInt(mn, 10) || 0,
+    };
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(flushSave, 400);
+  }, [flushSave]);
+
+  // 언마운트 시 대기 중인 저장을 '취소'가 아니라 '즉시 실행'해야 한다.
+  // 그냥 clearTimeout 하면 마지막 400ms 안의 입력이 조용히 사라진다.
+  useEffect(() => flushSave, [flushSave]);
 
   const onlyDigits = (t) => t.replace(/[^0-9]/g, '');
   const onMonthly = (t) => { const v = onlyDigits(t); setMonthly(v); persist(v, months); };
