@@ -48,11 +48,18 @@ export function StreakProvider({ children, onCheckIn }) {
       if (changed) {
         await saveStreak(next);
         setJustIncremented(event === 'continue' || event === 'freeze' || event === 'first');
-        // 스트릭이 실제로 움직였을 때만 알림을 다시 잡는다
-        if (onCheckIn) onCheckIn(next, event).catch?.(() => {});
+        // 스트릭이 실제로 움직였을 때만 알림을 다시 잡는다.
+        // 예전 형태 onCheckIn(...).catch?.() 는 메서드만 보호해서, 콜백이
+        // Promise 를 안 돌려주면 TypeError 가 났고 try 에 catch 가 없어
+        // setReady(true) 까지 건너뛰어 스트릭 UI 가 영영 로딩에 머물렀다.
+        if (onCheckIn) {
+          try { await Promise.resolve(onCheckIn(next, event)); } catch { /* 알림 재예약 실패는 무시 */ }
+        }
       }
-      setReady(true);
+    } catch (e) {
+      if (__DEV__) console.warn('[Streak] 체크인 실패:', e && e.message);
     } finally {
+      setReady(true);   // 실패해도 UI 를 로딩 상태로 붙잡아두지 않는다
       busy.current = false;
     }
   }, [onCheckIn]);

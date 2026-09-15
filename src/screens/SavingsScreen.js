@@ -56,7 +56,17 @@ export default function SavingsScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      loadMilitaryInfo().then(setMilitaryInfo);
+      let alive = true;
+      (async () => {
+        try {
+          const mi = await loadMilitaryInfo();
+          if (alive) setMilitaryInfo(mi);
+        } catch (e) {
+          if (__DEV__) console.warn('[SavingsScreen] 로드 실패:', e && e.message);
+          if (alive) setMilitaryInfo(null);
+        }
+      })();
+      return () => { alive = false; };
     }, [])
   );
 

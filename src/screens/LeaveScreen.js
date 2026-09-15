@@ -40,6 +40,52 @@ const MODAL_BONUS = 'bonus';
  * 그리지 않고, 상단 inset 도 부모(CalendarScreen)가 이미 소비했으므로 다시
  * 먹이지 않는다. 본문 로직은 두 모드가 완전히 동일하다.
  */
+/**
+ * 기록 한 줄 — 카드 하나씩 띄우지 않고 한 카드 안에 헤어라인으로 나눈다.
+ *
+ * 모듈 최상위에 둬야 한다. 예전엔 LeaveScreen 렌더 본문 안에서 정의해서
+ * 렌더마다 컴포넌트 타입이 새로 만들어졌고, 기본휴가 입력란에 한 글자 칠 때마다
+ * 모든 행이 언마운트·재마운트되며 FadeInDown 이 다시 돌았다.
+ * (TodoScreen 의 TodoItem 과 같은 방식)
+ */
+function RecordRow({ item, bonus, onDelete, last }) {
+  const tc = useThemeColors();
+  const m = useMotion();
+  const s = useMemo(() => makeStyles(tc), [tc]);
+  return (
+    <Animated.View
+      entering={m.enter(FadeInDown, 0, motion.duration.base)}
+      exiting={m.exit(FadeOutRight)}
+      layout={m.layout(LinearTransition.springify().damping(20).stiffness(200))}
+    >
+      <ListRow
+        title={formatDateKo(item.date)}
+        subtitle={item.memo || undefined}
+        icon={bonus ? 'medal-outline' : 'airplane-outline'}
+        iconTone={bonus ? 'accent' : 'primary'}
+        right={
+          <View style={s.rowRight}>
+            <Chip
+              label={bonus ? `+${item.days}일` : `${item.days}일`}
+              size="sm"
+              tone={bonus ? 'accent' : 'neutral'}
+            />
+            <PressScale
+              onPress={() => onDelete(item.id, item.date)}
+              haptic="light"
+              style={s.trash}
+              accessibilityLabel="삭제"
+            >
+              <Ionicons name="trash-outline" size={17} color={tc.textLight} />
+            </PressScale>
+          </View>
+        }
+      />
+      {!last ? <Divider inset={48} /> : null}
+    </Animated.View>
+  );
+}
+
 export default function LeaveScreen({ navigation, embedded = false }) {
   const tc = useThemeColors();
   const m = useMotion();
@@ -144,39 +190,6 @@ export default function LeaveScreen({ navigation, embedded = false }) {
   if (militaryInfo === undefined) return <Screen scroll={false} />;
   if (!militaryInfo) return <SetupRequired />;
 
-  /** 기록 한 줄 — 카드 하나씩 띄우지 않고 한 카드 안에 헤어라인으로 나눈다 */
-  const RecordRow = ({ item, bonus, onDelete, last }) => (
-    <Animated.View
-      entering={m.enter(FadeInDown, 0, motion.duration.base)}
-      exiting={m.exit(FadeOutRight)}
-      layout={m.layout(LinearTransition.springify().damping(20).stiffness(200))}
-    >
-      <ListRow
-        title={formatDateKo(item.date)}
-        subtitle={item.memo || undefined}
-        icon={bonus ? 'medal-outline' : 'airplane-outline'}
-        iconTone={bonus ? 'accent' : 'primary'}
-        right={
-          <View style={s.rowRight}>
-            <Chip
-              label={bonus ? `+${item.days}일` : `${item.days}일`}
-              size="sm"
-              tone={bonus ? 'accent' : 'neutral'}
-            />
-            <PressScale
-              onPress={() => onDelete(item.id, item.date)}
-              haptic="light"
-              style={s.trash}
-              accessibilityLabel="삭제"
-            >
-              <Ionicons name="trash-outline" size={17} color={tc.textLight} />
-            </PressScale>
-          </View>
-        }
-      />
-      {!last ? <Divider inset={48} /> : null}
-    </Animated.View>
-  );
 
   return (
     <>

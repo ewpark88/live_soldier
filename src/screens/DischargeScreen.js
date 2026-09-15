@@ -71,6 +71,17 @@ export default function DischargeScreen({ navigation }) {
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
   const loadData = async () => {
+    try {
+      await _loadData();
+    } catch (e) {
+      if (__DEV__) console.warn('[DischargeScreen] 데이터 로드 실패:', e && e.message);
+      // info=null, editing=false 로 남으면 헤더만 있고 본문이 비어
+      // 입대 정보를 입력할 방법이 없어진다. 입력 폼을 열어준다.
+      setEditing(true);
+    }
+  };
+
+  const _loadData = async () => {
     const mi = await loadMilitaryInfo();
     if (mi) {
       setInfo(mi);

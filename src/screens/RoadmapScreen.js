@@ -33,10 +33,22 @@ export default function RoadmapScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      loadMilitaryInfo().then((mi) => {
-        setInfo(mi ?? null);
-        if (mi) loadRankPromotions(mi.enlistDate).then(setPromotions);
-      });
+      let alive = true;
+      (async () => {
+        try {
+          const mi = await loadMilitaryInfo();
+          if (!alive) return;
+          setInfo(mi ?? null);
+          if (mi) {
+            const promo = await loadRankPromotions(mi.enlistDate);
+            if (alive) setPromotions(promo);
+          }
+        } catch (e) {
+          if (__DEV__) console.warn('[RoadmapScreen] 로드 실패:', e && e.message);
+          if (alive) setInfo(null);   // 로딩 상태로 멈추지 않게
+        }
+      })();
+      return () => { alive = false; };
     }, [])
   );
 

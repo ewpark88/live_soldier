@@ -15,7 +15,17 @@ export default function OfficerPayScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      loadMilitaryInfo().then((mi) => setOfficerRank(mi?.officerRank ?? null));
+      let alive = true;
+      (async () => {
+        try {
+          const mi = await loadMilitaryInfo();
+          if (alive) setOfficerRank(mi?.officerRank ?? null);
+        } catch (e) {
+          if (__DEV__) console.warn('[OfficerPayScreen] 로드 실패:', e && e.message);
+          if (alive) setOfficerRank(null);
+        }
+      })();
+      return () => { alive = false; };
     }, [])
   );
 

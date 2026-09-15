@@ -16,9 +16,18 @@ export default function SalaryGuideScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      loadMilitaryInfo().then((mi) => {
-        if (mi) loadRankPromotions(mi.enlistDate).then(setPromotions);
-      });
+      let alive = true;
+      (async () => {
+        try {
+          const mi = await loadMilitaryInfo();
+          if (!alive || !mi) return;
+          const promo = await loadRankPromotions(mi.enlistDate);
+          if (alive) setPromotions(promo);
+        } catch (e) {
+          if (__DEV__) console.warn('[SalaryGuideScreen] 로드 실패:', e && e.message);
+        }
+      })();
+      return () => { alive = false; };
     }, [])
   );
 

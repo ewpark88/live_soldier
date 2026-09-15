@@ -50,12 +50,15 @@ export function CelebrationProvider({ children }) {
       if (theme) await unlockTheme(theme.id);
       setUnlockedTheme(theme);
       setPending(show);
+    } catch (e) {
+      // 여기서 던지면 markCelebrated 는 이미 기록된 뒤라 축하가 영영 사라진다.
+      if (__DEV__) console.warn('[Celebration] 판정 실패:', e && e.message);
     } finally {
       busy.current = false;
     }
   }, []);
 
-  useEffect(() => { evaluate(); }, [evaluate]);
+  useEffect(() => { evaluate(); }, [evaluate]);   // evaluate 내부에서 모든 예외를 처리한다
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {

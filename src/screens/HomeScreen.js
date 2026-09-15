@@ -79,6 +79,18 @@ export default function HomeScreen({ navigation }) {
   );
 
   const loadData = async () => {
+    try {
+      await _loadData();
+    } catch (e) {
+      if (__DEV__) console.warn('[HomeScreen] 데이터 로드 실패:', e && e.message);
+      // 로딩 센티널(!info && personnelType === undefined)이 영원히 안 풀려
+      // 홈 탭이 빈 화면으로 멈추던 문제 — 최소한 온보딩/입력 화면으로 떨군다.
+      setInfo(null);
+      setPersonnelType((prev) => (prev === undefined ? null : prev));
+    }
+  };
+
+  const _loadData = async () => {
     const { activeId, profiles } = await listProfiles();
     const active = profiles.find((p) => p.id === activeId);
     setProfileName(active?.name ?? '');

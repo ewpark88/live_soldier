@@ -57,7 +57,7 @@ export default function ProgressBar({
     primary: tc.progressBg,
     accent: tc.progressBg,
     success: tc.progressBg,
-    hero: 'rgba(255,255,255,0.16)',
+    hero: tc.heroTrack,
   };
 
   const fillStyle = useAnimatedStyle(() => ({ transform: [{ scaleX: p.value }] }));
