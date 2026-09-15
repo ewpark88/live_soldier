@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { calcDischargeDate, formatDate } from './dateUtils';
+import { calcDischargeDate, calcPromotionDate, formatDate } from './dateUtils';
 
 /**
  * 멀티 프로필 저장소
@@ -147,24 +147,21 @@ export async function initStorage() {
 }
 
 // ─── 진급일 헬퍼 ──────────────────────────────────────────────────────
-function _addMonths(dateStr, months) {
-  const d = new Date(dateStr);
-  d.setMonth(d.getMonth() + months);
-  const yyyy = d.getFullYear();
-  const mm   = String(d.getMonth() + 1).padStart(2, '0');
-  const dd   = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 /**
  * 입대일 기준 표준 진급일 계산
  * 이병→일병: 2개월, 일병→상병: 8개월, 상병→병장: 14개월 (전군 동일)
+ *
+ * 월 계산은 dateUtils.calcPromotionDate 하나로 통일한다 — 예전에는 여기
+ * _addMonths 가 setMonth 를 그대로 써서 월말 입대자의 진급일이 다음 달로
+ * 굴러갔다 (2024-01-31 +8개월 → 2024-10-01, 정답은 2024-09-30).
  */
 export function calcDefaultPromotions(enlistDate) {
+  const 일병 = calcPromotionDate(enlistDate, 2);
+  if (!일병) return null;
   return {
-    일병: _addMonths(enlistDate, 2),
-    상병: _addMonths(enlistDate, 8),
-    병장: _addMonths(enlistDate, 14),
+    일병,
+    상병: calcPromotionDate(enlistDate, 8),
+    병장: calcPromotionDate(enlistDate, 14),
   };
 }
 

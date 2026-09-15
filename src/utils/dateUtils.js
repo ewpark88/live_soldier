@@ -1,16 +1,77 @@
 import { pickDaily, todayStr } from './daily';
 
+/* ─── 월 단위 날짜 계산 (민법 제160조) ──────────────────────────────────
+ * ② 최종 월에서 기산일에 해당한 날의 전일로 기간이 만료한다.
+ * ③ 최종 월에 해당일이 없는 때에는 그 월의 말일로 기간이 만료한다.
+ *
+ * setMonth() 를 그대로 쓰면 존재하지 않는 날짜(2026-02-31)가 다음 달로
+ * 굴러가( 2026-03-03 ) 월말 입대자의 전역일·진급일이 며칠씩 어긋난다.
+ * 아래 헬퍼가 두 계산의 단일 기준이다.
+ */
+
+/** 'YYYY-MM-DD' → { y, m, d } · 형식이 틀리면 null (로컬 기준, UTC 파싱 회피) */
+function _allDigits(s) {
+  if (!s.length) return false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 48 || c > 57) return false;
+  }
+  return true;
+}
+
+function _ymdParts(dateStr) {
+  if (typeof dateStr !== 'string' || dateStr.length !== 10) return null;
+  if (dateStr[4] !== '-' || dateStr[7] !== '-') return null;
+  const ys = dateStr.slice(0, 4), ms = dateStr.slice(5, 7), ds = dateStr.slice(8, 10);
+  if (!_allDigits(ys) || !_allDigits(ms) || !_allDigits(ds)) return null;
+  const y = Number(ys), mo = Number(ms), d = Number(ds);
+  if (mo < 1 || mo > 12) return null;
+  if (d < 1 || d > daysInMonth(y, mo - 1)) return null;
+  return { y, m: mo, d };
+}
+
+/** 해당 연·월(0-based)의 일수 */
+function daysInMonth(year, monthIndex) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
 /**
- * 입대일 + 복무개월 → 전역일 계산
- * 전역일(만료일) = 입대일 + N개월 - 1일.
- * 예) 2024-01-02 입대, 18개월 → 2025-07-01 전역.
- * (입대일이 복무 1일째이므로 만료일은 N개월째 되는 날의 전날)
+ * 기산일 + N개월의 '해당일'. 해당일이 없으면 그 달의 말일로 클램프.
+ * @returns {{ date: Date, clamped: boolean } | null}
+ */
+function _shiftMonths(dateStr, months) {
+  const p = _ymdParts(dateStr);
+  if (!p || !Number.isFinite(months)) return null;
+  const total = (p.m - 1) + months;
+  const ty = p.y + Math.floor(total / 12);
+  const tm = ((total % 12) + 12) % 12;
+  const last = daysInMonth(ty, tm);
+  const clamped = p.d > last;
+  return { date: new Date(ty, tm, clamped ? last : p.d), clamped };
+}
+
+/**
+ * 입대일 + 복무개월 → 전역일(복무기간 만료일)
+ * 해당일이 있으면 그 전일, 없으면 그 달의 말일 (민법 160조 ②③).
+ * 예) 2024-01-02 +18개월 → 2025-07-01
+ *     2024-08-31 +18개월 → 2026-02-28  (2026-02-31 은 없으므로 말일)
  */
 export function calcDischargeDate(enlistDate, months) {
-  const d = new Date(enlistDate);
-  d.setMonth(d.getMonth() + months);
-  d.setDate(d.getDate() - 1);
-  return d;
+  const r = _shiftMonths(enlistDate, months);
+  if (!r) return null;
+  if (r.clamped) return r.date;          // 말일이 곧 만료일 — 하루를 더 빼지 않는다
+  r.date.setDate(r.date.getDate() - 1);  // 해당일의 전일
+  return r.date;
+}
+
+/**
+ * 입대일 + N개월 → 진급일 'YYYY-MM-DD'
+ * 진급일은 발효일(해당일)이라 전역일과 달리 -1일을 적용하지 않는다.
+ * 해당일이 없으면 그 달의 말일.
+ */
+export function calcPromotionDate(enlistDate, months) {
+  const r = _shiftMonths(enlistDate, months);
+  return r ? formatDate(r.date) : null;
 }
 
 /**
@@ -57,11 +118,19 @@ export function calcServedDays(enlistDate) {
   return Math.floor(diff / (1000 * 60 * 60 * 24));
 }
 
+/** 'YYYY-MM-DD' 가 오늘(로컬)보다 미래인가 */
+export function isFutureDate(dateStr) {
+  if (!_ymdParts(dateStr)) return false;
+  return dateStr > todayStr();   // ISO 날짜는 사전식 비교 = 시간순 비교
+}
+
 /**
- * Date → 'YYYY-MM-DD'
+ * Date | 'YYYY-MM-DD' → 'YYYY-MM-DD' · 값이 없거나 잘못되면 ''
  */
 export function formatDate(date) {
+  if (date == null) return '';
   const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
@@ -72,7 +141,9 @@ export function formatDate(date) {
  * Date → 'YYYY년 MM월 DD일'
  */
 export function formatDateKo(date) {
+  if (date == null) return '';
   const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
@@ -118,11 +189,7 @@ export function daysBetweenInclusive(startStr, endStr) {
  * 'YYYY-MM-DD' 형식 유효성 검사
  */
 export function isValidDateString(str) {
-  if (!str || str.length !== 10) return false;
-  const regex = /^\d{4}-\d{2}-\d{2}$/;
-  if (!regex.test(str)) return false;
-  const date = new Date(str);
-  return !isNaN(date.getTime());
+  return _ymdParts(str) !== null;
 }
 
 /**

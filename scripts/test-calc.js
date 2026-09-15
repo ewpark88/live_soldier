@@ -70,6 +70,27 @@ eq(ymd(api.calcDischargeDate('2024-01-02', 18)), '2025-07-01', 'calcDischargeDat
 eq(ymd(api.calcDischargeDate('2023-03-15', 21)), '2024-12-14', 'calcDischargeDate: 공군 21개월');
 eq(ymd(api.calcDischargeDate('2024-06-01', 20)), '2026-01-31', 'calcDischargeDate: 해군 20개월');
 
+/* 월말 입대 — 민법 160조 ③: 최종 월에 해당일이 없으면 그 월의 말일로 만료 */
+eq(ymd(api.calcDischargeDate('2024-08-31', 18)), '2026-02-28', 'calcDischargeDate: 8/31 +18개월 → 2월 말일 (해당일 없음)');
+eq(ymd(api.calcDischargeDate('2024-08-30', 18)), '2026-02-28', 'calcDischargeDate: 8/30 +18개월 → 2월 말일');
+eq(ymd(api.calcDischargeDate('2024-05-31', 21)), '2026-02-28', 'calcDischargeDate: 5/31 +21개월 → 2월 말일');
+eq(ymd(api.calcDischargeDate('2023-11-30', 27)), '2026-02-28', 'calcDischargeDate: 11/30 +27개월 → 2월 말일');
+eq(ymd(api.calcDischargeDate('2024-11-30', 15)), '2026-02-28', 'calcDischargeDate: 윤년 아닌 2월 말일');
+/* 해당일이 존재하면 그 전일 (평소 규칙) */
+eq(ymd(api.calcDischargeDate('2024-01-31', 18)), '2025-07-30', 'calcDischargeDate: 1/31 +18개월 → 해당일 전일');
+eq(ymd(api.calcDischargeDate('2024-05-31', 18)), '2025-11-30', 'calcDischargeDate: 5/31 +18개월 → 11/30 (11월은 30일까지)');
+eq(ymd(api.calcDischargeDate('2024-02-29', 18)), '2025-08-28', 'calcDischargeDate: 윤일 입대');
+
+/* 진급일 — 해당일 그대로(-1일 없음), 해당일 없으면 그 달 말일 */
+eq(api.calcPromotionDate('2024-12-31', 2),  '2025-02-28', 'calcPromotionDate: 12/31 +2개월 → 2월 말일');
+eq(api.calcPromotionDate('2024-12-31', 14), '2026-02-28', 'calcPromotionDate: 12/31 +14개월 → 2월 말일');
+eq(api.calcPromotionDate('2024-01-31', 8),  '2024-09-30', 'calcPromotionDate: 1/31 +8개월 → 9월 말일');
+eq(api.calcPromotionDate('2024-08-31', 8),  '2025-04-30', 'calcPromotionDate: 8/31 +8개월 → 4월 말일');
+eq(api.calcPromotionDate('2024-03-31', 8),  '2024-11-30', 'calcPromotionDate: 3/31 +8개월 → 11월 말일');
+eq(api.calcPromotionDate('2024-01-15', 2),  '2024-03-15', 'calcPromotionDate: 평소 케이스는 같은 일자');
+eq(api.calcPromotionDate('2024-12-31', 8),  '2025-08-31', 'calcPromotionDate: 해당일 있으면 그대로');
+eq(api.calcPromotionDate('bad', 2), null, 'calcPromotionDate: 잘못된 날짜 → null');
+
 /* ─── 2. D-Day / 복무일수 (오늘 기준 상대) ───────────────────────────── */
 eq(api.calcDaysLeft(todayPlus(0)), 0,   'calcDaysLeft: 오늘 = D-0');
 eq(api.calcDaysLeft(todayPlus(1)), 1,   'calcDaysLeft: 내일 = D-1');
@@ -106,6 +127,24 @@ eq(api.formatDateKo('2024-01-05'), '2024년 1월 5일', 'formatDateKo');
 ok(api.isValidDateString('2024-12-31'), 'isValidDateString: 정상');
 ok(!api.isValidDateString('2024-13-40'), 'isValidDateString: 잘못된 월/일');
 ok(!api.isValidDateString('2024-1-5'), 'isValidDateString: 자리수 불충분');
+/* 존재하지 않는 날짜 — new Date('2024-02-31') 은 3월로 굴러가므로 NaN 검사로는 못 잡는다 */
+ok(!api.isValidDateString('2024-02-31'), 'isValidDateString: 2월 31일 없음');
+ok(!api.isValidDateString('2024-02-30'), 'isValidDateString: 2월 30일 없음');
+ok(!api.isValidDateString('2023-02-29'), 'isValidDateString: 평년 2월 29일 없음');
+ok(api.isValidDateString('2024-02-29'),  'isValidDateString: 윤년 2월 29일 있음');
+ok(!api.isValidDateString('2024-00-10'), 'isValidDateString: 0월 없음');
+ok(!api.isValidDateString('2024-04-31'), 'isValidDateString: 4월 31일 없음');
+
+/* 미래 날짜 판정 — UTC 파싱 때문에 KST 오전 9시 이전에 오늘이 미래로 잡히던 버그 */
+ok(!api.isFutureDate(todayPlus(0)),  'isFutureDate: 오늘은 미래가 아님 (시각 무관)');
+ok(api.isFutureDate(todayPlus(1)),   'isFutureDate: 내일은 미래');
+ok(!api.isFutureDate(todayPlus(-1)), 'isFutureDate: 어제는 미래 아님');
+ok(!api.isFutureDate('bad'),         'isFutureDate: 잘못된 값은 false');
+
+/* 포맷 널 안전성 */
+eq(api.formatDate(null), '',   'formatDate: null → 빈 문자열');
+eq(api.formatDate('bad'), '',  'formatDate: 잘못된 값 → 빈 문자열');
+eq(api.formatDateKo(null), '', 'formatDateKo: null → 빈 문자열');
 
 /* ─── 7. 휴가/일정 기간(span) 계산 — 핵심 점검 대상 ──────────────────── */
 eq(api.spanDates('2024-03-10', 1), ['2024-03-10'], 'spanDates: 1일');

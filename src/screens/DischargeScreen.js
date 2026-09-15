@@ -28,6 +28,7 @@ import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
 import {
   calcDischargeDate, calcDaysLeft, calcServedMonths, formatDate, formatDateKo,
+  isFutureDate, isValidDateString,
   getMessageForPhase,
 } from '../utils/dateUtils';
 import { BRANCHES, PERSONNEL_TYPES, isOfficer } from '../constants/serviceTerms';
@@ -95,12 +96,20 @@ export default function DischargeScreen({ navigation }) {
     }
   };
 
-  const selectedBranch = BRANCHES.find((b) => b.key === branch);
+  // 저장된 branch 가 손상돼도 크래시하지 않도록 첫 군종으로 폴백
+  const selectedBranch = BRANCHES.find((b) => b.key === branch) ?? BRANCHES[0];
   const officer = isOfficer(personnelType);
 
   const handleSave = async () => {
     if (!enlistDate) { haptic.warning(); Alert.alert('오류', '입대일을 선택해주세요.'); return; }
-    if (new Date(enlistDate) > new Date()) {
+    if (!isValidDateString(enlistDate)) {
+      haptic.warning();
+      Alert.alert('오류', '입대일이 올바르지 않습니다. 다시 선택해주세요.');
+      return;
+    }
+    // 문자열 비교로 판정한다 — new Date('YYYY-MM-DD') 는 UTC 자정으로 파싱돼
+    // KST 오전 9시 이전에는 '오늘'이 미래로 잘못 판정됐다.
+    if (isFutureDate(enlistDate)) {
       haptic.warning();
       Alert.alert('오류', '입대일이 오늘보다 미래일 수 없습니다.');
       return;
@@ -119,9 +128,14 @@ export default function DischargeScreen({ navigation }) {
     }
 
     const dischargeDate = calcDischargeDate(enlistDate, months);
+    if (!dischargeDate) {
+      haptic.warning();
+      Alert.alert('오류', '전역일을 계산할 수 없습니다. 입대일과 복무 개월을 확인해주세요.');
+      return;
+    }
     const mi = {
       enlistDate,
-      branch,
+      branch: selectedBranch.key,
       personnelType,
       officerRank: officer ? (officerRank ?? null) : null,
       dischargeDate: formatDate(dischargeDate),
