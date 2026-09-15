@@ -48,8 +48,10 @@ export function calcSavings({
   rate = SAVINGS.DEFAULT_RATE,
   matchRatio = SAVINGS.DEFAULT_MATCH,
 } = {}) {
-  const m = Math.max(0, Math.floor(monthly) || 0);
-  // 적금 최대 24개월로 제한
+  // 두 입력 모두 제도 한도로 클램프한다. 예전에는 개월만 24로 자르고 월납입액은
+  // 그대로 써서, 100만원 30개월을 넣으면 개월은 24로 줄면서 금액은 55만원 한도를
+  // 넘긴 채 계산돼 제도상 불가능한 만기 수령액이 나왔다.
+  const m = Math.min(SAVINGS.MONTHLY_MAX, Math.max(0, Math.floor(monthly) || 0));
   const n = Math.min(SAVINGS.MAX_MONTHS, Math.max(0, Math.floor(months) || 0));
   const principal  = m * n;
   const interest   = calcSavingsInterest(m, n, rate);

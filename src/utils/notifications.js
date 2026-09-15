@@ -328,10 +328,19 @@ export async function refreshScheduledNotifications({ force = false } = {}) {
   }
 
   // 마일스톤 전야 — 향후 180일 이내만 (최대 7건으로 유계)
+  //
+  // prefs.discharge 블록이 이미 당일 알림을 잡는 마일스톤은 건너뛴다.
+  // 예전에는 전역 전날에 'D-1'(09시)과 '내일은 전역!'(21시)이 같이 울렸고,
+  // 입대 100일·진급일도 같은 식으로 두 번씩 갔다.
+  const coveredByDischarge = prefs.discharge
+    ? new Set(['discharge', 'd100in', 'r1', 'r2', 'r3'])
+    : new Set();
+
   if (prefs.milestone) {
     const roadmap = buildRoadmap(info, promoForSig);
     for (const ms of roadmap) {
       if (ms.done || ms.dday > 180) continue;
+      if (coveredByDischarge.has(ms.key)) continue;
       await scheduleAt(
         addDaysStr(ms.dateStr, -1),
         `내일은 ${ms.label}! ${ms.emoji ?? '🎖️'}`,

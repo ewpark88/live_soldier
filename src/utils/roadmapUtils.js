@@ -7,9 +7,17 @@ import { isOfficer } from '../constants/serviceTerms';
 
 function addDays(dateStr, n) {
   const d = parseDate(dateStr);
-  d.setHours(0, 0, 0, 0);
+  if (!d) return null;
   d.setDate(d.getDate() + n);
   return d;
+}
+
+/** 두 날짜 사이 일수 (양끝 포함하지 않는 단순 차이) */
+function daySpan(startStr, endStr) {
+  const s = parseDate(startStr);
+  const e = parseDate(endStr);
+  if (!s || !e) return 0;
+  return Math.round((e - s) / 86400000);
 }
 
 function midpoint(startStr, endStr) {
@@ -28,12 +36,21 @@ function midpoint(startStr, endStr) {
  */
 export function buildRoadmap(info, promotions) {
   if (!info?.enlistDate || !info?.dischargeDate) return [];
+  // 날짜가 깨져 있으면 조각난 타임라인을 그리느니 비운다 (화면은 빈 상태를 처리한다)
+  if (!parseDate(info.enlistDate) || !parseDate(info.dischargeDate)) return [];
   const officer = isOfficer(info.personnelType);
   const list = [];
 
   /* emoji 는 위젯·공유 텍스트용으로 남겨두고, 화면은 icon(Ionicons) 을 쓴다. */
+  // 복무기간이 100일보다 짧으면 '입대 100일'과 '전역 100일 전'은 구간 밖으로
+  // 벗어난다(전자는 전역 뒤, 후자는 입대 전). 정렬하면 타임라인이
+  // 전역100일전 → 입대 → 전역 → 입대100일 순으로 뒤엉키므로 아예 넣지 않는다.
+  // DischargeScreen 은 간부 복무개월을 1~240 으로 받으므로 실제로 가능한 입력이다.
+  const totalDays = daySpan(info.enlistDate, info.dischargeDate);
+  const showD100 = totalDays >= 100;
+
   list.push({ key: 'enlist', label: '입대', emoji: '🪖', icon: 'flag', date: parseDate(info.enlistDate) });
-  list.push({ key: 'd100in', label: '입대 100일', emoji: '💯', icon: 'calendar-number', date: addDays(info.enlistDate, 99) });
+  if (showD100) list.push({ key: 'd100in', label: '입대 100일', emoji: '💯', icon: 'calendar-number', date: addDays(info.enlistDate, 99) });
 
   if (!officer && promotions) {
     if (promotions.일병) list.push({ key: 'r1', label: '일병 진급', emoji: '🎖️', icon: 'chevron-up-circle', date: parseDate(promotions.일병) });
@@ -42,10 +59,11 @@ export function buildRoadmap(info, promotions) {
   }
 
   list.push({ key: 'half', label: '반환점 (복무 절반)', emoji: '⚖️', icon: 'hourglass', date: midpoint(info.enlistDate, info.dischargeDate) });
-  list.push({ key: 'd100out', label: '전역 100일 전', emoji: '🔥', icon: 'flame', date: addDays(info.dischargeDate, -100) });
+  if (showD100) list.push({ key: 'd100out', label: '전역 100일 전', emoji: '🔥', icon: 'flame', date: addDays(info.dischargeDate, -100) });
   list.push({ key: 'discharge', label: '전역', emoji: '🎉', icon: 'trophy', date: parseDate(info.dischargeDate) });
 
   return list
+    .filter((m) => m.date instanceof Date && !isNaN(m.date.getTime()))  // 날짜 파싱 실패분 제외
     .map((m) => {
       const dday = calcDaysLeft(m.date);
       return { ...m, dateStr: formatDate(m.date), dday: dday, done: dday <= 0 };

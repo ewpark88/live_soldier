@@ -15,11 +15,13 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const SRC = path.join(__dirname, '..', 'src', 'utils');
+const ROOT = path.join(__dirname, '..');
+const SRC = path.join(ROOT, 'src', 'utils');
 
 function loadModule(...files) {
   const code = files
-    .map((f) => fs.readFileSync(path.join(SRC, f), 'utf8'))
+    // 'constants/foo.js' 처럼 슬래시가 있으면 src/ 기준, 없으면 src/utils 기준
+    .map((f) => fs.readFileSync(f.includes('/') ? path.join(ROOT, 'src', f) : path.join(SRC, f), 'utf8'))
     .join('\n')
     .replace(/^\s*import[^\n]*\n/gm, '')   // 모듈 간 import 제거 (한 스코프로 합침)
     .replace(/^export\s+/gm, '');           // export 키워드 제거
@@ -41,7 +43,11 @@ function collectNames(code) {
 }
 
 // daily.js 를 먼저 합친다 — dateUtils 의 getMessageForPhase 가 pickDaily/todayStr 을 쓴다
-const api = loadModule('daily.js', 'dateUtils.js', 'officerUtils.js', 'streak.js', 'celebration.js');
+const api = loadModule(
+  'constants/serviceTerms.js',   // roadmapUtils 가 isOfficer 를 쓴다
+  'daily.js', 'dateUtils.js', 'officerUtils.js', 'streak.js', 'celebration.js',
+  'roadmapUtils.js', 'savingsUtils.js',
+);
 
 /* ─── 미니 어서션 프레임워크 ─────────────────────────────────────────── */
 let pass = 0, fail = 0;
@@ -331,6 +337,39 @@ const themes = [{ id: 'steel', lock: { key: 'r2', altKey: 'half' } }, { id: 'x',
 eq(api.unlockedBy('r2', themes).id, 'steel', '해금: key 로 매칭');
 eq(api.unlockedBy('half', themes).id, 'steel', '해금: altKey(간부 대체 조건)로도 매칭');
 eq(api.unlockedBy('enlist', themes), null, '해금: 해당 없음 → null');
+
+/* ─── 로드맵 ─────────────────────────────────────────────────────────── */
+const rmInfo = { enlistDate: '2025-01-05', dischargeDate: '2026-07-04', personnelType: 'soldier' };
+const rmPromo = { 일병: '2025-03-05', 상병: '2025-09-05', 병장: '2026-03-05' };
+const roadmap18 = api.buildRoadmap(rmInfo, rmPromo);
+eq(roadmap18.map((x) => x.key), ['enlist', 'r1', 'd100in', 'r2', 'half', 'r3', 'd100out', 'discharge'], '로드맵: 18개월 마일스톤 순서');
+eq(roadmap18.find((x) => x.key === 'd100in').dateStr, '2025-04-14', '로드맵: 입대 100일 = 입대일 포함 100일째');
+eq(roadmap18.find((x) => x.key === 'd100out').dateStr, '2026-03-26', '로드맵: 전역 100일 전');
+ok(roadmap18.every((x, i) => i === 0 || roadmap18[i - 1].date <= x.date), '로드맵: 날짜 오름차순');
+
+/* 복무기간이 100일 미만이면 100일 마일스톤은 구간 밖이라 넣지 않는다 */
+const rmShort = api.buildRoadmap({ enlistDate: '2026-01-05', dischargeDate: '2026-04-04', personnelType: 'officer' }, null);
+eq(rmShort.map((x) => x.key), ['enlist', 'half', 'discharge'], '로드맵: 3개월 복무는 100일 마일스톤 제외');
+ok(rmShort.every((x, i) => i === 0 || rmShort[i - 1].date <= x.date), '로드맵: 단기 복무도 정렬 유지');
+
+eq(api.buildRoadmap({ enlistDate: 'bad', dischargeDate: '2026-07-04' }, null), [], '로드맵: 입대일 파싱 실패 → 빈 배열');
+eq(api.buildRoadmap(null, null), [], '로드맵: info 없음 → 빈 배열');
+eq(api.buildRoadmap(rmInfo, { 일병: 'nope' }).map((x) => x.key).indexOf('r1'), -1, '로드맵: 잘못된 진급일은 제외');
+eq(api.nextMilestoneKey([{ key: 'a', done: true }, { key: 'b', done: false }]), 'b', 'nextMilestoneKey: 첫 미완료');
+eq(api.nextMilestoneKey([{ key: 'a', done: true }]), null, 'nextMilestoneKey: 전부 완료 → null');
+
+/* ─── 장병내일준비적금 ───────────────────────────────────────────────── */
+eq(api.calcSavings({ monthly: 550000, months: 24 }).principal, 13200000, '적금: 원금 = 월납 x 개월');
+eq(api.calcSavings({ monthly: 550000, months: 24 }).matchGrant, 13200000, '적금: 매칭지원금 = 원금 100%');
+eq(api.calcSavingsInterest(550000, 24, 0.05), Math.round(550000 * (0.05 / 12) * ((24 * 25) / 2)), '적금: 단리 이자식');
+/* 한도는 월납입액·개월 양쪽에 대칭으로 걸려야 한다 */
+eq(api.calcSavings({ monthly: 1000000, months: 30 }).monthly, api.SAVINGS.MONTHLY_MAX, '적금: 월납입 한도 클램프');
+eq(api.calcSavings({ monthly: 1000000, months: 30 }).months, api.SAVINGS.MAX_MONTHS, '적금: 개월 한도 클램프');
+eq(api.calcSavings({ monthly: 1000000, months: 30 }).total, api.calcSavings({ monthly: 550000, months: 24 }).total, '적금: 한도 초과 입력은 한도값과 같은 결과');
+eq(api.calcSavings({ monthly: 0, months: 24 }).total, 0, '적금: 0원 납입 → 0');
+eq(api.calcSavings({ monthly: -5, months: 10 }).monthly, 0, '적금: 음수 방어');
+eq(api.calcSavings({}).total, 0, '적금: 인자 없음 방어');
+eq(api.calcSavingsInterest(100000, 0), 0, '적금: 0개월 이자 0');
 
 /* ─── 결과 출력 ──────────────────────────────────────────────────────── */
 console.log('\n──────────── 계산 로직 테스트 ────────────');

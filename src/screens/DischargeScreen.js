@@ -26,7 +26,7 @@ import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
 import {
-  calcDischargeDate, calcDaysLeft, calcServedMonths, formatDate, formatDateKo,
+  calcDischargeDate, calcDaysLeft, calcServedMonths, calcProgress, formatDate, formatDateKo,
   isFutureDate, isValidDateString,
   getMessageForPhase,
 } from '../utils/dateUtils';
@@ -220,7 +220,9 @@ export default function DischargeScreen({ navigation }) {
 
   // 복무 진행률 — 여정 레일의 채워진 부분
   const servedMonths = info ? calcServedMonths(info.enlistDate) : 0;
-  const progress = info?.months > 0 ? Math.min(1, servedMonths / info.months) : 0;
+  // 홈 히어로와 같은 기준(일수)을 쓴다. 예전엔 여기만 servedMonths/months 라
+  // 같은 프로필인데 전역 탭과 홈의 진행률이 달랐고, 개월 기준이라 5.5%p 씩 뛰었다.
+  const progress = info ? calcProgress(info.enlistDate, info.dischargeDate) / 100 : 0;
 
   const chevron = useSharedValue(0);
   const togglePromo = () => {

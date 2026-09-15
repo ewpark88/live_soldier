@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Card from '../components/Card';
@@ -92,11 +92,23 @@ export default function SavingsScreen({ navigation }) {
 
   const servedMonths = militaryInfo?.enlistDate ? calcServedMonths(militaryInfo.enlistDate) : 0;
 
-  const persist = (mo, mn) =>
-    saveSavingsPlan({ monthly: parseInt(mo, 10) || 0, months: parseInt(mn, 10) || 0 }).catch(() => {});
+  // 키 입력마다 저장소에 쓰지 않는다 — 입력이 멎은 뒤 한 번만 기록한다.
+  const saveTimer = useRef(null);
+  const persist = useCallback((mo, mn) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveSavingsPlan({
+        monthly: parseInt(mo, 10) || 0,
+        months: parseInt(mn, 10) || 0,
+      }).catch(() => {});
+    }, 400);
+  }, []);
 
-  const onMonthly = (t) => { const v = t.replace(/[^0-9]/g, ''); setMonthly(v); persist(v, months); };
-  const onMonths = (t) => { const v = t.replace(/[^0-9]/g, ''); setMonths(v); persist(monthly, v); };
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
+
+  const onlyDigits = (t) => t.replace(/[^0-9]/g, '');
+  const onMonthly = (t) => { const v = onlyDigits(t); setMonthly(v); persist(v, months); };
+  const onMonths = (t) => { const v = onlyDigits(t); setMonths(v); persist(monthly, v); };
 
   return (
     <Screen
