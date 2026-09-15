@@ -15,6 +15,14 @@ import { resolveLeaveDays } from '../constants/serviceTerms';
 
 const STORE_KEY = '@profiles_v1';
 const STORE_BACKUP_KEY = '@profiles_v1.bak';  // 손상 감지 시 원본 보존용
+
+/* 레코드 id 생성 — Date.now() 만 쓰면 같은 밀리초에 만든 둘이 충돌한다.
+   충돌하면 삭제·완료토글이 엉뚱한 항목을 건드린다. */
+let _idSeq = 0;
+function _newId() {
+  _idSeq = (_idSeq + 1) % 1000000;
+  return `${Date.now().toString(36)}_${_idSeq.toString(36)}`;
+}
 const THEME_KEY = '@theme_mode';      // 레거시 — @theme_v2 로 흡수됨 (write-through 유지)
 const THEME_V2_KEY = '@theme_v2';
 const STREAK_KEY = '@streak_v1';
@@ -227,8 +235,31 @@ export async function saveMilitaryInfo(info) {
   await _setField('militaryInfo', info);
 }
 
+/**
+ * 활성 프로필의 입대정보.
+ *
+ * dischargeDate 는 enlistDate + months 에서 나온 파생값이라 읽을 때마다 다시
+ * 계산한다. DischargeScreen 이 저장 시점에 한 번 계산해 넣어두지만, 계산식이
+ * 바뀌어도(월말 입대자의 전역일 보정 등) 이미 저장된 값은 그대로 남기 때문에
+ * 다시 저장하기 전까지 틀린 날짜를 계속 보게 된다.
+ *
+ * 재계산 방식이라 별도 마이그레이션이 필요 없고 여러 번 실행해도 결과가 같다.
+ * enlistDate/months 가 온전치 않으면 저장된 값을 그대로 돌려준다.
+ */
 export async function loadMilitaryInfo() {
-  return (await _getField('militaryInfo')) ?? null;
+  const info = (await _getField('militaryInfo')) ?? null;
+  if (!info) return null;
+
+  const months = Number(info.months);
+  if (!Number.isFinite(months) || months <= 0) return info;
+
+  const recomputed = calcDischargeDate(info.enlistDate, months);
+  if (!recomputed) return info;
+
+  const dischargeDate = formatDate(recomputed);
+  return dischargeDate && dischargeDate !== info.dischargeDate
+    ? { ...info, dischargeDate }
+    : info;
 }
 
 // ─── 신분(병사/부사관/장교) ────────────────────────────────────────────
@@ -256,7 +287,7 @@ export async function loadLeaveRecords() {
 
 export async function addLeaveRecord(record) {
   const records = await loadLeaveRecords();
-  const newRecords = [{ id: Date.now().toString(), ...record }, ...records];
+  const newRecords = [{ id: _newId(), ...record }, ...records];
   await saveLeaveRecords(newRecords);
   return newRecords;
 }
@@ -294,7 +325,7 @@ export async function saveLeaveBonusRecords(records) {
 
 export async function addLeaveBonusRecord(record) {
   const records = await loadLeaveBonusRecords();
-  const newRecords = [{ id: Date.now().toString(), ...record }, ...records];
+  const newRecords = [{ id: _newId(), ...record }, ...records];
   await saveLeaveBonusRecords(newRecords);
   return newRecords;
 }
@@ -334,7 +365,7 @@ export async function loadTodos() {
 
 export async function addTodo(todo) {
   const todos = await loadTodos();
-  const newTodos = [{ id: Date.now().toString(), done: false, ...todo }, ...todos];
+  const newTodos = [{ id: _newId(), done: false, ...todo }, ...todos];
   await saveTodos(newTodos);
   return newTodos;
 }

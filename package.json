@@ -9,10 +9,11 @@
     "web": "expo start --web",
     "icon": "node generate-icon.js",
     "ranks": "node scripts/generate-officer-ranks.js",
-    "test": "node scripts/test-calc.js && node scripts/test-tz.js",
+    "test": "node scripts/test-calc.js && node scripts/test-storage.js && node scripts/test-tz.js",
     "theme:check": "node scripts/check-contrast.js",
     "postinstall": "node scripts/patch-android-libs.js",
-    "test:tz": "node scripts/test-tz.js"
+    "test:tz": "node scripts/test-tz.js",
+    "test:storage": "node scripts/test-storage.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
