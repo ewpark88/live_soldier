@@ -184,6 +184,21 @@ eq(api.calcHobong(todayPlus(-800)), 3, 'calcHobong: 2년 경과 = 3호봉');
 const hb = api.nextHobongInfo(todayPlus(-400));
 ok(hb && hb.current === 2 && hb.next === 3, 'nextHobongInfo: 현재 2 → 다음 3호봉');
 
+/* 호봉 승급 경계 — 예전에는 365.25 로 나눠 평년 주년 당일에 1 적게 나왔다 */
+function yearsAgoStr(n, offsetDays = 0) {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const d = new Date(t.getFullYear() - n, t.getMonth(), t.getDate());
+  if (offsetDays) d.setDate(d.getDate() + offsetDays);
+  return ymd(d);
+}
+eq(api.calcHobong(yearsAgoStr(1)),     2, 'calcHobong: 임관 1주년 당일 = 2호봉');
+eq(api.calcHobong(yearsAgoStr(1, 1)),  1, 'calcHobong: 1주년 하루 전 = 1호봉');
+eq(api.calcHobong(yearsAgoStr(2)),     3, 'calcHobong: 2주년 당일 = 3호봉');
+eq(api.calcHobong(yearsAgoStr(3)),     4, 'calcHobong: 3주년 당일 = 4호봉');
+eq(api.calcHobong(yearsAgoStr(0)),     1, 'calcHobong: 임관 당일 = 1호봉');
+eq(api.calcHobong(null),               1, 'calcHobong: 값 없으면 1호봉');
+ok(api.nextHobongInfo(yearsAgoStr(1)).daysLeft > 0, 'nextHobongInfo: 주년 당일엔 다음 승급이 미래여야 함 (D-0 모순 방지)');
+
 /* ─── 10. 날짜 결정적 선택 (daily.js) ────────────────────────────────── */
 const pool = ['a', 'b', 'c', 'd', 'e'];
 eq(api.pickDaily(pool, '2026-08-07', 'x'), api.pickDaily(pool, '2026-08-07', 'x'),

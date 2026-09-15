@@ -5,7 +5,7 @@ import SectionTitle from '../components/SectionTitle';
 import PayTable from '../components/PayTable';
 import { Screen, AppHeader, Section, Txt } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
-import { SALARY_GUIDE } from '../constants/salaryGuide';
+import { SALARY_GUIDE, SALARY_YEAR } from '../constants/salaryGuide';
 import { SOLDIER_RANK_IMAGES } from '../constants/rankImages';
 import { loadMilitaryInfo, loadRankPromotions } from '../utils/storage';
 import { calcRankFromPromotions } from '../utils/dateUtils';
@@ -44,13 +44,13 @@ export default function SalaryGuideScreen({ navigation }) {
         <Card>
           <SectionTitle icon="list-outline">계급별 표준 월급</SectionTitle>
           <Txt role="caption" tone="secondary" style={{ marginTop: sp.xs, marginBottom: sp.lg }}>
-            계급별 표준 월급 참고표
+            {SALARY_YEAR}년 기준 계급별 표준 월급 참고표
           </Txt>
 
           <PayTable
             rows={rows}
             currentKey={currentRank}
-            note="* 실제 지급액은 상이할 수 있습니다."
+            note={`* ${SALARY_YEAR}년 기준. 실제 지급액은 상이할 수 있습니다. 장병내일준비적금 매칭지원금은 전역 시 일괄 지급되어 미포함.`}
           />
         </Card>
       </Section>

@@ -5,9 +5,27 @@
  * 경력 환산 등 세부 규정은 부대/개인별로 다르므로, 본 앱은
  * "임관일 + 복무 연수"에 기반한 추정 호봉을 제공한다.
  */
-import { calcServedDays, calcDaysLeft } from './dateUtils';
+import { calcDaysLeft } from './dateUtils';
 
-const DAYS_PER_YEAR = 365.25;
+/**
+ * 임관일로부터 지난 만(滿) 연수. 달력 기준으로 세어야 한다.
+ * 예전에는 servedDays / 365.25 로 계산해서, 평년(365일)인 주년 당일에
+ * 1년이 안 된 것으로 판정돼 '1호봉 · 다음 승급 D-0' 같은 표시가 나왔다.
+ */
+function _fullYearsSince(dateStr) {
+  if (typeof dateStr !== 'string' || dateStr.length !== 10) return 0;
+  const y = Number(dateStr.slice(0, 4));
+  const m = Number(dateStr.slice(5, 7));
+  const d = Number(dateStr.slice(8, 10));
+  if (!y || !m || !d) return 0;
+
+  const now = new Date();
+  let years = now.getFullYear() - y;
+  const beforeAnniversary =
+    now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d);
+  if (beforeAnniversary) years -= 1;
+  return Math.max(0, years);
+}
 
 /**
  * 현재 호봉(추정) = 1 + 복무 만(滿) 연수
@@ -16,9 +34,7 @@ const DAYS_PER_YEAR = 365.25;
  */
 export function calcHobong(enlistDate) {
   if (!enlistDate) return 1;
-  const served = calcServedDays(enlistDate);
-  const years = Math.floor(served / DAYS_PER_YEAR);
-  return 1 + Math.max(0, years);
+  return 1 + _fullYearsSince(enlistDate);
 }
 
 /**
