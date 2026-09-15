@@ -151,8 +151,16 @@ export default function DischargeScreen({ navigation }) {
       dischargeDate: formatDate(dischargeDate),
       months,
     };
-    await saveMilitaryInfo(mi);
-    await savePersonnelType(personnelType);
+    try {
+      await saveMilitaryInfo(mi);
+      await savePersonnelType(personnelType);
+    } catch (e) {
+      // 저장이 실패했는데 성공한 것처럼 화면을 넘기면, 사용자는 입력이
+      // 남은 줄 알고 앱을 닫았다가 다음 실행에서 온보딩을 다시 만난다.
+      haptic.warning();
+      Alert.alert('저장 실패', '입대 정보를 저장하지 못했습니다. 기기 저장공간을 확인한 뒤 다시 시도해주세요.');
+      return;
+    }
 
     if (officer) {
       await resetRankPromotions();

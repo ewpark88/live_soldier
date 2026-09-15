@@ -183,11 +183,16 @@ async function _snapshot(raw) {
   }
 }
 
+class StorageUnavailableError extends Error {
+  constructor(msg) { super(msg); this.name = 'StorageUnavailableError'; }
+}
+
 async function _saveStore(store) {
   if (store && store.__degraded) {
-    // 읽기 실패로 만든 임시 상태는 절대 영속화하지 않는다
+    // 읽기 실패로 만든 임시 상태는 절대 영속화하지 않는다.
+    // 조용히 넘기면 사용자는 저장된 줄 알고 앱을 닫는다 — 호출부가 알아야 한다.
     _warn('임시 상태라 저장을 건너뜁니다', '__degraded');
-    return;
+    throw new StorageUnavailableError('저장소를 읽을 수 없어 저장하지 못했습니다');
   }
   let json;
   try {
@@ -199,6 +204,8 @@ async function _saveStore(store) {
   try {
     await AsyncStorage.setItem(STORE_KEY, json);
   } catch (e) {
+    // 일시적 쓰기 실패는 여기서 삼킨다 — 던지면 catch 없는 화면 핸들러가
+    // 전부 미처리 거부가 된다. 저장소를 아예 못 쓰는 경우(__degraded)만 던진다.
     _warn('저장 실패', e);
     return;
   }

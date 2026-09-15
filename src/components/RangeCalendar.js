@@ -96,13 +96,13 @@ export default function RangeCalendar({
     <View style={s.wrap}>
       {/* 헤더 */}
       <View style={s.header}>
-        <TouchableOpacity onPress={goPrev} hitSlop={HIT} accessibilityRole="button" accessibilityLabel="이전 달">
+        <TouchableOpacity onPress={goPrev} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="이전 달">
           <Ionicons name="chevron-back" size={22} color={tc.primary} />
         </TouchableOpacity>
         <TouchableOpacity onPress={goToday} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="오늘로 이동">
           <Text style={s.headerTitle}>{year}년 {month + 1}월</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={goNext} hitSlop={HIT} accessibilityRole="button" accessibilityLabel="다음 달">
+        <TouchableOpacity onPress={goNext} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="다음 달">
           <Ionicons name="chevron-forward" size={22} color={tc.primary} />
         </TouchableOpacity>
       </View>
@@ -208,7 +208,8 @@ const HIT = { top: 8, bottom: 8, left: 8, right: 8 };
 const makeStyles = (tc) => StyleSheet.create({
   wrap: { paddingVertical: 4 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6, marginBottom: 10 },
-  navArrow: { fontSize: 26, color: tc.primary, fontWeight: '700', paddingHorizontal: 12 },
+  // 화살표는 Ionicons 로 바뀌었다. 탭 영역·간격은 EventCalendar 의 navBtn 과 맞춘다.
+  navBtn: { paddingHorizontal: 12, paddingVertical: 4 },
   headerTitle: { fontSize: 16, fontWeight: '800', color: tc.text },
 
   weekRow: { flexDirection: 'row', marginBottom: 4 },

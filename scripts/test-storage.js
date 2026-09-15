@@ -176,7 +176,15 @@ function reset() { store = {}; failReads = false; }
   const goodLive = store['@profiles_v1'];
   const goodBak = store['@profiles_v1.bak'];
   failReads = true;
-  await S.saveMilitaryInfo({ enlistDate: '2026-06-06', branch: 'army', months: 18 });
+  // 저장은 '조용히 무시'가 아니라 '실패를 알림'이어야 한다 —
+  // 화면이 성공으로 넘어가면 사용자는 입력이 남은 줄 알고 앱을 닫는다.
+  let threw = false;
+  try {
+    await S.saveMilitaryInfo({ enlistDate: '2026-06-06', branch: 'army', months: 18 });
+  } catch (e) {
+    threw = true;
+  }
+  ok(threw, '읽기 실패: 저장 시도는 예외로 실패를 알린다');
   failReads = false;
   eq(store['@profiles_v1'], goodLive, '읽기 실패: 임시 상태가 원본을 덮어쓰지 않음');
   eq(store['@profiles_v1.bak'], goodBak, '읽기 실패: 임시 상태가 백업을 덮어쓰지 않음');

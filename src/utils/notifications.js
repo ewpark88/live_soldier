@@ -175,6 +175,9 @@ let _scheduled = 0;
 /**
  * 미래 시각에 알림 1건 예약.
  * 60건 캡에 걸리면 조용히 건너뛴다 (우선순위가 높은 것부터 호출된다).
+ *
+ * @returns {Promise<boolean>} 실제로 예약됐는지. 호출부가 이 값으로 중복 제거를
+ *   판단하므로, 모든 경로가 반드시 boolean 을 돌려줘야 한다.
  */
 async function scheduleAt(dateStr, title, body, opts = {}) {
   if (!Notifications) return false;
@@ -194,7 +197,10 @@ async function scheduleAt(dateStr, title, body, opts = {}) {
         : { type: 'date', date: when },
     });
     _scheduled += 1;
-  } catch (e) {}
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 /**
@@ -215,7 +221,10 @@ async function scheduleDaily(hour, title, body) {
         : { type: 'daily', hour, minute: 0 },
     });
     _scheduled += 1;
-  } catch (e) {}
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 /** 로컬 달력 기준 오늘. toISOString 은 UTC 라 KST 에선 하루 어긋난다. */
