@@ -6,7 +6,7 @@ import { listProfiles, loadRankPromotions, loadThemeSettings } from '../utils/st
 import { resolvePalette } from '../theme/palettes';
 import {
   calcDaysLeft, calcProgress, calcServedDays,
-  calcRank, calcRankFromPromotions, formatDateKo,
+  calcRankByEnlistDate, calcRankFromPromotions, formatDateKo,
 } from '../utils/dateUtils';
 import { isOfficer, personnelLabel } from '../constants/serviceTerms';
 
@@ -60,7 +60,7 @@ export async function getWidgetData() {
       rank = mi.officerRank ?? personnelLabel(mi.personnelType);
     } else {
       const promotions = await loadRankPromotions(mi.enlistDate);
-      rank = calcRankFromPromotions(promotions) ?? calcRank(calcServedDays(mi.enlistDate));
+      rank = calcRankFromPromotions(promotions) ?? calcRankByEnlistDate(mi.enlistDate);
     }
 
     const ddayText = daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-DAY' : '전역';

@@ -260,6 +260,10 @@ export async function refreshScheduledNotifications({ force = false } = {}) {
 
   const prefs = await loadNotifPrefs();
 
+  // 스트릭 리마인더는 '내일 저녁' 1건만 미래에 두고 매일 다시 잡아야 한다.
+  // 그래서 오늘 날짜와 스트릭 상태가 서명에 들어가야 한다 (아래 주석 참고).
+  const streakForSig = prefs.streak ? await loadStreak().catch(() => null) : null;
+
   const promoForSig = isOfficer(info.personnelType)
     ? null
     : await loadRankPromotions(info.enlistDate).catch(() => null);
@@ -267,6 +271,15 @@ export async function refreshScheduledNotifications({ force = false } = {}) {
   try { todosForSig = await loadTodos(); } catch (e) {}
 
   const sig = _hash(JSON.stringify({
+    // 스트릭 알림이 켜져 있으면 '오늘'을 서명에 넣어 하루 한 번은 반드시
+    // 다시 잡히게 한다. 예전에는 서명에 날짜가 없어서, 이틀째부터는 서명이
+    // 같고 전역 D-100 같은 장기 예약이 pending 에 남아 있다는 이유로 그대로
+    // 빠져나갔다. 그 결과 '앱을 열면 다음 날로 밀린다'가 동작하지 않아
+    // 이미 출석한 사람에게도 알림이 울렸고, 한 번 울린 뒤에는 다시 예약되지
+    // 않아 기능이 조용히 멈췄다.
+    day: prefs.streak ? _todayStr() : null,
+    streak: streakForSig ? streakForSig.current : null,
+    lastCheck: streakForSig ? streakForSig.last ?? null : null,
     disc: info.dischargeDate,
     enlist: info.enlistDate,
     type: info.personnelType,
@@ -333,8 +346,7 @@ export async function refreshScheduledNotifications({ force = false } = {}) {
   // "안 열면 울리고, 열면 다음 날로 밀린다"를 만든다. 서버 없이 조건부 알림을
   // 구현한 것과 동치다.
   if (prefs.streak) {
-    const streak = await loadStreak().catch(() => null);
-    const count = streak?.current ?? 0;
+    const count = streakForSig?.current ?? 0;
     const body = count > 1
       ? `${count}일 연속 기록이 걸려 있어요.`
       : '오늘 하루도 기록해두면 내일이 조금 더 가벼워요.';

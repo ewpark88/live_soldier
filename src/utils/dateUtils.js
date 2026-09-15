@@ -209,18 +209,30 @@ export function isValidDateString(str) {
 }
 
 /**
- * 현재 복무 중인 계급 계산 (병사 기준)
+ * 복무 개월 수 → 계급 (병사 기준, 계급 판정의 단일 기준)
+ *
  * 전군 동일: 이병 0~2개월, 일병 2~8개월, 상병 8~14개월, 병장 14개월~
- * (출처: 병역법 시행령 / SBS뉴스 2019)
- * 해군·공군은 총 복무 기간이 길어 병장 기간이 더 길 뿐, 진급 기준은 동일
+ * (병역법 시행규칙: 이병 2 → 일병 6 → 상병 6개월)
+ * 해군·공군은 총 복무기간이 길어 병장 기간이 더 길 뿐, 진급 기준은 같다.
+ *
+ * salaryGuide.getRankByMonths 의 정수 구간(0~1/2~7/8~13/14~)과 동일한 경계다.
  */
-export function calcRank(servedDays) {
-  // 30.44 = 평균 월일수 (365.25 / 12)
-  const months = servedDays / 30.44;
+export function rankFromServedMonths(months) {
   if (months < 2)  return '이병';
   if (months < 8)  return '일병';
   if (months < 14) return '상병';
   return '병장';
+}
+
+/**
+ * 입대일 → 현재 계급 (병사 기준)
+ *
+ * 예전 calcRank(servedDays) 는 servedDays / 30.44 로 근사해서 달력 기준
+ * 진급일과 최대 이틀까지 어긋났다. 홈·위젯은 calcRank, 급여는 달력 기준을
+ * 써서 같은 프로필이 탭마다 다른 계급으로 보이기도 했다.
+ */
+export function calcRankByEnlistDate(enlistDate) {
+  return rankFromServedMonths(calcServedMonths(enlistDate));
 }
 
 /**

@@ -59,6 +59,16 @@ function ymd(date) {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+/** n개월 전 같은 일자 'YYYY-MM-DD' (말일은 클램프) */
+function monthsAgoStr(n) {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const total = t.getMonth() - n;
+  const y = t.getFullYear() + Math.floor(total / 12);
+  const m = ((total % 12) + 12) % 12;
+  const last = new Date(y, m + 1, 0).getDate();
+  return ymd(new Date(y, m, Math.min(t.getDate(), last)));
+}
+
 function todayPlus(days) {
   const d = new Date(); d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + days);
@@ -107,11 +117,20 @@ eq(api.calcProgress(todayPlus(10), todayPlus(100)), 0,  'calcProgress: 입대 �
 eq(api.calcProgress(todayPlus(-100), todayPlus(-1)), 100, 'calcProgress: 전역 후 = 100%');
 
 /* ─── 4. 계급 (복무일수 기준) ────────────────────────────────────────── */
-eq(api.calcRank(0),   '이병', 'calcRank: 0일 = 이병');
-eq(api.calcRank(30),  '이병', 'calcRank: ~2개월 미만 = 이병');
-eq(api.calcRank(70),  '일병', 'calcRank: 2~8개월 = 일병');
-eq(api.calcRank(300), '상병', 'calcRank: 8~14개월 = 상병');
-eq(api.calcRank(500), '병장', 'calcRank: 14개월~ = 병장');
+eq(api.rankFromServedMonths(0),  '이병', 'rankFromServedMonths: 0개월 = 이병');
+eq(api.rankFromServedMonths(1),  '이병', 'rankFromServedMonths: 1개월 = 이병');
+eq(api.rankFromServedMonths(2),  '일병', 'rankFromServedMonths: 2개월 = 일병 (진급 경계)');
+eq(api.rankFromServedMonths(7),  '일병', 'rankFromServedMonths: 7개월 = 일병');
+eq(api.rankFromServedMonths(8),  '상병', 'rankFromServedMonths: 8개월 = 상병 (진급 경계)');
+eq(api.rankFromServedMonths(13), '상병', 'rankFromServedMonths: 13개월 = 상병');
+eq(api.rankFromServedMonths(14), '병장', 'rankFromServedMonths: 14개월 = 병장 (진급 경계)');
+eq(api.rankFromServedMonths(21), '병장', 'rankFromServedMonths: 21개월 = 병장');
+
+/* 입대일 기준 계급 — 진급 경계 당일 */
+eq(api.calcRankByEnlistDate(monthsAgoStr(2)),  '일병', 'calcRankByEnlistDate: 2개월 되는 날 = 일병');
+eq(api.calcRankByEnlistDate(monthsAgoStr(8)),  '상병', 'calcRankByEnlistDate: 8개월 되는 날 = 상병');
+eq(api.calcRankByEnlistDate(monthsAgoStr(14)), '병장', 'calcRankByEnlistDate: 14개월 되는 날 = 병장');
+eq(api.calcRankByEnlistDate(monthsAgoStr(0)),  '이병', 'calcRankByEnlistDate: 입대 당일 = 이병');
 
 /* ─── 5. 진급일 기준 계급/다음 진급 ──────────────────────────────────── */
 const promo = { 일병: todayPlus(-200), 상병: todayPlus(-50), 병장: todayPlus(30) };

@@ -29,7 +29,7 @@ import { useDailyHero } from '../hooks/useDailyHero';
 import { useStreak } from '../state/StreakContext';
 import { haptic } from '../utils/haptics';
 import {
-  calcDaysLeft, calcServedDays, calcRank, calcRankFromPromotions, nextPromotion,
+  calcDaysLeft, calcServedDays, calcRankByEnlistDate, calcRankFromPromotions, nextPromotion,
 } from '../utils/dateUtils';
 import { buildRoadmap } from '../utils/roadmapUtils';
 import { isOfficer, personnelLabel } from '../constants/serviceTerms';
@@ -46,7 +46,7 @@ export default function HomeScreen({ navigation }) {
 
   const [info, setInfo] = useState(null);
   const [leaveUsed, setLeaveUsed] = useState(0);
-  const [leaveTotal, setLeaveTotal] = useState(21);
+  const [leaveTotal, setLeaveTotal] = useState(0);   // loadLeaveTotal 이 군종 기본값으로 채운다
   const [promotions, setPromotions] = useState(null);
   const [profileName, setProfileName] = useState('');
   const [personnelType, setPersonnelType] = useState(undefined);
@@ -178,7 +178,7 @@ export default function HomeScreen({ navigation }) {
   const officer = isOfficer(info.personnelType);
   const rank = officer
     ? (info.officerRank ?? personnelLabel(info.personnelType))
-    : (calcRankFromPromotions(promotions) ?? calcRank(servedDays));
+    : (calcRankFromPromotions(promotions) ?? calcRankByEnlistDate(info.enlistDate));
   const leaveLeft = leaveTotal - leaveUsed;
   const cfg = tc.phase[phase];
   const meta = PHASE_META[phase];

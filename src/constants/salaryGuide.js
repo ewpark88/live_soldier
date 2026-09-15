@@ -28,7 +28,12 @@ export function getSalaryByRank(rank) {
   return (g || SALARY_GUIDE[0]).amount;
 }
 
-/** 복무 개월수 → 해당 구간의 계급 */
+/**
+ * 복무 개월수 → 해당 구간의 계급 (봉급 구간 조회용)
+ *
+ * 경계는 dateUtils.rankFromServedMonths 와 같아야 한다 —
+ * scripts/test-calc.js 가 0~36개월 전 구간에서 두 함수가 일치하는지 검증한다.
+ */
 export function getRankByMonths(months) {
   const g = SALARY_GUIDE.find((s) => months >= s.start && months <= s.end);
   return (g || SALARY_GUIDE[0]).rank;

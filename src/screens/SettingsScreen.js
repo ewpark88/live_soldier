@@ -14,7 +14,7 @@ import {
   loadNotifPrefs, saveNotifPrefs, refreshScheduledNotifications, DEFAULT_NOTIF_PREFS,
 } from '../utils/notifications';
 import {
-  calcDaysLeft, calcServedDays, calcRank, calcRankFromPromotions, formatDateKo,
+  calcDaysLeft, calcServedDays, calcRankByEnlistDate, calcRankFromPromotions, formatDateKo,
 } from '../utils/dateUtils';
 import { BRANCHES, isOfficer, personnelLabel } from '../constants/serviceTerms';
 import { expo as appInfo } from '../../app.json';
@@ -90,7 +90,7 @@ export default function SettingsScreen({ navigation }) {
     const officer = isOfficer(info.personnelType);
     const rank = officer
       ? (info.officerRank ?? personnelLabel(info.personnelType))
-      : (calcRankFromPromotions(promotions) ?? calcRank(calcServedDays(info.enlistDate)));
+      : (calcRankFromPromotions(promotions) ?? calcRankByEnlistDate(info.enlistDate));
     const branch = BRANCHES.find((b) => b.key === info.branch)?.label ?? '';
     const left = calcDaysLeft(info.dischargeDate);
     return {

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calcDischargeDate, calcPromotionDate, formatDate } from './dateUtils';
+import { resolveLeaveDays } from '../constants/serviceTerms';
 
 /**
  * 멀티 프로필 저장소
@@ -57,7 +58,7 @@ function _emptyData() {
     personnelType:  null,   // 'soldier' | 'nco' | 'officer' (온보딩에서 결정)
     militaryInfo:   null,
     leaveRecords:   [],
-    leaveTotal:     21,
+    leaveTotal:     null,   // null = 미설정 → 군종 기본값 사용
     leaveBonus:     [],
     salaryInfo:     null,
     todos:          [],
@@ -96,7 +97,7 @@ async function _migrateLegacy() {
   const lr = _safeParse(await AsyncStorage.getItem(LEGACY.LEAVE_RECORDS), null);
   if (Array.isArray(lr)) data.leaveRecords = lr;
   const ltRaw = await AsyncStorage.getItem(LEGACY.LEAVE_TOTAL);
-  if (ltRaw != null) data.leaveTotal = parseInt(ltRaw, 10) || 21;
+  if (ltRaw != null) { const n = parseInt(ltRaw, 10); if (Number.isFinite(n) && n > 0) data.leaveTotal = n; }
   const lb = _safeParse(await AsyncStorage.getItem(LEGACY.LEAVE_BONUS), null);
   if (Array.isArray(lb)) data.leaveBonus = lb;
   const si = _safeParse(await AsyncStorage.getItem(LEGACY.SALARY_INFO), null);
@@ -270,9 +271,16 @@ export async function saveLeaveTotal(total) {
   await _setField('leaveTotal', total);
 }
 
+/**
+ * 기본 연가 일수. 사용자가 직접 설정한 값이 있으면 그것을, 없으면 군종 기본값.
+ * (육군·해병대 24 / 해군 27 / 공군 28 — serviceTerms.leaveDays)
+ */
 export async function loadLeaveTotal() {
   const v = await _getField('leaveTotal');
-  return v == null ? 21 : v;
+  const n = Number(v);
+  if (Number.isFinite(n) && n > 0) return n;
+  const mi = await loadMilitaryInfo();
+  return resolveLeaveDays(mi?.branch);
 }
 
 // ─── Leave Bonus (포상휴가) ────────────────────────────────────────────

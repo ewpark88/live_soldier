@@ -4,7 +4,7 @@ import { useCelebration } from '../state/CelebrationContext';
 import { loadMilitaryInfo, loadRankPromotions, listProfiles } from '../utils/storage';
 import { shareMilestone } from '../utils/shareUtils';
 import {
-  calcDaysLeft, calcServedDays, calcRank, calcRankFromPromotions,
+  calcDaysLeft, calcRankByEnlistDate, calcRankFromPromotions,
 } from '../utils/dateUtils';
 import { isOfficer, personnelLabel } from '../constants/serviceTerms';
 
@@ -25,10 +25,9 @@ export default function CelebrationOverlay() {
       const info = await loadMilitaryInfo();
       if (!info) return;
       const promos = await loadRankPromotions(info.enlistDate);
-      const served = calcServedDays(info.enlistDate);
       const rank = isOfficer(info.personnelType)
         ? (info.officerRank ?? personnelLabel(info.personnelType))
-        : (calcRankFromPromotions(promos) ?? calcRank(served));
+        : (calcRankFromPromotions(promos) ?? calcRankByEnlistDate(info.enlistDate));
 
       let name = '';
       try {

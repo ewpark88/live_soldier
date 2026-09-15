@@ -6,12 +6,23 @@
  * 현재 복무 중인 인원은 모두 단축된 기간이 적용되므로 별도 입대시기 보정 불필요.
  */
 /* emoji 는 위젯·공유 텍스트가 쓰므로 남겨둔다. 화면 UI 는 icon(Ionicons) 을 쓴다. */
+/*
+ * leaveDays = 의무복무기간 전체에 부여되는 연가(정기휴가) 일수.
+ * 복무기간이 길수록 늘어난다 — 예전에는 군종과 무관하게 21일 고정이었는데,
+ * 21일은 단축 이전 육군 21개월 시절 값이라 현행 기준과 맞지 않았다.
+ * 사용자가 화면에서 직접 고칠 수 있으므로 어디까지나 기본값이다.
+ */
 export const BRANCHES = [
-  { key: 'army',     label: '육군',   months: 18, emoji: '🪖', icon: 'shield-half' },
-  { key: 'navy',     label: '해군',   months: 20, emoji: '⚓', icon: 'boat' },
-  { key: 'airforce', label: '공군',   months: 21, emoji: '✈️', icon: 'airplane' },
-  { key: 'marines',  label: '해병대', months: 18, emoji: '🦅', icon: 'flame' },
+  { key: 'army',     label: '육군',   months: 18, leaveDays: 24, emoji: '🪖', icon: 'shield-half' },
+  { key: 'navy',     label: '해군',   months: 20, leaveDays: 27, emoji: '⚓', icon: 'boat' },
+  { key: 'airforce', label: '공군',   months: 21, leaveDays: 28, emoji: '✈️', icon: 'airplane' },
+  { key: 'marines',  label: '해병대', months: 18, leaveDays: 24, emoji: '🦅', icon: 'flame' },
 ];
+
+/** 군종 기본 연가 일수 (없으면 육군 기준) */
+export function resolveLeaveDays(branchKey) {
+  return (BRANCHES.find((b) => b.key === branchKey) ?? BRANCHES[0]).leaveDays;
+}
 
 /** 군별 현행 복무개월 반환 (없으면 육군 기준) */
 export function resolveServiceMonths(branchKey) {

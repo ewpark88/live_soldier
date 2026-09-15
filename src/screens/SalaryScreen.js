@@ -20,11 +20,11 @@ import {
 } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import { loadMilitaryInfo, loadSalaryInfo, saveSalaryInfo, loadRankPromotions } from '../utils/storage';
-import { calcServedMonths, calcRankFromPromotions } from '../utils/dateUtils';
+import { calcServedMonths, calcRankFromPromotions, rankFromServedMonths } from '../utils/dateUtils';
 import { isOfficer, personnelLabel } from '../constants/serviceTerms';
 import { getOfficerBasePay } from '../constants/militaryRanks';
 import { calcHobong } from '../utils/officerUtils';
-import { SALARY_GUIDE, getSalaryByRank, getRankByMonths, formatMoney } from '../constants/salaryGuide';
+import { SALARY_GUIDE, getSalaryByRank, formatMoney } from '../constants/salaryGuide';
 import { haptic } from '../utils/haptics';
 import { useThemeColors } from '../theme/ThemeContext';
 import { radius as r, space as sp, type as ty } from '../theme/tokens';
@@ -114,7 +114,7 @@ export default function SalaryScreen({ navigation }) {
 
   const currentRank = officer
     ? (officerRank ?? personnelLabel(militaryInfo.personnelType))
-    : (calcRankFromPromotions(promotions) ?? getRankByMonths(servedMonths));
+    : (calcRankFromPromotions(promotions) ?? rankFromServedMonths(servedMonths));
 
   // 우선순위: 직접입력 > (간부)초임 참고값 > (병사)봉급표
   const currentMonthly = salaryInfo
