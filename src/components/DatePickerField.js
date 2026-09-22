@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, Modal,
+  View, Text, Pressable, Modal,
   StyleSheet, Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import PressScale from './ui/PressScale';
 import { useThemeColors } from '../theme/ThemeContext';
+import { radius as r, space as sp } from '../theme/tokens';
 import { formatDate, formatDateKo, parseDate } from '../utils/dateUtils';
 
 /**
@@ -56,10 +58,13 @@ export default function DatePickerField({
       {label ? <Text style={styles.label}>{label}</Text> : null}
 
       {/* 날짜 선택 버튼 */}
-      <TouchableOpacity
+      <PressScale
         style={[styles.button, disabled && styles.buttonDisabled]}
         onPress={() => { if (!disabled) setShow(true); }}
-        activeOpacity={disabled ? 1 : 0.7}
+        disabled={disabled}
+        haptic="select"
+        tint={!disabled}
+        tintRadius={r.md}
       >
         <Ionicons
           name={disabled ? 'lock-closed' : 'calendar'}
@@ -70,7 +75,7 @@ export default function DatePickerField({
           {value ? formatDateKo(value) : placeholder}
         </Text>
         {!disabled && <Ionicons name="chevron-forward" size={18} color={tc.textLight} />}
-      </TouchableOpacity>
+      </PressScale>
 
       {/* Android: 네이티브 다이얼로그 (UI는 OS가 처리) */}
       {Platform.OS === 'android' && show && (
@@ -93,21 +98,18 @@ export default function DatePickerField({
           animationType="slide"
           onRequestClose={() => setShow(false)}
         >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShow(false)}
-          />
+          {/* 배경 딤은 '눌리는 표면'이 아니다 — 축소도 햅틱도 없어야 한다 */}
+          <Pressable style={styles.modalOverlay} onPress={() => setShow(false)} />
           <View style={styles.modalBox}>
             {/* 헤더 */}
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setShow(false)}>
+              <PressScale onPress={() => setShow(false)} haptic="light">
                 <Text style={styles.cancelBtn}>취소</Text>
-              </TouchableOpacity>
+              </PressScale>
               <Text style={styles.modalTitle}>날짜 선택</Text>
-              <TouchableOpacity onPress={() => setShow(false)}>
+              <PressScale onPress={() => setShow(false)} haptic="success">
                 <Text style={styles.doneBtn}>완료</Text>
-              </TouchableOpacity>
+              </PressScale>
             </View>
 
             {/* 스피너 */}
@@ -145,10 +147,10 @@ const makeStyles = (tc) => StyleSheet.create({
     backgroundColor: tc.surfaceSunken,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: tc.surfaceSunkenBorder,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 10,
+    borderRadius: r.md,
+    paddingHorizontal: sp.lg,
+    paddingVertical: sp.lg,
+    gap: sp.sm,
   },
   buttonDisabled: {
     backgroundColor: tc.surfaceSunken,

@@ -141,10 +141,44 @@ function pick(palette, dotted) {
 /* ─── 실행 ────────────────────────────────────────────────────── */
 
 const palettes = loadModule(path.join(ROOT, 'src', 'theme', 'palettes', 'index.js'));
+const baseMod = loadModule(path.join(ROOT, 'src', 'theme', 'palettes', 'base.js'));
 const pairsMod = loadModule(path.join(ROOT, 'src', 'theme', 'contrastPairs.js'));
 
 const { THEME_LIST, resolvePalette } = palettes;
-const { CONTRAST_PAIRS, PHASE_PAIRS, PHASE_STAGES, KNOWN_ISSUES } = pairsMod;
+const { DAYPARTS, DAYPART_WASH } = baseMod;
+const { CONTRAST_PAIRS, PHASE_PAIRS, DAYPART_PAIRS, PHASE_STAGES, KNOWN_ISSUES } = pairsMod;
+
+/** 워시 한 겹을 배경 위에 합성해 새 배경색 문자열을 만든다 */
+function applyWash(washRaw, bgRaw) {
+  const wash = parseColor(washRaw);
+  const bg = parseColor(bgRaw);
+  if (!wash || !bg) return null;
+  const c = composite(wash, bg);
+  return `rgb(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)})`;
+}
+
+/** phase 페어 하나를 그라데이션 스톱 수만큼 전개한다 (@all 지원) */
+function expandPhasePair(p, stage, q, labelSuffix) {
+  if (!q.bg.endsWith('.@all')) {
+    return [{
+      fg: `phase.${stage}.${q.fg}`,
+      bg: `phase.${stage}.${q.bg}`,
+      min: q.min,
+      label: `${q.label} · ${stage}${labelSuffix}`,
+    }];
+  }
+  const base = q.bg.slice(0, -'.@all'.length);
+  const arr = pick(p, `phase.${stage}.${base}`);
+  if (!Array.isArray(arr)) {
+    return [{ fg: `phase.${stage}.${q.fg}`, bg: `phase.${stage}.${base}`, min: q.min, label: `${q.label} · ${stage}${labelSuffix}` }];
+  }
+  return arr.map((_, i) => ({
+    fg: `phase.${stage}.${q.fg}`,
+    bg: `phase.${stage}.${base}.${i}`,
+    min: q.min,
+    label: `${q.label} · ${stage} · 스톱${i + 1}/${arr.length}${labelSuffix}`,
+  }));
+}
 
 const failures = [];
 const waived = [];
@@ -156,37 +190,39 @@ for (const theme of THEME_LIST) {
   for (const scheme of theme.schemes) {
     const p = resolvePalette(theme.id, scheme);
 
+    const washSet = (DAYPART_WASH && DAYPART_WASH[scheme]) || {};
+
     const pairs = [
       ...CONTRAST_PAIRS,
+      // @all — 배열 길이만큼 전개한다 (테마마다 스톱 수가 다르다)
       ...PHASE_STAGES.flatMap((stage) =>
-        PHASE_PAIRS.flatMap((q) => {
-          if (!q.bg.endsWith('.@all')) {
-            return [{
-              fg: `phase.${stage}.${q.fg}`,
-              bg: `phase.${stage}.${q.bg}`,
-              min: q.min,
-              label: `${q.label} · ${stage}`,
-            }];
-          }
-          // @all — 배열 길이만큼 전개한다 (테마마다 스톱 수가 다르다)
-          const base = q.bg.slice(0, -'.@all'.length);
-          const arr = pick(p, `phase.${stage}.${base}`);
-          if (!Array.isArray(arr)) {
-            return [{ fg: `phase.${stage}.${q.fg}`, bg: `phase.${stage}.${base}`, min: q.min, label: `${q.label} · ${stage}` }];
-          }
-          return arr.map((_, i) => ({
-            fg: `phase.${stage}.${q.fg}`,
-            bg: `phase.${stage}.${base}.${i}`,
-            min: q.min,
-            label: `${q.label} · ${stage} · 스톱${i + 1}/${arr.length}`,
-          }));
-        })
+        PHASE_PAIRS.flatMap((q) => expandPhasePair(p, stage, q, ''))
+      ),
+      // 시간대 워시를 합성한 배경 위에서 한 번 더
+      ...PHASE_STAGES.flatMap((stage) =>
+        DAYPART_PAIRS.flatMap((q) =>
+          DAYPARTS.flatMap((part) =>
+            expandPhasePair(p, stage, q, ` · ${part}`).map((pair) => ({
+              ...pair,
+              wash: washSet[part],
+              washName: part,
+            }))
+          )
+        )
       ),
     ];
 
     for (const pair of pairs) {
       const fg = pick(p, pair.fg);
-      const bg = pick(p, pair.bg);
+      let bg = pick(p, pair.bg);
+      if (pair.wash !== undefined && bg !== undefined) {
+        const washed = applyWash(pair.wash, bg);
+        if (washed === null) {
+          failures.push({ theme: theme.id, scheme, pair, ratio: null, reason: `워시 파싱 실패 (${pair.wash})` });
+          continue;
+        }
+        bg = washed;
+      }
       if (fg === undefined || bg === undefined) {
         failures.push({ theme: theme.id, scheme, pair, ratio: null, reason: '키 없음' });
         continue;
@@ -199,7 +235,7 @@ for (const theme of THEME_LIST) {
       }
       if (ratio + 1e-9 >= pair.min) continue;
 
-      const waiverKey = `${theme.id}/${scheme}/${pair.fg}|${pair.bg}`;
+      const waiverKey = `${theme.id}/${scheme}/${pair.fg}|${pair.bg}${pair.washName ? `@${pair.washName}` : ''}`;
       const note = KNOWN_ISSUES && KNOWN_ISSUES[waiverKey];
       if (note) waived.push({ key: waiverKey, pair, ratio, note });
       else failures.push({ theme: theme.id, scheme, pair, ratio, fg, bg });

@@ -8,6 +8,7 @@
  *    형제 팔레트 파일 import 만 허용.
  */
 import { baseLight, baseDark } from './base';
+import daybreak from './daybreak';
 import forest from './forest';
 import nightvision from './nightvision';
 import aurora from './aurora';
@@ -40,18 +41,18 @@ function mergePalette(base, over) {
 /* ─── 테마 목록 ──────────────────────────────────────────────── */
 
 export const THEMES = {
-  nightvision, forest, aurora, sunset, abyss, matte, sakura, redalert,
+  daybreak, nightvision, forest, aurora, sunset, abyss, matte, sakura, redalert,
   steel, oldman, victory,
 };
 
 /** 피커 표시 순서 — 해금 테마는 맨 뒤 (잠겨 있어도 보여준다) */
 export const THEME_LIST = [
-  nightvision, forest, aurora, sunset, abyss, matte, sakura, redalert,
+  daybreak, nightvision, forest, aurora, sunset, abyss, matte, sakura, redalert,
   steel, oldman, victory,
 ];
 
-/** 신규 설치 기본값 */
-export const DEFAULT_THEME_ID = 'nightvision';
+/** 신규 설치 기본값 — v1.2 부터 라이트 우선 테마다 */
+export const DEFAULT_THEME_ID = 'daybreak';
 
 /** 기존 사용자가 업데이트 후 유지할 테마 */
 export const LEGACY_THEME_ID = 'forest';

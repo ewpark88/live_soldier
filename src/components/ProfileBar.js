@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, StyleSheet, ScrollView,
   Image, Modal, TextInput, Alert, Linking, Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -10,9 +10,11 @@ import {
   listProfiles, setActiveProfile, addProfile, updateProfile, deleteProfile,
   MAX_PROFILES,
 } from '../utils/storage';
+import PressScale from './ui/PressScale';
 import { pickProfilePhoto } from '../utils/imagePicker';
 import { updateDischargeWidget } from '../widget/updateWidget';
 import { refreshScheduledNotifications } from '../utils/notifications';
+import { guardSave, guardDelete, SAVE_FAILED } from '../utils/saveGuard';
 
 const BRANCH_LABEL = { army: '육군', navy: '해군', airforce: '공군', marines: '해병대' };
 
@@ -81,7 +83,7 @@ export default function ProfileBar({ onChange, onDark = false }) {
 
   const handleSwitch = async (id) => {
     if (id === activeId) return;
-    await setActiveProfile(id);
+    if ((await guardSave(() => setActiveProfile(id))) === SAVE_FAILED) return;
     notify();
   };
 
@@ -135,10 +137,12 @@ export default function ProfileBar({ onChange, onDark = false }) {
     const name = nameInput.trim();
     if (!name) { Alert.alert('오류', '이름을 입력해 주세요.'); return; }
     if (modalMode === 'add') {
-      const id = await addProfile(name, photoInput);
+      const id = await guardSave(() => addProfile(name, photoInput));
+      if (id === SAVE_FAILED) return;
       if (!id) { Alert.alert('알림', `프로필은 최대 ${MAX_PROFILES}명까지 등록할 수 있어요.`); return; }
     } else {
-      await updateProfile(editId, { name, photo: photoInput ?? null });
+      const res = await guardSave(() => updateProfile(editId, { name, photo: photoInput ?? null }));
+      if (res === SAVE_FAILED) return;
     }
     closeModal();
     notify();
@@ -154,7 +158,11 @@ export default function ProfileBar({ onChange, onDark = false }) {
       {
         text: '삭제',
         style: 'destructive',
-        onPress: async () => { await deleteProfile(editId); closeModal(); notify(); },
+        onPress: async () => {
+          if ((await guardDelete(() => deleteProfile(editId))) === SAVE_FAILED) return;
+          closeModal();
+          notify();
+        },
       },
     ]);
   };
@@ -169,13 +177,12 @@ export default function ProfileBar({ onChange, onDark = false }) {
         {profiles.map((p) => {
           const active = p.id === activeId;
           return (
-            <TouchableOpacity
+            <PressScale haptic="select"
               key={p.id}
               style={s.item}
               onPress={() => handleSwitch(p.id)}
               onLongPress={() => openEdit(p)}
               delayLongPress={300}
-              activeOpacity={0.8}
             >
               <Avatar photo={p.photo} name={p.name} active={active} />
               <Text
@@ -184,12 +191,12 @@ export default function ProfileBar({ onChange, onDark = false }) {
               >
                 {p.name}
               </Text>
-            </TouchableOpacity>
+            </PressScale>
           );
         })}
 
         {profiles.length < MAX_PROFILES && (
-          <TouchableOpacity style={s.item} onPress={openAdd} activeOpacity={0.8}>
+          <PressScale haptic="light" style={s.item} onPress={openAdd}>
             <View style={[s.addCircle, onDark && { borderColor: tc.heroBorder }]}>
               <Ionicons
                 name="add"
@@ -198,7 +205,7 @@ export default function ProfileBar({ onChange, onDark = false }) {
               />
             </View>
             <Text style={[s.name, nameColor]}>추가</Text>
-          </TouchableOpacity>
+          </PressScale>
         )}
       </ScrollView>
 
@@ -208,16 +215,16 @@ export default function ProfileBar({ onChange, onDark = false }) {
           <View style={s.modalBox}>
             <Text style={s.modalTitle}>{modalMode === 'add' ? '프로필 추가' : '프로필 수정'}</Text>
 
-            <TouchableOpacity style={s.photoPick} onPress={handlePickPhoto} activeOpacity={0.8}>
+            <PressScale haptic="light" style={s.photoPick} onPress={handlePickPhoto}>
               <Avatar photo={photoInput} name={nameInput || '?'} size={84} />
               <Text style={s.photoPickText}>
                 {photoInput ? '사진 변경' : '사진 선택 (선택사항)'}
               </Text>
-            </TouchableOpacity>
+            </PressScale>
             {photoInput ? (
-              <TouchableOpacity onPress={() => setPhotoInput(null)}>
+              <PressScale haptic="light" onPress={() => setPhotoInput(null)}>
                 <Text style={s.photoRemove}>사진 제거</Text>
-              </TouchableOpacity>
+              </PressScale>
             ) : null}
 
             <Text style={s.label}>이름 / 별명</Text>
@@ -232,16 +239,16 @@ export default function ProfileBar({ onChange, onDark = false }) {
 
             <View style={s.btnRow}>
               {modalMode === 'edit' && (
-                <TouchableOpacity style={s.deleteBtn} onPress={handleDelete}>
+                <PressScale haptic="warning" style={s.deleteBtn} onPress={handleDelete}>
                   <Text style={s.deleteBtnText}>삭제</Text>
-                </TouchableOpacity>
+                </PressScale>
               )}
-              <TouchableOpacity style={s.cancelBtn} onPress={closeModal}>
+              <PressScale haptic="light" style={s.cancelBtn} onPress={closeModal}>
                 <Text style={s.cancelBtnText}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.saveBtn} onPress={handleSave}>
+              </PressScale>
+              <PressScale haptic="success" style={s.saveBtn} onPress={handleSave}>
                 <Text style={s.saveBtnText}>저장</Text>
-              </TouchableOpacity>
+              </PressScale>
             </View>
           </View>
         </View>
@@ -280,5 +287,6 @@ const makeStyles = (tc) => StyleSheet.create({
   cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1.5, borderColor: tc.border, alignItems: 'center' },
   cancelBtnText: { color: tc.textSecondary, fontWeight: '600', fontSize: 15 },
   saveBtn: { flex: 1.4, paddingVertical: 14, borderRadius: 10, backgroundColor: tc.primary, alignItems: 'center' },
-  saveBtnText: { color: tc.white, fontWeight: '700', fontSize: 16 },
+  // tc.white 가 아니라 onPrimary — 다크 테마의 primary 는 밝아서 흰 글자가 사라진다
+  saveBtnText: { color: tc.onPrimary, fontWeight: '700', fontSize: 16 },
 });

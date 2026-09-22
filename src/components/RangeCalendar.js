@@ -1,6 +1,9 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+// PressScale 을 '쓰는' 것은 괜찮다 — 금지된 건 한 파일에서 RN Animated 와
+// react-native-reanimated 를 **동시에 import** 하는 것이다(§6).
+import PressScale from './ui/PressScale';
 import { useThemeColors } from '../theme/ThemeContext';
 import { formatDate, formatDateKo, daysBetweenInclusive, parseDate } from '../utils/dateUtils';
 
@@ -96,15 +99,15 @@ export default function RangeCalendar({
     <View style={s.wrap}>
       {/* 헤더 */}
       <View style={s.header}>
-        <TouchableOpacity onPress={goPrev} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="이전 달">
+        <PressScale onPress={goPrev} haptic="select" scale={0.88} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="이전 달">
           <Ionicons name="chevron-back" size={22} color={tc.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={goToday} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="오늘로 이동">
+        </PressScale>
+        <PressScale onPress={goToday} haptic="select" accessibilityRole="button" accessibilityLabel="오늘로 이동">
           <Text style={s.headerTitle}>{year}년 {month + 1}월</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={goNext} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="다음 달">
+        </PressScale>
+        <PressScale onPress={goNext} haptic="select" scale={0.88} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="다음 달">
           <Ionicons name="chevron-forward" size={22} color={tc.primary} />
-        </TouchableOpacity>
+        </PressScale>
       </View>
 
       {/* 요일 */}
@@ -129,10 +132,10 @@ export default function RangeCalendar({
           // 양 끝/중간 밴드 처리 (단일 선택이면 밴드 없음)
           const showBand = !!endDate && (isStart || isEnd || inRange);
           return (
-            <TouchableOpacity
+            <PressScale
               key={idx}
               style={s.cell}
-              activeOpacity={disabled ? 1 : 0.7}
+              haptic={disabled ? null : 'select'}
               onPress={() => handleTap(dateStr)}
             >
               {showBand && (
@@ -159,7 +162,7 @@ export default function RangeCalendar({
                   {day}
                 </Text>
               </View>
-            </TouchableOpacity>
+            </PressScale>
           );
         })}
       </View>
@@ -235,7 +238,8 @@ const makeStyles = (tc) => StyleSheet.create({
 
   dayText: { fontSize: 14, color: tc.text, fontWeight: '600' },
   dayTextInRange: { color: tc.primary, fontWeight: '700' },
-  dayTextSelected: { color: tc.white, fontWeight: '800' },
+  // tc.white 가 아니라 onPrimary — 다크 테마의 primary 는 밝아서 흰 글자가 사라진다
+  dayTextSelected: { color: tc.onPrimary, fontWeight: '800' },
   dayTextToday: { color: tc.accent },
   dayTextDisabled: { color: tc.textLight, opacity: 0.5 },
 
@@ -248,5 +252,5 @@ const makeStyles = (tc) => StyleSheet.create({
   summaryHint: { fontSize: 12.5, color: tc.textSecondary, fontWeight: '500', textAlign: 'center' },
   summaryDate: { fontSize: 15, fontWeight: '800', color: tc.text },
   summaryBadge: { backgroundColor: tc.primary, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 3 },
-  summaryBadgeText: { fontSize: 13, fontWeight: '800', color: tc.white },
+  summaryBadgeText: { fontSize: 13, fontWeight: '800', color: tc.onPrimary },
 });

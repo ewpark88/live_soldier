@@ -39,17 +39,21 @@ eas build --platform android --profile production
 - **`babel.config.js` 를 건드리지 말 것** — `babel-preset-expo@54` 가 reanimated worklets
   플러그인을 자동 주입한다. 수동 추가 시 이중 적용되어 난해한 worklet 에러가 난다.
 - UI 아이콘은 Ionicons. 상수의 `emoji` 필드는 위젯·공유 텍스트가 쓰므로 지우지 않는다.
-- **색은 `src/theme/palettes/` 의 테마 레지스트리가 소유한다** (v1.1~, 테마 11종).
+- **색은 `src/theme/palettes/` 의 테마 레지스트리가 소유한다** (v1.2~, 테마 12종,
+  기본값 `daybreak`). **라이트 스킴의 히어로는 밝다** — 히어로 위에서 흰색을
+  하드코딩하면 안 되고, `heroText`/`heroTextMuted`/`heroTrack` 토큰만 쓴다.
   `src/constants/colors.js` 는 하위호환 shim 이다. 팔레트 파일과
   `theme/contrastPairs.js` 는 `tokens.js` 처럼 **런타임 라이브러리 import 금지** —
   위젯 헤드리스 런타임과 맨 Node 검증 스크립트가 둘 다 이 파일을 로드한다.
-- 팔레트를 건드렸으면 **`npm run theme:check`** 가 통과해야 한다 (660개 대비 페어).
+- 팔레트를 건드렸으면 **`npm run theme:check`** 가 통과해야 한다 (1,992개 대비 페어).
   그라데이션은 양 끝이 아니라 **모든 스톱**을 검사한다 — aurora 만 3스톱이라
   중간 색이 한 번도 검사되지 않아 D-Day 숫자 대비가 2.4:1 까지 떨어져 있었다.
+  v1.2 부터는 **시간대 워시(`DAYPART_WASH`)를 합성한 뒤의** 스톱까지 검사한다.
+  원본만 통과하고 밤 워시에서 무너지는 조합이 실제로 8건 있었다.
 - 네비게이션은 루트 native-stack + 4탭이다. **라우트 이름은 트리 전체에서 유일**해야
   하고, `navigate` 버블링은 위로만 간다 — 여러 곳에서 진입하는 화면은 루트 스택에 둔다.
 - `npm test` 는 5개 스위트를 돌린다. 순수 로직을 고쳤으면 반드시 돌린다.
-  - `test-calc.js` (217) 날짜·계급·로드맵·적금·스트릭·축하
+  - `test-calc.js` (242) 날짜·계급·로드맵·적금·스트릭·축하
   - `test-clock.js` (29) **시계를 특정 날짜로 고정**해야만 드러나는 것
     (윤일 임관자 호봉, DST 전환을 품은 구간) — 상대 날짜 테스트로는 못 잡는다
   - `test-storage.js` (40) AsyncStorage 목 위에서 실제 저장소 로직
@@ -58,3 +62,27 @@ eas build --platform android --profile production
 - **테스트가 통과한다고 끝이 아니다.** 화면 파일은 계산 테스트가 로드하지 않으므로
   `npx expo export --platform android` 로 번들까지 확인한다. 실제로 문자열 파손이
   `npm test` 를 통과하고 번들에서 잡힌 적이 있다.
+
+## 광고 (v1.2)
+
+- **배너는 화면당 하나, 푸터에만.** `<Screen ad={AD_UNITS.X}>` 가 유일한 배선이다.
+  본문에 `<AdBanner>` 를 직접 넣지 않는다.
+- **전면광고는 '주요 저장' 직후에만** 뜬다 — 전역 정보·휴가 기록·할 일·급여 저장.
+  앱 실행·탭 전환에서는 절대 띄우지 않는다. 빈도(하루 2회·30분 간격)는
+  `src/utils/adManager.js` 가 강제한다. 자세한 건 `doc/06_ADS.md`.
+
+## 저장 핸들러
+
+`storage._setField` 는 실패하면 **예외를 던진다**(의도적). 저장 핸들러는 반드시
+`src/utils/saveGuard.js` 의 `guardSave`/`guardDelete` 로 감싼다 — 그냥 `await`
+하면 예외가 핸들러를 끊어서 성공 햅틱·모달 닫기·목록 갱신이 전부 건너뛰어지고,
+사용자에게는 "눌렀는데 아무 일도 안 일어남"으로 보인다.
+
+```js
+const next = await guardSave(() => addLeaveRecord(rec));
+if (next === SAVE_FAILED) return;   // 모달을 닫지 않는다 — 입력을 날리지 않는다
+setRecords(next);
+```
+
+예외: `SavingsScreen` 의 디바운스 자동저장은 조용히 실패한다 (언마운트 경로에서도
+불리므로 Alert 를 띄우면 화면을 떠날 때 모달이 뜬다).

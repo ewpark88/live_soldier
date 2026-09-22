@@ -33,7 +33,11 @@
 
 | 상수명 | 위치 | 실제 광고 단위 ID |
 |--------|------|-----------------|
-| `INTERSTITIAL_TAB` | 탭 전환 시 | `ca-app-pub-8353634332299342/XXXXXXXXXX` |
+| `INTERSTITIAL_TAB` | **주요 저장 직후** (이름만 TAB, 탭 전환에는 쓰지 않는다) | `ca-app-pub-8353634332299342/XXXXXXXXXX` |
+
+> `HOME_TOP` 은 v1.2 에서 **쓰지 않는다.** 홈 본문 인라인 배너를 걷어냈다 —
+> 한 화면에 배너가 둘이면 콘텐츠보다 광고가 먼저 읽힌다. 상수는 AdMob 콘솔과
+> 어긋나지 않도록 남겨둔다.
 
 > **참고:** 위 테이블에서 `XXXXXXXXXX`는 실제 ID로 `src/constants/adUnits.js` 파일을 직접 확인하세요.
 
@@ -44,20 +48,23 @@
 ```js
 // src/constants/adUnits.js
 export const AD_UNITS = {
-  HOME_TOP: {
-    testId: 'ca-app-pub-3940256099942544/6300978111',  // Google 공식 테스트 ID
-    realId: 'ca-app-pub-8353634332299342/XXXXXXXXXX',  // 실제 ID
-  },
+  HOME_BOTTOM: { id: 'home_bottom', label: '홈 하단', realId: 'ca-app-pub-...' },
   // ... 나머지 단위들
 };
 ```
 
-### 광고 ID 선택 로직 (AdBanner.js 내부)
+### 광고 ID 선택 로직 — `getAdUnitId(unit, kind)` 하나를 반드시 거친다
 ```js
-const adUnitId = __DEV__ ? unit.testId : unit.realId;
+export function getAdUnitId(unit, kind = 'banner') {
+  if (!unit || !unit.realId) return null;
+  if (!__DEV__) return unit.realId;
+  return kind === 'interstitial' ? TEST_INTERSTITIAL : TEST_BANNER;
+}
 ```
-- 개발 모드(`__DEV__ = true`): 테스트 ID 사용 → 실수로 실제 광고 클릭 걱정 없음
-- 프로덕션 빌드(`__DEV__ = false`): 실제 ID 사용
+- 개발 빌드(`__DEV__ = true`)에서는 **실제 ID 가 절대 나가지 않는다.**
+  개발 중 실제 광고를 띄우면 AdMob 이 무효 트래픽으로 보고 계정을 정지시킨다.
+- 호출부는 셋뿐이다: `AdBanner.js`, `AdFooter.js`, `adManager.js`.
+- 단위 객체에 `testId` 필드는 없다 (테스트 ID 는 이 함수가 갖는다).
 
 ---
 
@@ -114,6 +121,8 @@ if (Platform.OS === 'ios') {
 ## 6. 구글 애드몹 정책 준수 사항
 
 ### 광고 배치 규칙
+0. **배너는 화면당 하나, 푸터에만.** `<Screen ad={AD_UNITS.X}>` 가 유일한 배선이다
+   (`Screen.js` → `AdFooter` → `AdBanner`). 본문에 배너를 직접 넣지 않는다.
 1. **각 화면마다 고유한 광고 단위 ID** 사용 (동일 ID 여러 위치 금지)
 2. **광고 레이블** : 모든 배너에 "광고" 텍스트 또는 AdChoices 아이콘 표시 (SDK 자동 처리)
 3. **클릭 유도 금지** : 광고 옆에 "여기를 누르세요" 같은 문구 불가
@@ -121,15 +130,30 @@ if (Platform.OS === 'ios') {
 5. **닫기 버튼** : 전면 광고는 항상 닫기 버튼 접근 가능 (SDK 자동 처리)
 6. **탭 바 근처 광고** : 탭 바와 배너 광고 사이에 충분한 여백 필요 (실수 클릭 방지)
 
-### 전면 광고 빈도 설정
+### 전면 광고는 '주요 저장' 에서만 뜬다 (v1.2)
+앱 실행이나 탭 전환에서는 **뜨지 않는다.** v1.1 까지는 홈이 포커스되고 6초 뒤
+자동 노출이 있었는데, 홈이 첫 탭이라 사실상 "앱을 켜면 광고"였다.
+
+노출 지점은 네 곳뿐이다:
+
+| 화면 | 핸들러 |
+|---|---|
+| `DischargeScreen` | `handleSave` (입대·전역 정보 저장) |
+| `LeaveScreen` | `handleAddUse` / `handleAddBonus` (휴가 기록 추가) |
+| `TodoScreen` | `handleAdd` (할 일 추가) |
+| `SalaryScreen` | `handleSave` (급여 정보 저장) |
+
+토글·테마 변경·기본값 저장 같은 가벼운 동작에는 붙이지 않는다.
+
+빈도 제한은 `src/utils/adManager.js` 가 강제한다 (화면별 오버라이드 없음):
 ```js
-// TabNavigator.js
-if (Math.random() < 0.1) {   // 10% 확률
-  setTimeout(() => showInterstitialAd(), 400);  // 400ms 딜레이 후 표시
-}
+const MAX_PER_DAY  = 2;               // 하루 최대 2회
+const MIN_INTERVAL = 30 * 60 * 1000;  // 최소 30분 간격
 ```
-- 너무 자주 표시하면 정책 위반 및 사용자 이탈 원인
-- 현재 10% 확률 = 탭 10번 중 평균 1번 표시
+- 카운트는 `AdEventType.OPENED`(실제 노출) 후에만 차감한다.
+- 로드 전 호출은 한도를 쓰지 않고 그냥 건너뛴다.
+- 홈에서도 `useShowInterstitial()` 을 호출하는데, 노출이 아니라 **프리로드**
+  목적이다 (홈이 첫 화면이라 여기서 미리 받아두면 저장 시점 성공률이 오른다).
 
 ---
 

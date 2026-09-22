@@ -8,7 +8,7 @@ import Animated, { FadeInDown, FadeOutRight, LinearTransition } from 'react-nati
 import { useThemeColors } from '../theme/ThemeContext';
 import SectionTitle from '../components/SectionTitle';
 import Card from '../components/Card';
-import ProgressBar from '../components/ProgressBar';
+import SegmentBar from '../components/SegmentBar';
 import DatePickerField from '../components/DatePickerField';
 import RangeCalendar from '../components/RangeCalendar';
 import SetupRequired from '../components/SetupRequired';
@@ -27,6 +27,7 @@ import { formatDateKo, daysBetweenInclusive } from '../utils/dateUtils';
 import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
+import { guardSave, guardDelete, SAVE_FAILED } from '../utils/saveGuard';
 import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
 
 const MODAL_NONE = null;
@@ -122,7 +123,6 @@ export default function LeaveScreen({ navigation, embedded = false }) {
   const bonusDays = bonusRecords.reduce((acc, x) => acc + (x.days || 0), 0);
   const totalDays = leaveBase + bonusDays;
   const leftDays = totalDays - usedDays;
-  const usedRatio = totalDays > 0 ? Math.min(1, usedDays / totalDays) : 0;
 
   const handleSaveBase = async () => {
     const val = parseInt(baseInput, 10);
@@ -131,7 +131,7 @@ export default function LeaveScreen({ navigation, embedded = false }) {
       Alert.alert('오류', '1~100 사이의 숫자를 입력해주세요.');
       return;
     }
-    await saveLeaveTotal(val);
+    if ((await guardSave(() => saveLeaveTotal(val))) === SAVE_FAILED) return;
     setLeaveBase(val);
     setEditingBase(false);
     haptic.success();
@@ -147,7 +147,9 @@ export default function LeaveScreen({ navigation, embedded = false }) {
     if (!formDate) { haptic.warning(); Alert.alert('오류', '휴가 시작일을 선택해주세요.'); return; }
     const days = daysBetweenInclusive(formDate, formEndDate || formDate);
     if (days < 1) { haptic.warning(); Alert.alert('오류', '휴가 날짜를 다시 선택해주세요.'); return; }
-    setRecords(await addLeaveRecord({ date: formDate, days, memo: formMemo.trim() }));
+    const next = await guardSave(() => addLeaveRecord({ date: formDate, days, memo: formMemo.trim() }));
+    if (next === SAVE_FAILED) return;   // 모달을 닫지 않는다 — 입력을 날리지 않기 위해
+    setRecords(next);
     haptic.success();
     closeModal();
     showAd();
@@ -157,7 +159,9 @@ export default function LeaveScreen({ navigation, embedded = false }) {
     if (!formDate) { haptic.warning(); Alert.alert('오류', '부여일을 선택해주세요.'); return; }
     const days = parseInt(formDays, 10);
     if (isNaN(days) || days < 1) { haptic.warning(); Alert.alert('오류', '일수를 올바르게 입력해주세요.'); return; }
-    setBonusRecords(await addLeaveBonusRecord({ date: formDate, days, memo: formMemo.trim() }));
+    const next = await guardSave(() => addLeaveBonusRecord({ date: formDate, days, memo: formMemo.trim() }));
+    if (next === SAVE_FAILED) return;
+    setBonusRecords(next);
     haptic.success();
     closeModal();
     showAd();
@@ -166,14 +170,28 @@ export default function LeaveScreen({ navigation, embedded = false }) {
   const handleDeleteUse = (id, date) => {
     Alert.alert('삭제', `${formatDateKo(date)} 휴가 기록을 삭제할까요?`, [
       { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: async () => setRecords(await deleteLeaveRecord(id)) },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          const next = await guardDelete(() => deleteLeaveRecord(id));
+          if (next !== SAVE_FAILED) setRecords(next);
+        },
+      },
     ]);
   };
 
   const handleDeleteBonus = (id, date) => {
     Alert.alert('삭제', `${formatDateKo(date)} 포상휴가를 삭제할까요?`, [
       { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: async () => setBonusRecords(await deleteLeaveBonusRecord(id)) },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          const next = await guardDelete(() => deleteLeaveBonusRecord(id));
+          if (next !== SAVE_FAILED) setBonusRecords(next);
+        },
+      },
     ]);
   };
 
@@ -267,7 +285,9 @@ export default function LeaveScreen({ navigation, embedded = false }) {
                 {usedDays} / {totalDays}일
               </Txt>
             </View>
-            <ProgressBar progress={usedRatio} height={8} tone="hero" />
+            {/* 칸 하나가 하루다 — 남은 칸을 눈으로 셀 수 있다.
+               연속 바는 "62% 썼다"만 말하고 "9일 남았다"는 못 말한다. */}
+            <SegmentBar total={totalDays} filled={usedDays} height={10} onHero />
 
             <View style={s.statRow}>
               <StatTile label="기본" value={leaveBase} unit="일" onHero countUp />

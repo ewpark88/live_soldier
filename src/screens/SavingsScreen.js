@@ -101,6 +101,10 @@ export default function SavingsScreen({ navigation }) {
     const p = pendingSave.current;
     if (!p) return;
     pendingSave.current = null;
+    /* 여기만은 실패해도 사용자에게 알리지 않는다 (다른 저장 핸들러는
+       utils/saveGuard 로 Alert 를 띄운다). 이건 버튼을 누른 저장이 아니라
+       입력이 멎으면 도는 자동저장이고, 언마운트 경로에서도 불린다 —
+       화면을 떠나는 순간 모달을 띄우는 셈이 된다. 다음 입력에서 다시 시도된다. */
     saveSavingsPlan(p).catch(() => {});
   }, []);
 

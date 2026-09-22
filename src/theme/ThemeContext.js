@@ -19,12 +19,14 @@ import { updateDischargeWidget } from '../widget/updateWidget';
  * effectiveScheme 으로 강제해서, 양쪽 지원 테마로 돌아오면 원래 밝기가
  * 그대로 복원된다.
  */
-const bootPalette = resolvePalette(DEFAULT_THEME_ID, 'dark');
+/* 저장된 설정을 읽기 전 한 프레임 동안 쓰이는 색이다. 신규 설치 기본값과
+   같아야 첫 프레임이 깜빡이지 않는다 (storage.DEFAULT_THEME_SETTINGS 참고). */
+const bootPalette = resolvePalette(DEFAULT_THEME_ID, 'light');
 
 const ThemeContext = createContext({
   themeId: DEFAULT_THEME_ID,
-  mode: 'system',
-  scheme: 'dark',
+  mode: 'light',
+  scheme: 'light',
   schemeForced: false,
   colors: bootPalette,
   themes: THEME_LIST,
@@ -37,7 +39,7 @@ const ThemeContext = createContext({
 
 export function ThemeProvider({ children }) {
   const [themeId, setThemeIdState] = useState(DEFAULT_THEME_ID);
-  const [mode, setModeState] = useState('system');
+  const [mode, setModeState] = useState('light');
   const [unlocked, setUnlocked] = useState([]);
   const [introSeen, setIntroSeen] = useState(true);
   const [ready, setReady] = useState(false);

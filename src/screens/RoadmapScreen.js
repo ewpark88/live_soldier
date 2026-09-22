@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Card from '../components/Card';
 import SectionTitle from '../components/SectionTitle';
 import RoadmapTimeline from '../components/RoadmapTimeline';
+import JourneyRail from '../components/JourneyRail';
 import SetupRequired from '../components/SetupRequired';
 import {
   Screen,
@@ -19,7 +20,7 @@ import { AD_UNITS } from '../constants/adUnits';
 import { loadMilitaryInfo, loadRankPromotions } from '../utils/storage';
 import { buildRoadmap } from '../utils/roadmapUtils';
 import { nextHobongInfo } from '../utils/officerUtils';
-import { nextPromotion, formatDateKo } from '../utils/dateUtils';
+import { nextPromotion, formatDateKo, calcProgress } from '../utils/dateUtils';
 import { isOfficer } from '../constants/serviceTerms';
 import { useThemeColors } from '../theme/ThemeContext';
 import { space as sp, type as ty } from '../theme/tokens';
@@ -75,6 +76,7 @@ export default function RoadmapScreen({ navigation }) {
   const promo = officer ? null : nextPromotion(promotions);
   const hobong = officer ? nextHobongInfo(info.enlistDate) : null;
   const roadmap = buildRoadmap(info, promotions);
+  const progress = calcProgress(info.enlistDate, info.dischargeDate) / 100;
 
   const next = promo
     ? {
@@ -123,9 +125,14 @@ export default function RoadmapScreen({ navigation }) {
         <Section index={1}>
           <Card>
             <SectionTitle icon="map-outline">전역 로드맵</SectionTitle>
-            <Txt role="caption" tone="secondary" style={{ marginTop: sp.xxs, marginBottom: sp.lg }}>
+            <Txt role="caption" tone="secondary" style={{ marginTop: sp.xxs }}>
               입대부터 전역까지 주요 순간
             </Txt>
+
+            {/* 한눈에 보는 여정 — 세로 타임라인은 항목을 읽게 하고,
+               이 레일은 '지금 어디쯤'을 한 줄로 답한다. */}
+            <JourneyRail milestones={roadmap} progress={progress} style={s.rail} />
+
             <RoadmapTimeline roadmap={roadmap} />
           </Card>
         </Section>
@@ -153,6 +160,8 @@ export default function RoadmapScreen({ navigation }) {
 
 const makeStyles = (tc) =>
   StyleSheet.create({
+    // 마커가 레일 위아래로 삐져나오므로 세로 여유를 준다
+    rail: { marginTop: sp.lg, marginBottom: sp.xl, paddingVertical: sp.sm },
     nextRow: { flexDirection: 'row', alignItems: 'center', gap: sp.md },
     nextIcon: {
       width: 44,

@@ -126,6 +126,40 @@ export function calcProgress(enlistDate, dischargeDate) {
 }
 
 /**
+ * 실시간 복무 진행률 (0~100, 소수 포함)
+ *
+ * `calcProgress` 는 "오늘까지" 를 달력 일수로 세는 정수 계약이다 — 위젯·공유
+ * 텍스트·전역 화면이 그 값을 쓴다. 홈 히어로의 링 게이지는 초 단위로 흐르는
+ * 숫자를 보여줘야 해서 해상도가 더 필요하다.
+ *
+ * 예전에는 LiveServiceGauge 가 자기 안에서 ms 비율을 따로 계산했고, 주석이
+ * "calcProgress 와 미세하게 다르다" 고 인정하고 있었다. 같은 개념의 계산식이
+ * 두 벌이면 언젠가 갈라진다 — 기준을 여기 하나로 모으고, 바닥을 내린 값이
+ * `calcProgress` 와 일치함을 테스트가 단언한다.
+ *
+ * @param now 주입 가능 (테스트용). 기본값은 현재 시각.
+ */
+export function calcLiveProgress(enlistDate, dischargeDate, now = new Date()) {
+  const start = parseDate(enlistDate);
+  const end = parseDate(dischargeDate);
+  if (!start || !end) return 0;
+
+  // 총량은 DST 를 타지 않도록 달력 일수로 잡는다 (calcProgress 와 같은 기준).
+  const totalDays = Math.round((end - start) / 86400000);
+  if (totalDays <= 0) return 100;
+
+  // 경과분은 '오늘 자정까지의 달력 일수' + '오늘 하루 안에서 흐른 비율'.
+  // 하루 안쪽은 ms 로 재도 DST 경계를 넘지 않으므로 안전하다.
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const elapsedDays = Math.round((midnight - start) / 86400000);
+  if (elapsedDays < 0) return 0;
+  if (elapsedDays >= totalDays) return 100;
+
+  const dayFraction = Math.min(1, Math.max(0, (now - midnight) / 86400000));
+  return Math.min(100, ((elapsedDays + dayFraction) / totalDays) * 100);
+}
+
+/**
  * 복무한 날수
  */
 export function calcServedDays(enlistDate) {

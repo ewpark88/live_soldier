@@ -26,6 +26,8 @@ import { getOfficerBasePay } from '../constants/militaryRanks';
 import { calcHobong } from '../utils/officerUtils';
 import { SALARY_GUIDE, getSalaryByRank, formatMoney } from '../constants/salaryGuide';
 import { haptic } from '../utils/haptics';
+import { guardSave, SAVE_FAILED } from '../utils/saveGuard';
+import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useThemeColors } from '../theme/ThemeContext';
 import { radius as r, space as sp, type as ty } from '../theme/tokens';
 
@@ -49,6 +51,10 @@ export default function SalaryScreen({ navigation }) {
   const [customMode, setCustomMode] = useState(false);
   const [customSalary, setCustomSalary] = useState('');
   const [totalMonths, setTotalMonths] = useState('');
+
+  /* 급여 정보 저장은 '주요 저장' 이라 전면 광고 지점이다 (하루 2회·30분 간격은
+     adManager 가 강제한다). 훅 자체가 마운트 시 프리로드도 해 준다. */
+  const { show: showAd } = useShowInterstitial();
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -80,10 +86,11 @@ export default function SalaryScreen({ navigation }) {
       return;
     }
     const si = { monthlyAmount: salary, totalMonths: months };
-    await saveSalaryInfo(si);
+    if ((await guardSave(() => saveSalaryInfo(si))) === SAVE_FAILED) return;
     setSalaryInfo(si);
     setCustomMode(false);
     haptic.success();
+    showAd();
   };
 
   const handleResetToStandard = () => {
@@ -93,7 +100,7 @@ export default function SalaryScreen({ navigation }) {
         text: '초기화',
         style: 'destructive',
         onPress: async () => {
-          await saveSalaryInfo(null);
+          if ((await guardSave(() => saveSalaryInfo(null))) === SAVE_FAILED) return;
           setSalaryInfo(null);
           setCustomMode(false);
           setCustomSalary('');
@@ -135,6 +142,13 @@ export default function SalaryScreen({ navigation }) {
 
   const earnedRatio = totalSalary > 0 ? Math.min(1, earnedSalary / totalSalary) : 0;
   const earnedPercent = Math.floor(earnedRatio * 100);
+
+  /* 계급이 바뀌는 지점을 바 위에 눈금으로 찍는다 — 바가 어디서 한 단
+     가팔라지는지 보이면 "진급하면 월급이 오른다"가 숫자 없이 읽힌다.
+     표준 봉급표를 쓰는 병사에게만 의미가 있다 (직접 입력·간부는 단일 단가). */
+  const rankTicks = (!salaryInfo && !officer && totalSalary > 0)
+    ? SALARY_GUIDE.slice(1).map((g) => calcStandardTotal(g.start) / totalSalary)
+    : undefined;
 
   const isCustom = !!salaryInfo;
   const needInput = officer && !salaryInfo && !officerBase;
@@ -204,7 +218,12 @@ export default function SalaryScreen({ navigation }) {
             <Txt role="caption" tone="secondary">현재까지 수령</Txt>
             <Txt role="label" tone="primary" numeric>{earnedPercent}%</Txt>
           </View>
-          <ProgressBar progress={earnedRatio} height={10} />
+          <ProgressBar progress={earnedRatio} height={10} ticks={rankTicks} />
+          {rankTicks ? (
+            <Txt role="micro" tone="light" style={{ marginTop: 6 }}>
+              눈금은 계급이 바뀌는 지점이에요
+            </Txt>
+          ) : null}
 
           <View style={s.statRow}>
             <StatTile label="수령" value={formatMoney(earnedSalary)} unit="원" tone="primary" />

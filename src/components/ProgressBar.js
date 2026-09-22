@@ -20,7 +20,9 @@ import { useMotion } from '../hooks/useMotion';
  * scaleX 는 UI 스레드에서 공짜다.
  *
  * @param progress  0..1
- * @param tone      'primary' | 'accent' | 'success' | 'hero'(어두운 히어로 위)
+ * @param tone      'primary' | 'accent' | 'success' | 'hero'(히어로 표면 위)
+ * @param ticks     0..1 위치 배열. 구간 경계를 세로선으로 표시한다.
+ *                  (급여 바의 계급 전환 지점 — 바가 어디서 한 단 올라섰는지)
  */
 export default function ProgressBar({
   progress = 0,
@@ -28,6 +30,7 @@ export default function ProgressBar({
   tone = 'primary',
   trackColor,
   fillColor,
+  ticks,
   delay = 200,
   style,
 }) {
@@ -84,12 +87,29 @@ export default function ProgressBar({
           fillStyle,
         ]}
       />
+
+      {Array.isArray(ticks)
+        ? ticks
+          .filter((t) => Number.isFinite(t) && t > 0 && t < 1)
+          .map((t) => (
+            <View
+              key={t}
+              pointerEvents="none"
+              style={[
+                styles.tick,
+                { left: `${t * 100}%`, backgroundColor: tone === 'hero' ? tc.heroBorder : tc.card },
+              ]}
+            />
+          ))
+        : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   track: { overflow: 'hidden', width: '100%' },
+  // 눈금은 정적이다 — width:'%' 금지 규칙은 *애니메이션* 폭에만 적용된다
+  tick: { position: 'absolute', top: 0, bottom: 0, width: 2, opacity: 0.85 },
   fill: {
     ...StyleSheet.absoluteFillObject,
     // 왼쪽 끝을 고정하고 오른쪽으로 늘린다 (기본값이면 가운데서 양쪽으로 퍼진다)

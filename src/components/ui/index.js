@@ -22,8 +22,13 @@ export { default as Txt } from './Txt';
 export { default as Card } from '../Card';
 export { default as SectionTitle } from '../SectionTitle';
 export { default as ProgressBar } from '../ProgressBar';
+export { default as SegmentBar } from '../SegmentBar';
+export { default as CircularGauge } from '../CircularGauge';
+export { default as JourneyRail } from '../JourneyRail';
 
 // 모션
 export { default as AnimatedNumber } from '../motion/AnimatedNumber';
 export { default as BottomSheet } from '../motion/BottomSheet';
 export { default as EmberField } from '../motion/EmberField';
+export { default as AuroraWash } from '../motion/AuroraWash';
+export { default as Confetti } from '../motion/Confetti';

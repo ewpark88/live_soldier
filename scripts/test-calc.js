@@ -123,6 +123,32 @@ eq(api.calcProgress(todayPlus(-50), todayPlus(50)), 50, 'calcProgress: 절반 �
 eq(api.calcProgress(todayPlus(10), todayPlus(100)), 0,  'calcProgress: 입대 전 = 0%');
 eq(api.calcProgress(todayPlus(-100), todayPlus(-1)), 100, 'calcProgress: 전역 후 = 100%');
 
+/* calcLiveProgress — 홈 링 게이지의 기준.
+   자정에 재면 calcProgress 와 정확히 같아야 한다. 하루가 흐르는 동안에는
+   그보다 크되 절대 뒤로 가지 않는다. (두 벌로 갈라지는 걸 막는 단언) */
+function midnightOf(offsetDays, h = 0, min = 0) {
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + offsetDays);
+  d.setHours(h, min, 0, 0);
+  return d;
+}
+for (const [s, e] of [[-50, 50], [-1, 99], [-99, 1], [-7, 11]]) {
+  const a = todayPlus(s), b = todayPlus(e);
+  eq(
+    Math.floor(api.calcLiveProgress(a, b, midnightOf(0))),
+    api.calcProgress(a, b),
+    `calcLiveProgress: 자정 기준이 calcProgress 와 일치 (${s}~${e})`
+  );
+  const noon = api.calcLiveProgress(a, b, midnightOf(0, 12));
+  const mid = api.calcLiveProgress(a, b, midnightOf(0));
+  ok(noon > mid, `calcLiveProgress: 하루 안에서 전진한다 (${s}~${e})`);
+  ok(noon < api.calcLiveProgress(a, b, midnightOf(1)), `calcLiveProgress: 다음날이 더 크다 (${s}~${e})`);
+}
+eq(api.calcLiveProgress(todayPlus(10), todayPlus(100), midnightOf(0)), 0, 'calcLiveProgress: 입대 전 = 0');
+eq(api.calcLiveProgress(todayPlus(-100), todayPlus(-1), midnightOf(0)), 100, 'calcLiveProgress: 전역 후 = 100');
+eq(api.calcLiveProgress('bad', todayPlus(1), midnightOf(0)), 0, 'calcLiveProgress: 날짜 파싱 실패 = 0');
+eq(api.calcLiveProgress(todayPlus(0), todayPlus(0), midnightOf(0)), 100, 'calcLiveProgress: 기간 0 = 100');
+
 /* ─── 4. 계급 (복무일수 기준) ────────────────────────────────────────── */
 eq(api.rankFromServedMonths(0),  '이병', 'rankFromServedMonths: 0개월 = 이병');
 eq(api.rankFromServedMonths(1),  '이병', 'rankFromServedMonths: 1개월 = 이병');
@@ -396,6 +422,31 @@ eq(api.buildRoadmap(null, null), [], '로드맵: info 없음 → 빈 배열');
 eq(api.buildRoadmap(rmInfo, { 일병: 'nope' }).map((x) => x.key).indexOf('r1'), -1, '로드맵: 잘못된 진급일은 제외');
 eq(api.nextMilestoneKey([{ key: 'a', done: true }, { key: 'b', done: false }]), 'b', 'nextMilestoneKey: 첫 미완료');
 eq(api.nextMilestoneKey([{ key: 'a', done: true }]), null, 'nextMilestoneKey: 전부 완료 → null');
+
+/* milestoneProgress — 카드의 바가 '구간'을 그리는지 (전체 복무가 아니라).
+   홈에서 쓰던 servedDays/(servedDays+daysLeft) 는 마일스톤이 바뀌어도
+   리셋되지 않던 버그였다. */
+// 복무 80일(<100)이라 d100 마일스톤이 빠져 ['enlist', 'half', 'discharge'] 만 남는다.
+// half 는 입대+40일 = 오늘+10일.
+const mpRoad = api.buildRoadmap(
+  { enlistDate: todayPlus(-30), dischargeDate: todayPlus(50), personnelType: 'officer' },
+  null
+);
+eq(mpRoad.map((x) => x.key), ['enlist', 'half', 'discharge'], 'milestoneProgress: 준비된 로드맵 형태');
+eq(api.milestoneProgress(mpRoad, 'half'), 0.75, 'milestoneProgress: 구간 30/40 = 0.75');
+eq(api.milestoneProgress(mpRoad, 'enlist'), 1, 'milestoneProgress: 이미 지난 마일스톤 = 1');
+eq(api.milestoneProgress(mpRoad, 'discharge'), 0, 'milestoneProgress: 아직 시작 안 한 구간 = 0');
+eq(api.milestoneProgress(mpRoad, 'nope'), 0, 'milestoneProgress: 없는 key = 0');
+eq(api.milestoneProgress([], 'half'), 0, 'milestoneProgress: 빈 로드맵 = 0');
+eq(api.milestoneProgress(mpRoad, null), 0, 'milestoneProgress: key 없음 = 0');
+
+/* 입대 자체가 미래면 채울 구간이 없다 (첫 항목엔 직전이 없다) */
+const mpFuture = api.buildRoadmap(
+  { enlistDate: todayPlus(10), dischargeDate: todayPlus(200), personnelType: 'officer' },
+  null
+);
+eq(api.milestoneProgress(mpFuture, 'enlist'), 0, 'milestoneProgress: 입대 전이면 0');
+eq(api.milestoneProgress(mpFuture, 'half'), 0, 'milestoneProgress: 입대 전에는 다음 구간도 0');
 
 /* ─── 장병내일준비적금 ───────────────────────────────────────────────── */
 eq(api.calcSavings({ monthly: 550000, months: 24 }).principal, 13200000, '적금: 원금 = 월납 x 개월');

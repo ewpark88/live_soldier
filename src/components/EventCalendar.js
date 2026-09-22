@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import PressScale from './ui/PressScale';
 import { useThemeColors } from '../theme/ThemeContext';
 import { formatDate, formatDateKo, spanDates, daysBetweenInclusive } from '../utils/dateUtils';
 
@@ -101,15 +102,15 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
     <View style={[s.wrap, fill && s.wrapFill]}>
       {/* 헤더 */}
       <View style={s.header}>
-        <TouchableOpacity onPress={goPrev} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="이전 달">
+        <PressScale onPress={goPrev} haptic="select" scale={0.88} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="이전 달">
           <Ionicons name="chevron-back" size={22} color={tc.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={goToday} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="오늘로 이동">
+        </PressScale>
+        <PressScale onPress={goToday} haptic="select" accessibilityRole="button" accessibilityLabel="오늘로 이동">
           <Text style={s.headerTitle}>{year}년 {month + 1}월</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={goNext} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="다음 달">
+        </PressScale>
+        <PressScale onPress={goNext} haptic="select" scale={0.88} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="다음 달">
           <Ionicons name="chevron-forward" size={22} color={tc.primary} />
-        </TouchableOpacity>
+        </PressScale>
       </View>
 
       {/* 요일 */}
@@ -131,7 +132,7 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
               const isToday = cell.dateStr === todayStr;
               const isSel   = cell.dateStr === selected;
               return (
-                <TouchableOpacity key={ci} style={s.cell} activeOpacity={0.7} onPress={() => setSelected(cell.dateStr)}>
+                <PressScale key={ci} style={s.cell} haptic="select" onPress={() => setSelected(cell.dateStr)}>
                   <View style={[
                     s.dayBox,
                     isUsed && s.dayUsed,
@@ -149,8 +150,8 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
                     </Text>
                     {isBonus && <Text style={s.bonusStar}>★</Text>}
                   </View>
-                  {isTodo && <View style={[s.todoDot, { backgroundColor: isUsed ? tc.white : tc.accent }]} />}
-                </TouchableOpacity>
+                  {isTodo && <View style={[s.todoDot, { backgroundColor: isUsed ? tc.onPrimary : tc.accent }]} />}
+                </PressScale>
               );
             })}
           </View>
@@ -216,7 +217,9 @@ const makeStyles = (tc) => StyleSheet.create({
   daySel: { backgroundColor: tc.highlightBg, borderWidth: 1.5, borderColor: tc.primary },
   dayToday: { borderWidth: 1.5, borderColor: tc.accent },
   dayText: { fontSize: 14, color: tc.text, fontWeight: '600' },
-  dayTextUsed: { color: tc.white, fontWeight: '800' },
+  // tc.white 가 아니라 onPrimary — 다크 테마의 primary 는 밝은 민트/블루라
+  // 그 위에 흰 글자를 얹으면 읽히지 않는다 (대비 검증이 보는 페어도 이쪽이다)
+  dayTextUsed: { color: tc.onPrimary, fontWeight: '800' },
   dayTextSel: { color: tc.primary, fontWeight: '800' },
   bonusStar: { position: 'absolute', top: -2, right: -1, fontSize: 11, color: tc.accent },
   todoDot: { width: 5, height: 5, borderRadius: 3, marginTop: 2 },

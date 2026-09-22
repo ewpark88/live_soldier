@@ -1,3 +1,11 @@
+<!--
+  android:screenOrientation="portrait" 는 제거했다.
+  targetSdk 36(Android 16)부터 대형 화면에서 방향·크기 제한이 무시되고,
+  Play Console 이 "지원 중단된 API/파라미터"와 "크기 조절 및 방향 제한 삭제"로
+  경고한다. 제한을 지우고 레이아웃이 가로·태블릿에서도 버티게 하는 쪽이 맞다.
+  (configChanges 에 orientation|screenSize|screenLayout 이 이미 있어서
+   회전해도 액티비티가 재시작되지 않는다 — 상태가 날아가지 않는다.)
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
   <uses-permission android:name="android.permission.INTERNET"/>
@@ -18,7 +26,7 @@
     <meta-data android:name="expo.modules.updates.ENABLED" android:value="false"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
-    <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="portrait">
+    <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:resizeableActivity="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>

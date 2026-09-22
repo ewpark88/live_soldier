@@ -9,7 +9,7 @@ import Animated, {
 import { useThemeColors } from '../theme/ThemeContext';
 import SectionTitle from '../components/SectionTitle';
 import Card from '../components/Card';
-import ProgressBar from '../components/ProgressBar';
+import JourneyRail from '../components/JourneyRail';
 import DatePickerField from '../components/DatePickerField';
 import {
   Screen, AppHeader, Section, HeroCard, Grid, Button, Chip,
@@ -25,11 +25,13 @@ import { ranksFor } from '../constants/militaryRanks';
 import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
+import { guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import {
   calcDischargeDate, calcDaysLeft, calcProgress, formatDate, formatDateKo,
   isFutureDate, isValidDateString,
   getMessageForPhase,
 } from '../utils/dateUtils';
+import { buildRoadmap } from '../utils/roadmapUtils';
 import { BRANCHES, PERSONNEL_TYPES, isOfficer } from '../constants/serviceTerms';
 import { updateDischargeWidget } from '../widget/updateWidget';
 import { refreshScheduledNotifications } from '../utils/notifications';
@@ -194,7 +196,7 @@ export default function DischargeScreen({ navigation }) {
       Alert.alert('오류', '진급일 순서가 올바르지 않습니다.\n일병 < 상병 < 병장 순이어야 합니다.');
       return;
     }
-    await saveRankPromotions(editPromo);
+    if ((await guardSave(() => saveRankPromotions(editPromo))) === SAVE_FAILED) return;
     setPromotions(editPromo);
     setEditingPromo(false);
     updateDischargeWidget();
@@ -221,7 +223,7 @@ export default function DischargeScreen({ navigation }) {
               Alert.alert('오류', '입대일이 올바르지 않아 기본값을 계산할 수 없습니다. 입대일을 다시 저장해주세요.');
               return;
             }
-            await resetRankPromotions();
+            if ((await guardSave(() => resetRankPromotions())) === SAVE_FAILED) return;
             setEditPromo(defaults);
           },
         },
@@ -239,6 +241,13 @@ export default function DischargeScreen({ navigation }) {
   // 홈 히어로와 같은 기준(일수)을 쓴다. 예전엔 여기만 servedMonths/months 라
   // 같은 프로필인데 전역 탭과 홈의 진행률이 달랐고, 개월 기준이라 5.5%p 씩 뛰었다.
   const progress = info ? calcProgress(info.enlistDate, info.dischargeDate) / 100 : 0;
+
+  /* 여정 레일의 마일스톤. 홈·로드맵과 같은 buildRoadmap 을 쓴다 — 여기서
+     날짜를 다시 계산하면 화면마다 다른 여정이 그려진다. */
+  const journey = useMemo(
+    () => (info ? buildRoadmap(info, promotions) : []),
+    [info, promotions]
+  );
 
   const chevron = useSharedValue(0);
   const togglePromo = () => {
@@ -407,18 +416,17 @@ export default function DischargeScreen({ navigation }) {
                 />
               </View>
 
-              {/* 여정 레일: [● 입대] ——— [○ 전역], 채워진 선이 복무 진행률 */}
+              {/* 여정 레일 — 입대·진급·반환점·전역이 날짜 비례로 놓이고
+                  현재 위치에 마커가 선다. 예전엔 [● 입대] —바— [○ 전역]
+                  두 점뿐이라 "어디쯤 왔는지"가 퍼센트 숫자에만 있었다. */}
               <View style={s.rail}>
-                <View style={[s.railDot, { backgroundColor: tc.accentLight }]} />
-                <View style={s.railTrack}>
-                  <ProgressBar progress={progress} height={3} tone="hero" delay={320} />
-                </View>
-                <View
-                  style={[
-                    s.railDot,
-                    s.railDotEnd,
-                    daysLeft <= 0 && { backgroundColor: tc.accentLight },
-                  ]}
+                <JourneyRail
+                  milestones={journey}
+                  progress={progress}
+                  onHero
+                  fillColor={tc.accentLight}
+                  compact
+                  delay={320}
                 />
               </View>
 
@@ -664,19 +672,8 @@ const makeStyles = (tc) =>
       marginBottom: sp.xl,
     },
 
-    rail: { flexDirection: 'row', alignItems: 'center', gap: sp.sm },
-    railTrack: { flex: 1 },
-    railDot: {
-      width: 10,
-      height: 10,
-      borderRadius: 5,
-      backgroundColor: tc.accentLight,
-    },
-    railDotEnd: {
-      backgroundColor: 'transparent',
-      borderWidth: 2,
-      borderColor: tc.heroBorder,
-    },
+    // 마커가 레일 위아래로 삐져나오므로 세로 여유를 준다
+    rail: { paddingVertical: sp.md },
     railLabels: {
       flexDirection: 'row',
       justifyContent: 'space-between',

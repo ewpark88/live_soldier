@@ -36,8 +36,16 @@ export default function Card({
   ];
 
   if (onPress) {
+    /* 카드는 면적이 커서 3% 축소만으로는 눌린 게 잘 안 보인다 — 누름 막을 켠다.
+       막의 반경을 카드와 맞춰야 모서리에서 사각형으로 삐져나오지 않는다. */
     return (
-      <PressScale onPress={onPress} style={boxStyle} {...rest}>
+      <PressScale
+        onPress={onPress}
+        style={boxStyle}
+        tint
+        tintRadius={r[radiusKey] ?? r.lg}
+        {...rest}
+      >
         {children}
       </PressScale>
     );

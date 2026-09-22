@@ -86,6 +86,9 @@ export default function ListRow({
     <PressScale
       onPress={onPress}
       scale={0.985}
+      /* 행은 거의 줄어들지 않는다(0.985) — 반응은 누름 막이 맡는다 */
+      tint
+      tintRadius={r.md}
       style={box}
       accessibilityRole="button"
       {...rest}

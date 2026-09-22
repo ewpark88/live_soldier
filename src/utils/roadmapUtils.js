@@ -20,11 +20,18 @@ function daySpan(startStr, endStr) {
   return Math.round((e - s) / 86400000);
 }
 
+/**
+ * 복무 반환점.
+ *
+ * 예전엔 두 시각의 ms 중점(`s + (e - s) / 2`)이었다. DST 가 낀 구간에서는 총
+ * 길이가 ±1시간이라 중점이 자정에서 23:00 으로 밀리고, `calcDaysLeft` 가
+ * 반올림하면서 반환점이 통째로 하루 당겨졌다 (Australia/Sydney 에서 재현).
+ * 이 파일의 다른 마일스톤과 똑같이 **달력 일수**로 센다.
+ */
 function midpoint(startStr, endStr) {
-  const s = parseDate(startStr);
-  const e = parseDate(endStr);
-  if (!s || !e) return null;
-  return new Date(s.getTime() + (e.getTime() - s.getTime()) / 2);
+  const total = daySpan(startStr, endStr);
+  if (!parseDate(startStr) || !parseDate(endStr)) return null;
+  return addDays(startStr, Math.round(total / 2));
 }
 
 /**
@@ -75,4 +82,36 @@ export function buildRoadmap(info, promotions) {
 export function nextMilestoneKey(roadmap) {
   const next = roadmap.find((m) => !m.done);
   return next ? next.key : null;
+}
+
+/**
+ * **다음 마일스톤까지의 구간** 진행률 (0..1)
+ *
+ * 직전 마일스톤 → 그 다음 마일스톤 사이에서 오늘이 어디쯤인지를 잰다.
+ *
+ * 예전에 홈의 '다음 마일스톤' 카드는 `servedDays / (servedDays + daysLeft)`,
+ * 즉 **전체 복무 진행률**을 그리고 있었다. 그래서 일병을 달아 다음 목표가
+ * 상병으로 바뀌어도 바가 리셋되지 않고 계속 차기만 했다 — 카드의 제목과
+ * 그래프가 서로 다른 얘기를 하고 있었던 셈이다.
+ *
+ * @param roadmap buildRoadmap 결과 (날짜 오름차순)
+ * @param key     다음 마일스톤의 key
+ */
+export function milestoneProgress(roadmap, key) {
+  if (!Array.isArray(roadmap) || roadmap.length === 0 || !key) return 0;
+  const idx = roadmap.findIndex((m) => m.key === key);
+  if (idx < 0) return 0;
+
+  const next = roadmap[idx];
+  if (next.done) return 1;
+
+  // 첫 항목(입대)이 아직 안 지났다면 채울 구간 자체가 없다
+  const prev = idx > 0 ? roadmap[idx - 1] : null;
+  if (!prev) return 0;
+
+  const span = Math.round((next.date - prev.date) / 86400000);
+  if (span <= 0) return 1;   // 같은 날짜의 마일스톤이 겹친 경우
+
+  const left = Math.max(0, Math.min(span, next.dday));
+  return (span - left) / span;
 }

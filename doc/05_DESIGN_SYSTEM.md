@@ -39,15 +39,27 @@
 ### 새 테마를 추가할 때
 1. `palettes/<id>.js` 에 부분 오버라이드를 쓴다. 라이트를 정직하게 만들 수 없으면
    `schemes: ['dark']` 로 다크 전용을 선언한다 (기본 테마만 둘 다 필수).
-2. **`npm run theme:check` 를 통과해야 한다.** 576개 페어를 전수 검사한다.
+2. **`npm run theme:check` 를 통과해야 한다.** 1,992개 페어를 전수 검사한다.
    `KNOWN_ISSUES` 는 비어 있어야 정상이고, 새 테마에 예외를 추가하지 않는다.
+   검사는 그라데이션의 **모든 스톱**을, 그리고 v1.2 부터는 **시간대 워시를
+   합성한 뒤의** 스톱까지 본다 (`DAYPART_WASH` × 5). 원본만 통과하고 밤에
+   무너지는 조합이 실제로 있었다.
 3. 카운트다운 단계 색은 `phase.{normal,d100,d30,d7,d3,done}` 에 넣는다.
    아이콘·문구·불티 밀도는 색이 아니므로 `src/constants/phases.js` 가 갖는다.
 
 ### 대비 계약 (요약)
 `onPrimary`↔`primary`, `onGold`↔`goldFrom`/`goldTo`, `onDanger`↔`danger`,
-`phase[*].accent`↔그라데이션 양 끝은 **4.5:1**. 본문 `text`↔`card` 는 7:1.
+`phase[*].accent`↔그라데이션 **모든 스톱**은 **4.5:1**. 본문 `text`↔`card` 는 7:1.
 장식(`textLight`)만 3:1. 자세한 건 `contrastPairs.js`.
+
+### 히어로는 scheme 별로 다르다 (v1.2)
+ v1.1 까지 히어로는 "브랜드 표면"이라며 라이트에서도 딥그린/딥네이비였다.
+ 히어로는 홈 첫 화면의 62% 를 차지하므로, 라이트 모드로 바꿔도 화면 대부분이
+ 어두웠다 — 라이트 모드가 사실상 없는 것과 같았다.
+ 이제 **라이트 스킴의 히어로는 밝고, 그 위 D-Day 숫자가 어둡다.**
+ `heroText`/`heroTextMuted`/`heroTrack`/`gaugeEdge` 도 함께 뒤집힌다. 히어로 위
+ 컴포넌트(StatTile·Chip·StreakBadge·ProfileBar·JourneyRail)는 전부 이 토큰만
+ 쓰므로 자동으로 따라온다 — **히어로 위에서 흰색을 하드코딩하지 말 것.**
 
 ### 타이포에 lineHeight 가 전부 박혀 있는 이유
 안드로이드는 `lineHeight < fontSize × 1.3` 이면 한글 받침을 잘라먹고,
@@ -136,17 +148,28 @@ NavigationContainer
 - **무한 루프는 히어로 안에서만, 최대 2개.**
 - 진행 바는 `scaleX` + `transformOrigin:'left'`. **`width:'%'` 애니메이션 금지**
   (프레임마다 레이아웃 패스를 강제해 JS 스레드로 끌려간다).
+  원형 링(`CircularGauge`)은 `rotate` 라 같은 이유로 안전하다. 정적인 폭
+  (`ProgressBar` 의 눈금, 테마 미리보기)은 `%` 를 써도 된다 — 금지는
+  *애니메이션* 폭에만 걸린다.
 - 변하는 숫자엔 `tabular` 필수. 아니면 폭이 떨려 흔들린다.
 - 실시간 `setInterval` 은 `useIsFocused()` 로 게이팅.
 
-### 무한 루프 예산 (v1.1 정리)
-"히어로 안에서만, 최대 2개" 규칙이 예전엔 실제로는 최대 22개까지 어겨지고
-있었다 (sheen 1 + Ember 18 + 게이지 3). 정리 결과:
-- `EmberField` 는 공유값 **1개**로 돈다. 점마다 위상 offset 을 더해 파생시키므로
-  루프는 늘지 않는데 따로 노는 것처럼 보인다 (속도를 다르게 하면 감길 때 튄다).
-- 불티가 뜨는 단계에선 `HeroCard sheen={false}` — 어차피 서로 잡아먹는다.
-- `LiveServiceGauge` 의 shimmer/edge/dot 는 **승인된 예외**다 (이 앱의 간판이고
-  `useIsFocused()` + `done` 게이팅이 걸려 있다).
+### 무한 루프 예산 (v1.2 기준)
+"히어로 안에서만, 최대 2개" 규칙이 v1.0 에서는 실제로 최대 22개까지 어겨지고
+있었다 (sheen 1 + Ember 18 + 게이지 3). 지금 히어로의 루프는 **정확히 2개**다:
+
+1. `CircularGauge` 의 선단 맥박 — 항상 (전역했거나 포커스를 잃으면 정지)
+2. `AuroraWash` 광원 · `EmberField` 불티 · `HeroCard` sheen 중 **딱 하나**
+
+- 불티가 뜨는 단계(done/d3)에선 `sheen={false}` 이고 `AuroraWash color={null}` 이다.
+  셋이 같은 영역에서 겹치면 서로 잡아먹어 지저분해진다.
+- 여러 개를 움직여야 하면 **공유값 1개 + 위상 offset** 으로 파생시킨다
+  (`EmberField`·`AuroraWash`·`SegmentBar`·`Confetti` 가 전부 이 수법이다).
+  속도를 개별로 다르게 하면 값이 1→0 으로 감길 때 튄다 — 속도는 공유한다.
+- v1.1 의 "LiveServiceGauge shimmer/edge/dot 는 승인된 예외" 항목은 **없어졌다.**
+  게이지가 원형 링이 되면서 루프 3개가 선단 맥박 1개로 합쳐졌고, 그렇게 아낀
+  예산으로 시간대 광원을 얻었다.
+- `Confetti` 는 일회성 발사라(`withRepeat` 없음) 예산과 무관하다.
 - **테마 미리보기 카드는 애니메이션 0개.** `HeroCard` 를 쓰면 카드 수만큼 sheen
   루프가 늘어난다.
 

@@ -14,7 +14,6 @@ import TodayTodos from '../components/home/TodayTodos';
 import NextMilestone from '../components/home/NextMilestone';
 import QuickActions from '../components/home/QuickActions';
 import { Screen, Section, EmptyState } from '../components/ui';
-import AdBanner from '../components/AdBanner';
 import { AD_UNITS } from '../constants/adUnits';
 import { RANK_IMAGES } from '../constants/rankImages';
 import {
@@ -28,10 +27,12 @@ import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useDailyHero } from '../hooks/useDailyHero';
 import { useStreak } from '../state/StreakContext';
 import { haptic } from '../utils/haptics';
+import { guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import {
-  calcDaysLeft, calcServedDays, calcRankByEnlistDate, calcRankFromPromotions, nextPromotion,
+  calcDaysLeft, calcServedDays, calcProgress,
+  calcRankByEnlistDate, calcRankFromPromotions, nextPromotion,
 } from '../utils/dateUtils';
-import { buildRoadmap } from '../utils/roadmapUtils';
+import { buildRoadmap, milestoneProgress } from '../utils/roadmapUtils';
 import { isOfficer, personnelLabel } from '../constants/serviceTerms';
 import { getPhase, PHASE_META } from '../constants/phases';
 import { space as sp } from '../theme/tokens';
@@ -42,7 +43,7 @@ import { space as sp } from '../theme/tokens';
 export default function HomeScreen({ navigation }) {
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
-  const { streak, days, tier, usedFreeze, justIncremented, ready: streakReady } = useStreak();
+  const { streak, days, tier, usedFreeze } = useStreak();
 
   const [info, setInfo] = useState(null);
   const [leaveUsed, setLeaveUsed] = useState(0);
@@ -55,27 +56,17 @@ export default function HomeScreen({ navigation }) {
   const [todos, setTodos] = useState([]);
   const [replay, setReplay] = useState(0);
 
-  const { show: showAd } = useShowInterstitial();
-  const sessionShown = React.useRef(false);
+  /* 전면 광고는 '저장' 시점에만 띄운다 — 전역 정보·휴가 기록·할 일·급여.
+     여기서 훅을 호출하는 목적은 노출이 아니라 프리로드다. 홈이 첫 화면이라
+     여기서 미리 로드해 두면 나중 저장 시점의 노출 성공률이 올라간다.
+     (예전에는 홈 포커스 6초 뒤 자동 노출이 있었다 = 사실상 '앱 실행 시 광고') */
+  useShowInterstitial();
 
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
 
   useFocusEffect(
-    useCallback(() => {
-      loadData();
-      // 스트릭이 방금 올라간 순간엔 전면 광고를 띄우지 않는다.
-      // 여기서 광고가 뜨면 리텐션 장치가 통째로 무의미해진다.
-      //
-      // streakReady 를 기다리는 이유: 콜드 스타트에서는 홈이 먼저 포커스되고
-      // 스트릭 판정이 나중에 끝난다. ready 전에 예약하면 justIncremented 가
-      // 아직 false 라 축하 연출 위로 광고가 떨어진다.
-      if (!streakReady || sessionShown.current || justIncremented) return undefined;
-      sessionShown.current = true;
-      // 앱 로드 직후 노출은 AdMob 정책상 피한다
-      const timer = setTimeout(() => { showAd(); }, 6000);
-      return () => clearTimeout(timer);   // 화면을 벗어나면 띄우지 않는다
-    }, [justIncremented, streakReady, showAd])
+    useCallback(() => { loadData(); }, [])
   );
 
   const loadData = async () => {
@@ -113,7 +104,7 @@ export default function HomeScreen({ navigation }) {
   };
 
   const handleSelectType = async (type) => {
-    await savePersonnelType(type);
+    if ((await guardSave(() => savePersonnelType(type))) === SAVE_FAILED) return;
     setPersonnelType(type);
     navigation.navigate('discharge');
   };
@@ -124,7 +115,9 @@ export default function HomeScreen({ navigation }) {
     navigation.navigate('calendar', { section, ts: Date.now() });
 
   const handleToggleTodo = async (id) => {
-    setTodos(await toggleTodo(id));
+    const next = await guardSave(() => toggleTodo(id));
+    if (next === SAVE_FAILED) return;
+    setTodos(next);
     refreshScheduledNotifications().catch(() => {});
   };
 
@@ -187,8 +180,11 @@ export default function HomeScreen({ navigation }) {
 
   const roadmap = buildRoadmap(info, promotions);
   const nextMs = roadmap.find((mi) => !mi.done) ?? null;
-  const totalDays = Math.max(1, servedDays + Math.max(0, daysLeft));
-  const msProgress = nextMs ? Math.min(1, servedDays / totalDays) : 0;
+  /* 카드의 바는 '다음 마일스톤까지의 구간'이다. 예전엔 servedDays/(servedDays+daysLeft),
+     즉 전체 복무 진행률이라 마일스톤이 바뀌어도 리셋되지 않았다. */
+  const msProgress = nextMs ? milestoneProgress(roadmap, nextMs.key) : 0;
+  /* 히어로 배경 광원의 세기 — 일 기준 진행률(위젯·공유와 같은 값) */
+  const heroProgress = calcProgress(info.enlistDate, info.dischargeDate) / 100;
 
   const quickActions = [
     { key: 'leave', icon: 'airplane-outline', label: '휴가 기록', tone: 'primary', onPress: () => goCalendar('leave') },
@@ -225,6 +221,7 @@ export default function HomeScreen({ navigation }) {
           leaveLeft={leaveLeft}
           months={info.months}
           promo={promo}
+          progress={heroProgress}
           cfg={cfg}
           meta={meta}
           angle={daily.heroAngle}
@@ -277,14 +274,9 @@ export default function HomeScreen({ navigation }) {
             <StreakCard streak={streak} days={days} tier={tier} usedFreeze={usedFreeze} />
           </Section>
 
-          {/* 인라인 광고 — fold 위에는 절대 두지 않는다.
-              AdFooter 는 화면 하단 전용(배경+헤어라인)이라 본문엔 AdBanner 를 직접 쓴다.
-              HOME_TOP 은 지금까지 코드에서 한 번도 안 쓰이던 유닛이다. */}
-          <Section index={5}>
-            <AdBanner unit={AD_UNITS.HOME_TOP} />
-          </Section>
-
-          <Section index={6} gap={0}>
+          {/* 본문 인라인 배너(AD_UNITS.HOME_TOP)는 걷어냈다 — 홈 한 화면에 배너가
+              둘이면 콘텐츠보다 광고가 먼저 읽힌다. 홈의 광고는 푸터 하나뿐이다. */}
+          <Section index={5} gap={0}>
             <QuickActions items={quickActions} />
           </Section>
         </View>

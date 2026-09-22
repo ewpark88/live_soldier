@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -6,6 +6,8 @@ import Animated, {
   FadeIn, useAnimatedStyle, useSharedValue, withSpring,
 } from 'react-native-reanimated';
 import EmberField from './motion/EmberField';
+import Confetti from './motion/Confetti';
+import CircularGauge from './CircularGauge';
 import { HeroCard, Button, Txt } from './ui';
 import { useThemeColors } from '../theme/ThemeContext';
 import { useMotion } from '../hooks/useMotion';
@@ -17,7 +19,9 @@ import { motion, radius as r, space as sp } from '../theme/tokens';
 /**
  * 마일스톤 축하 오버레이.
  *
- * 쇼피스 모션은 정확히 1개다 — 아이콘 원의 celebrate 스프링.
+ * 쇼피스 모션은 정확히 1개다 — 아이콘 원의 celebrate 스프링. 컨페티와 링
+ * 완주는 같은 한 번의 사건에 묶인 연출이라 따로 세지 않는다 (둘 다 일회성이고
+ * 무한 루프가 없다).
  * tokens.js 가 그 스프링에 대해 "일회성만, 루프 금지"라고 적어둔 바로 그 용도다.
  *
  * m.reduced 처리: 움직임만 뺀다. 모달 자체는 그대로 띄운다 — 동작 줄이기를 켠
@@ -35,11 +39,23 @@ export default function MilestoneCelebration({
   const s = useMemo(() => makeStyles(tc), [tc]);
 
   const scale = useSharedValue(0);
+  const [burst, setBurst] = useState(0);
 
   useEffect(() => {
-    if (!visible) { scale.value = 0; return; }
+    if (!visible) { scale.value = 0; return undefined; }
     haptic.success();
     scale.value = m.reduced ? 1 : withSpring(1, m.spring('celebrate'));
+    setBurst((x) => x + 1);
+
+    /* 짧은 3연타. 한 번의 success 만으로는 "저장했습니다"와 구별되지 않는다 —
+       마일스톤은 몇 달에 한 번뿐이라 손끝에서도 특별해야 한다.
+       usePrefs 의 햅틱 토글은 haptic 모듈이 전역으로 삼킨다. */
+    const beats = [
+      setTimeout(() => haptic.light(), 90),
+      setTimeout(() => haptic.medium(), 190),
+      setTimeout(() => haptic.heavy(), 330),
+    ];
+    return () => beats.forEach(clearTimeout);
   }, [visible, m.reduced]);
 
   const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -60,10 +76,24 @@ export default function MilestoneCelebration({
           <HeroCard gradient={ph.gradient} radiusKey="xl" sheen style={s.card}>
             {/* EmberField 는 반드시 overflow:'hidden' 부모 안에 — HeroCard 가 보장한다 */}
             <EmberField density="dense" color={ph.accent} rise={220} />
+            <Confetti burstKey={burst} colors={[ph.accent, tc.heroText, tc.goldFrom]} />
 
-            <Animated.View style={[s.iconWrap, { backgroundColor: ph.accent }, iconStyle]}>
-              <Ionicons name={milestone.icon ?? 'trophy'} size={34} color={tc.onGold} />
-            </Animated.View>
+            {/* 링이 0 → 100% 로 한 번 완주하며 아이콘을 감싼다.
+                "구간을 끝냈다"를 그림 하나로 말한다. */}
+            <View style={s.ringWrap}>
+              <CircularGauge
+                progress={1}
+                size={92}
+                stroke={5}
+                trackColor={tc.heroTrack}
+                fillColor={ph.accent}
+                delay={220}
+              >
+                <Animated.View style={[s.iconWrap, { backgroundColor: ph.accent }, iconStyle]}>
+                  <Ionicons name={milestone.icon ?? 'trophy'} size={30} color={tc.onGold} />
+                </Animated.View>
+              </CircularGauge>
+            </View>
 
             <Txt role="label" tone="heroMuted" style={s.eyebrow}>마일스톤 달성</Txt>
             <Txt role="title" tone="hero" style={s.title}>{milestone.label}</Txt>
@@ -108,10 +138,10 @@ const makeStyles = (tc) =>
     center: { flex: 1, justifyContent: 'center', paddingHorizontal: sp.xl },
     card: { alignItems: 'center' },
 
+    ringWrap: { marginBottom: sp.lg },
     iconWrap: {
-      width: 68, height: 68, borderRadius: 34,
+      width: 60, height: 60, borderRadius: 30,
       alignItems: 'center', justifyContent: 'center',
-      marginBottom: sp.lg,
     },
     eyebrow: { letterSpacing: 2 },
     title: { marginTop: sp.xs, textAlign: 'center' },

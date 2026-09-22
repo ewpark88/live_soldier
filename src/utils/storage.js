@@ -527,10 +527,15 @@ export async function saveThemeMode(mode) {
 //   @theme_v2 있음                       → 그대로
 //   없음 + (@theme_mode 또는 프로필 존재) → 기존 사용자 → forest 유지, introSeen:false
 //   없음 + 아무것도 없음                  → 신규 설치   → 기본 테마, introSeen:true
+// 신규 설치 기본값.
+//   mode 가 'system' 이 아니라 'light' 인 이유: v1.2 의 정체성이 밝은 화면이다.
+//   기기가 다크 모드면 'system' 은 첫 실행을 어둡게 띄우는데, 그러면 새 라이트
+//   디자인을 한 번도 못 보고 "여전히 어둡다"가 된다. 설정에서 언제든 시스템
+//   따르기로 되돌릴 수 있고, 기존 설치는 @theme_v2 가 있어 영향받지 않는다.
 export const DEFAULT_THEME_SETTINGS = {
-  themeId: 'nightvision',
+  themeId: 'daybreak',
   legacyThemeId: 'forest',
-  mode: 'system',
+  mode: 'light',
   unlocked: [],
   introSeen: true,
 };
@@ -542,7 +547,7 @@ export async function loadThemeSettings() {
       const v = _safeParse(raw, {});
       return {
         themeId: typeof v.themeId === 'string' ? v.themeId : DEFAULT_THEME_SETTINGS.themeId,
-        mode: ['system', 'light', 'dark'].includes(v.mode) ? v.mode : 'system',
+        mode: ['system', 'light', 'dark'].includes(v.mode) ? v.mode : DEFAULT_THEME_SETTINGS.mode,
         unlocked: Array.isArray(v.unlocked) ? v.unlocked : [],
         introSeen: v.introSeen !== false,
       };
@@ -563,7 +568,7 @@ export async function loadThemeSettings() {
       }
       : {
         themeId: DEFAULT_THEME_SETTINGS.themeId,
-        mode: 'system',
+        mode: DEFAULT_THEME_SETTINGS.mode,
         unlocked: [],
         introSeen: true,
       };
@@ -571,7 +576,7 @@ export async function loadThemeSettings() {
     await AsyncStorage.setItem(THEME_V2_KEY, JSON.stringify(next));
     return next;
   } catch {
-    return { themeId: DEFAULT_THEME_SETTINGS.themeId, mode: 'system', unlocked: [], introSeen: true };
+    return { themeId: DEFAULT_THEME_SETTINGS.themeId, mode: DEFAULT_THEME_SETTINGS.mode, unlocked: [], introSeen: true };
   }
 }
 

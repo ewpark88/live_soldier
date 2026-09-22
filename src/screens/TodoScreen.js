@@ -29,6 +29,7 @@ import {
 import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
+import { guardSave, guardDelete, SAVE_FAILED } from '../utils/saveGuard';
 import { refreshScheduledNotifications } from '../utils/notifications';
 import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
 
@@ -170,12 +171,14 @@ export default function TodoScreen({ navigation, embedded = false }) {
     if (!formTitle.trim()) { haptic.warning(); Alert.alert('오류', '할 일 내용을 입력해주세요.'); return; }
     if (!formDate) { haptic.warning(); Alert.alert('오류', '날짜를 선택해주세요.'); return; }
     const endDate = formEndDate && formEndDate > formDate ? formEndDate : '';
-    setTodos(await addTodo({
+    const next = await guardSave(() => addTodo({
       title: formTitle.trim(),
       date: formDate,
       endDate,
       note: formNote.trim(),
     }));
+    if (next === SAVE_FAILED) return;   // 시트를 닫지 않는다 — 입력을 날리지 않기 위해
+    setTodos(next);
     haptic.success();
     refreshScheduledNotifications().catch(() => {});
     closeSheet();
@@ -183,7 +186,9 @@ export default function TodoScreen({ navigation, embedded = false }) {
   };
 
   const handleToggle = async (id) => {
-    setTodos(await toggleTodo(id));
+    const next = await guardSave(() => toggleTodo(id));
+    if (next === SAVE_FAILED) return;
+    setTodos(next);
     refreshScheduledNotifications().catch(() => {});
   };
 
@@ -194,7 +199,9 @@ export default function TodoScreen({ navigation, embedded = false }) {
         text: '삭제',
         style: 'destructive',
         onPress: async () => {
-          setTodos(await deleteTodo(id));
+          const next = await guardDelete(() => deleteTodo(id));
+          if (next === SAVE_FAILED) return;
+          setTodos(next);
           refreshScheduledNotifications().catch(() => {});
         },
       },
