@@ -66,14 +66,18 @@ export default function AdBanner({ unit, style }) {
       <View style={[styles.wrapper, style]}>
         <Text style={styles.adTag}>광고</Text>
         {live ? (
-          <BannerAd
-            unitId={unitId}
-            size={BannerAdSize.BANNER}
-            requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-            onAdFailedToLoad={(error) => {
-              if (__DEV__) console.warn(`[AdBanner] ${unit.id} 실패:`, error?.message);
-            }}
-          />
+          /* BannerAd 는 로드 전까지 0x0 으로 렌더된다(라이브러리 BaseAd). 자리를
+             잡아두지 않으면 빈 칸(50) → 0 → 50 으로 푸터가 두 번 튄다. */
+          <View style={styles.slot}>
+            <BannerAd
+              unitId={unitId}
+              size={BannerAdSize.BANNER}
+              requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+              onAdFailedToLoad={(error) => {
+                if (__DEV__) console.warn(`[AdBanner] ${unit.id} 실패:`, error?.message);
+              }}
+            />
+          </View>
         ) : (
           <View style={styles.slot} />
         )}
@@ -100,7 +104,7 @@ export default function AdBanner({ unit, style }) {
 const makeStyles = (tc) =>
   StyleSheet.create({
     wrapper: { alignItems: 'center' },
-    slot: { width: 320, height: BANNER_H },
+    slot: { width: 320, height: BANNER_H, alignItems: 'center', justifyContent: 'center' },
     adTag: {
       ...ty.micro,
       color: tc.textLight,
