@@ -1,9 +1,11 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AppState, View, Text, StyleSheet } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../theme/ThemeContext';
 import { radius as r, space as sp, type as ty } from '../theme/tokens';
 import { getAdUnitId } from '../constants/adUnits';
+import { isAdsReady, onAdsReady } from '../utils/adManager';
 
 // Expo Go에서는 네이티브 모듈 없음 → 플레이스홀더로 대체
 let BannerAd = null;
@@ -17,6 +19,23 @@ try {
   // Expo Go 환경 → 플레이스홀더 사용
 }
 
+const BANNER_H = 50;   // BannerAdSize.BANNER 높이 — 게이팅 중에도 자리를 잡아 레이아웃이 튀지 않게
+
+function useAppActive() {
+  const [active, setActive] = useState(AppState.currentState !== 'background');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => setActive(st === 'active'));
+    return () => sub.remove();
+  }, []);
+  return active;
+}
+
+function useAdsReady() {
+  const [ready, setReady] = useState(isAdsReady());
+  useEffect(() => (ready ? undefined : onAdsReady(() => setReady(true))), [ready]);
+  return ready;
+}
+
 /**
  * AdMob 배너 광고.
  * - 개발/릴리즈 빌드 : 실제 AdMob 배너
@@ -24,25 +43,40 @@ try {
  *
  * 바깥 여백(marginVertical)은 더 이상 갖지 않는다 — 간격은 AdFooter 가 준다.
  * "광고" 라벨은 AdMob 정책상 유지한다.
+ *
+ * ── 보일 때만 요청한다 ──
+ * 탭 화면은 한 번 방문하면 언마운트되지 않고, 스택 화면을 띄워도 아래 탭은 살아
+ * 있다. 예전엔 가려진 배너들이 자동 새로고침마다 계속 요청 → 일치 → 노출 0 을
+ * 쌓아서 노출/일치 비율이 50% 대까지 떨어졌다.
+ * 그래서 화면이 포커스이고, 앱이 포그라운드이고, SDK 초기화가 끝났을 때만
+ * <BannerAd> 를 마운트한다. 그 외엔 같은 높이의 빈 자리만 둔다.
  */
 export default function AdBanner({ unit, style }) {
   const tc = useThemeColors();
   const styles = useMemo(() => makeStyles(tc), [tc]);
+  const isFocused = useIsFocused();
+  const appActive = useAppActive();
+  const ready = useAdsReady();
   const unitId = getAdUnitId(unit, 'banner');
   if (!unitId) return null;
 
   if (BannerAd && BannerAdSize) {
+    const live = isFocused && appActive && ready;
     return (
       <View style={[styles.wrapper, style]}>
         <Text style={styles.adTag}>광고</Text>
-        <BannerAd
-          unitId={unitId}
-          size={BannerAdSize.BANNER}
-          requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-          onAdFailedToLoad={(error) => {
-            if (__DEV__) console.warn(`[AdBanner] ${unit.id} 실패:`, error?.message);
-          }}
-        />
+        {live ? (
+          <BannerAd
+            unitId={unitId}
+            size={BannerAdSize.BANNER}
+            requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+            onAdFailedToLoad={(error) => {
+              if (__DEV__) console.warn(`[AdBanner] ${unit.id} 실패:`, error?.message);
+            }}
+          />
+        ) : (
+          <View style={styles.slot} />
+        )}
       </View>
     );
   }
@@ -66,6 +100,7 @@ export default function AdBanner({ unit, style }) {
 const makeStyles = (tc) =>
   StyleSheet.create({
     wrapper: { alignItems: 'center' },
+    slot: { width: 320, height: BANNER_H },
     adTag: {
       ...ty.micro,
       color: tc.textLight,

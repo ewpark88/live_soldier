@@ -10,6 +10,7 @@ import { PrefsProvider } from './src/theme/PrefsContext';
 import { StreakProvider } from './src/state/StreakContext';
 import { CelebrationProvider } from './src/state/CelebrationContext';
 import { configureNotificationHandler, refreshScheduledNotifications } from './src/utils/notifications';
+import { markAdsReady } from './src/utils/adManager';
 
 // Expo Go 호환 처리
 let requestTrackingPermissionsAsync = null;
@@ -69,13 +70,18 @@ export default function App() {
         console.log('[ATT] 추적 권한 상태:', status);
       }
 
-      // AdMob SDK 초기화
+      // AdMob SDK 초기화 — 끝나야 배너가 요청을 시작한다 (adManager.markAdsReady).
+      // 초기화가 멈춰도 광고가 영영 안 뜨지 않게 3초 뒤엔 그냥 연다.
       if (MobileAds) {
+        const fallback = setTimeout(markAdsReady, 3000);
         await MobileAds().initialize();
+        clearTimeout(fallback);
         console.log('[AdMob] SDK 초기화 완료');
       }
     } catch (e) {
       console.log('[AdMob] Expo Go 환경 - 광고 초기화 스킵');
+    } finally {
+      markAdsReady();
     }
   };
 

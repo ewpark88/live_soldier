@@ -91,7 +91,6 @@ export default function LeaveScreen({ navigation, embedded = false }) {
   const tc = useThemeColors();
   const m = useMotion();
   const s = useMemo(() => makeStyles(tc), [tc]);
-  const { show: showAd } = useShowInterstitial();
 
   const [militaryInfo, setMilitaryInfo] = useState(undefined);
   const [records, setRecords] = useState([]);
@@ -100,6 +99,8 @@ export default function LeaveScreen({ navigation, embedded = false }) {
   const [editingBase, setEditingBase] = useState(false);
   const [baseInput, setBaseInput] = useState('21');
   const [modalType, setModalType] = useState(MODAL_NONE);
+  // 기록 모달이 열려 있을 때만 전면광고를 프리로드한다
+  const { show: showAd } = useShowInterstitial(modalType !== MODAL_NONE);
 
   const [formDate, setFormDate] = useState('');
   const [formEndDate, setFormEndDate] = useState('');
@@ -212,7 +213,8 @@ export default function LeaveScreen({ navigation, embedded = false }) {
   return (
     <>
       <Screen
-        ad={AD_UNITS.LEAVE_BOTTOM}
+        /* 임베디드면 광고는 CalendarScreen 이 세그먼트 밖에 하나만 그린다 */
+        ad={embedded ? undefined : AD_UNITS.LEAVE_BOTTOM}
         header={embedded ? undefined : <AppHeader title="휴가 관리" />}
         contentContainerStyle={embedded ? { paddingTop: sp.xs } : undefined}
       >

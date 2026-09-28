@@ -138,12 +138,12 @@ export default function TodoScreen({ navigation, embedded = false }) {
   const s = useMemo(() => makeStyles(tc), [tc]);
   const today = getToday();
 
-  const { show: showAd } = useShowInterstitial();
-
   const [militaryInfo, setMilitaryInfo] = useState(undefined);
   const [todos, setTodos] = useState([]);
   const [filterDate, setFilterDate] = useState('');
   const [sheet, setSheet] = useState(null); // 'add' | 'presets' | null
+  // 추가 시트가 열려 있을 때만 전면광고를 프리로드한다 (프리셋 시트도 곧 'add' 로 이어진다)
+  const { show: showAd } = useShowInterstitial(sheet !== null);
 
   const [formTitle, setFormTitle] = useState('');
   const [formDate, setFormDate] = useState(today);
@@ -247,7 +247,8 @@ export default function TodoScreen({ navigation, embedded = false }) {
   return (
     <>
       <Screen
-        ad={AD_UNITS.TODO_BOTTOM}
+        /* 임베디드면 광고는 CalendarScreen 이 세그먼트 밖에 하나만 그린다 */
+        ad={embedded ? undefined : AD_UNITS.TODO_BOTTOM}
         contentContainerStyle={{ paddingBottom: 96, ...(embedded ? { paddingTop: sp.xs } : null) }}
         header={
           embedded ? undefined : (
@@ -356,10 +357,12 @@ export default function TodoScreen({ navigation, embedded = false }) {
         )}
       </Screen>
 
-      {/* FAB — 광고 푸터 위에 뜬다 (탭바는 푸터 아래라 여기서 셈하지 않는다) */}
+      {/* FAB — 광고 푸터 위에 뜬다 (탭바는 푸터 아래라 여기서 셈하지 않는다).
+          임베디드면 푸터가 부모(CalendarScreen) 쪽이라 이 영역 밖에 있다 → 푸터
+          높이(~76)를 뺀 만큼만 띄운다. */}
       <Animated.View
         entering={m.enter(ZoomIn, 0, motion.duration.slow)}
-        style={s.fabWrap}
+        style={[s.fabWrap, embedded && { bottom: sp.xl }]}
         pointerEvents="box-none"
       >
         <PressScale onPress={openAdd} haptic="medium" style={s.fab} accessibilityLabel="일정 추가">

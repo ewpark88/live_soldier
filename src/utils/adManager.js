@@ -19,6 +19,8 @@ const KEYS = {
 const MAX_PER_DAY  = 2;               // 하루 최대 2회
 const MIN_INTERVAL = 30 * 60 * 1000;  // 최소 30분 간격
 const MAX_RETRY    = 3;
+// 로드된 전면광고는 1시간 뒤 만료된다. 여유를 두고 55분에서 끊는다.
+const AD_TTL       = 55 * 60 * 1000;
 
 const log = (...a) => { if (__DEV__) console.log('[AdManager]', ...a); };
 
@@ -81,6 +83,26 @@ let isLoading = false;
 let isShowing = false;
 let retry = 0;
 let showGuard = null;
+let loadedAt = 0;
+
+/* ─── SDK 초기화 신호 ───────────────────────────────────────────────────
+ * App.js 가 MobileAds().initialize() 를 끝내면 markAdsReady() 를 부른다.
+ * 배너는 그 전엔 요청하지 않는다 — 초기화 전에 나간 첫 요청은 미충전이 잦다.
+ * 초기화가 끝내 안 끝나도 광고가 영영 안 뜨지 않도록 App.js 가 타임아웃으로도 부른다. */
+let adsReady = false;
+const readyListeners = new Set();
+export function markAdsReady() {
+  if (adsReady) return;
+  adsReady = true;
+  readyListeners.forEach((cb) => { try { cb(); } catch {} });
+  readyListeners.clear();
+}
+export function isAdsReady() { return adsReady; }
+export function onAdsReady(cb) {
+  if (adsReady) { cb(); return () => {}; }
+  readyListeners.add(cb);
+  return () => readyListeners.delete(cb);
+}
 
 function _init() {
   if (interstitial || !InterstitialAd || !AdEventType) return;
@@ -92,7 +114,7 @@ function _init() {
   });
 
   interstitial.addAdEventListener(AdEventType.LOADED, () => {
-    isLoaded = true; isLoading = false; retry = 0;
+    isLoaded = true; isLoading = false; retry = 0; loadedAt = Date.now();
     log('로드 완료');
   });
 
@@ -105,7 +127,8 @@ function _init() {
   interstitial.addAdEventListener(AdEventType.CLOSED, () => {
     if (showGuard) { clearTimeout(showGuard); showGuard = null; }
     isLoaded = false; isShowing = false;
-    preloadInterstitial();
+    // 다음 저장 흐름에서 다시 로드한다. 여기서 바로 로드하면 하루 한도를
+    // 다 쓴 날엔 절대 보여주지 못할 광고를 받아놓고 버린다 (노출률 하락).
   });
 
   interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
@@ -118,13 +141,26 @@ function _init() {
     }
   });
 
-  preloadInterstitial();
 }
 
-/** 미리 로드 */
-export function preloadInterstitial() {
+function _expired() {
+  return isLoaded && Date.now() - loadedAt > AD_TTL;
+}
+
+/**
+ * 미리 로드 — '저장 흐름에 들어섰을 때'만 부른다 (useShowInterstitial(armed)).
+ *
+ * 예전엔 앱 실행 즉시 로드했다. 표시는 저장 직후·하루 2회뿐이라 대부분 세션에서
+ * 받아놓고 버렸고, 그게 전부 '일치했지만 노출 안 됨' 으로 잡혀 노출률을 깎았다.
+ * 오늘 더 보여줄 수 없으면 로드 자체를 하지 않는다.
+ */
+export async function preloadInterstitial() {
   _init();
-  if (!interstitial || isLoaded || isLoading || isShowing) return;
+  if (!interstitial || isLoading || isShowing) return;
+  if (_expired()) { log('만료 — 폐기'); isLoaded = false; }
+  if (isLoaded) return;
+  if (!(await canShowInterstitial())) { log('빈도 제한 — 로드 생략'); return; }
+  if (isLoading || isLoaded || isShowing) return;   // await 사이에 다른 호출이 선점
   isLoading = true;
   try {
     interstitial.load();
@@ -135,7 +171,7 @@ export function preloadInterstitial() {
 }
 
 export function isInterstitialReady() {
-  return isLoaded && !isShowing;
+  return isLoaded && !isShowing && !_expired();
 }
 
 /**
@@ -146,6 +182,13 @@ export async function showInterstitial() {
   _init();
   if (!interstitial || isShowing) return false;
 
+  if (_expired()) {
+    // 만료된 광고는 show() 해도 안 뜬다 → 폐기하고 이번엔 건너뛴다
+    log('만료된 광고라 건너뜀');
+    isLoaded = false;
+    preloadInterstitial();
+    return false;
+  }
   if (!isLoaded) {
     // 아직 준비 안 됨 → 한도를 쓰지 않고 건너뛴다
     log('미로드 상태라 건너뜀');

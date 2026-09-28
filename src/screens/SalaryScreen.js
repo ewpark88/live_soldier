@@ -53,8 +53,8 @@ export default function SalaryScreen({ navigation }) {
   const [totalMonths, setTotalMonths] = useState('');
 
   /* 급여 정보 저장은 '주요 저장' 이라 전면 광고 지점이다 (하루 2회·30분 간격은
-     adManager 가 강제한다). 훅 자체가 마운트 시 프리로드도 해 준다. */
-  const { show: showAd } = useShowInterstitial();
+     adManager 가 강제한다). 직접 입력 폼이 열려 있을 때만 프리로드한다. */
+  const { show: showAd } = useShowInterstitial(customMode);
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 

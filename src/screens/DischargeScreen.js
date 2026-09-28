@@ -53,7 +53,6 @@ export default function DischargeScreen({ navigation }) {
   const tc = useThemeColors();
   const m = useMotion();
   const s = useMemo(() => makeStyles(tc), [tc]);
-  const { show: showAd } = useShowInterstitial();
 
   const [enlistDate, setEnlistDate] = useState('');
   const [branch, setBranch] = useState('army');
@@ -62,6 +61,8 @@ export default function DischargeScreen({ navigation }) {
   const [officerRank, setOfficerRank] = useState(null);
   const [info, setInfo] = useState(null);
   const [editing, setEditing] = useState(false);
+  // 전역 정보 폼이 열려 있을 때만 전면광고를 프리로드한다
+  const { show: showAd } = useShowInterstitial(editing);
 
   const [promotions, setPromotions] = useState(null);
   const [promoOpen, setPromoOpen] = useState(false);

@@ -106,7 +106,6 @@ export default function CalendarScreen({ navigation, route }) {
                   </View>
                 </Card>
               </View>
-              <AdFooter unit={AD_UNITS.LEAVE_BOTTOM} />
             </>
           )
         ) : section === 'leave' ? (
@@ -115,6 +114,11 @@ export default function CalendarScreen({ navigation, route }) {
           <TodoScreen navigation={navigation} embedded />
         )}
       </View>
+
+      {/* 광고는 세그먼트 밖에 하나만 둔다. 예전엔 달력/휴가/일정이 각자 푸터를
+          가져서 칩을 누를 때마다 배너가 새로 마운트됐다 — 받은 광고를 보여주기도
+          전에 버리고 다시 요청하니 노출률만 깎였다. */}
+      {info ? <AdFooter unit={AD_UNITS.LEAVE_BOTTOM} /> : null}
     </View>
   );
 }

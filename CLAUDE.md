@@ -52,12 +52,13 @@ eas build --platform android --profile production
   원본만 통과하고 밤 워시에서 무너지는 조합이 실제로 8건 있었다.
 - 네비게이션은 루트 native-stack + 4탭이다. **라우트 이름은 트리 전체에서 유일**해야
   하고, `navigate` 버블링은 위로만 간다 — 여러 곳에서 진입하는 화면은 루트 스택에 둔다.
-- `npm test` 는 5개 스위트를 돌린다. 순수 로직을 고쳤으면 반드시 돌린다.
+- `npm test` 는 6개 스위트를 돌린다. 순수 로직을 고쳤으면 반드시 돌린다.
   - `test-calc.js` (242) 날짜·계급·로드맵·적금·스트릭·축하
   - `test-clock.js` (29) **시계를 특정 날짜로 고정**해야만 드러나는 것
     (윤일 임관자 호봉, DST 전환을 품은 구간) — 상대 날짜 테스트로는 못 잡는다
   - `test-storage.js` (40) AsyncStorage 목 위에서 실제 저장소 로직
   - `test-notifications.js` (11) expo-notifications 목 위에서 예약 로직
+  - `test-ads.js` (25) 전면광고 지연 로드·빈도 제한·만료 (노출률 회귀 방지)
   - `test-tz.js` 위 두 날짜 스위트를 **10개 시간대**에서 반복
 - **테스트가 통과한다고 끝이 아니다.** 화면 파일은 계산 테스트가 로드하지 않으므로
   `npx expo export --platform android` 로 번들까지 확인한다. 실제로 문자열 파손이
@@ -70,6 +71,9 @@ eas build --platform android --profile production
 - **전면광고는 '주요 저장' 직후에만** 뜬다 — 전역 정보·휴가 기록·할 일·급여 저장.
   앱 실행·탭 전환에서는 절대 띄우지 않는다. 빈도(하루 2회·30분 간격)는
   `src/utils/adManager.js` 가 강제한다. 자세한 건 `doc/06_ADS.md`.
+- **보이지 않는 광고는 요청하지 않는다** (노출률). 배너는 포커스·포그라운드·SDK
+  초기화 후에만 마운트되고, 전면광고는 저장 폼이 열렸을 때만(`useShowInterstitial(armed)`)
+  로드한다. 앱 실행 시 프리로드를 되살리지 말 것.
 
 ## 저장 핸들러
 

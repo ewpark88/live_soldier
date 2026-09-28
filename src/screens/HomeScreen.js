@@ -23,7 +23,6 @@ import {
 } from '../utils/storage';
 import { shareDischarge } from '../utils/shareUtils';
 import { refreshScheduledNotifications } from '../utils/notifications';
-import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useDailyHero } from '../hooks/useDailyHero';
 import { useStreak } from '../state/StreakContext';
 import { haptic } from '../utils/haptics';
@@ -55,12 +54,6 @@ export default function HomeScreen({ navigation }) {
   const [bonusRecords, setBonusRecords] = useState([]);
   const [todos, setTodos] = useState([]);
   const [replay, setReplay] = useState(0);
-
-  /* 전면 광고는 '저장' 시점에만 띄운다 — 전역 정보·휴가 기록·할 일·급여.
-     여기서 훅을 호출하는 목적은 노출이 아니라 프리로드다. 홈이 첫 화면이라
-     여기서 미리 로드해 두면 나중 저장 시점의 노출 성공률이 올라간다.
-     (예전에는 홈 포커스 6초 뒤 자동 노출이 있었다 = 사실상 '앱 실행 시 광고') */
-  useShowInterstitial();
 
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
