@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { Alert, StyleSheet, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Card from '../components/Card';
@@ -24,22 +24,12 @@ import { calcServedMonths, calcRankFromPromotions, rankFromServedMonths } from '
 import { isOfficer, personnelLabel } from '../constants/serviceTerms';
 import { getOfficerBasePay } from '../constants/militaryRanks';
 import { calcHobong } from '../utils/officerUtils';
-import { SALARY_GUIDE, getSalaryByRank, formatMoney } from '../constants/salaryGuide';
+import { SALARY_GUIDE, getSalaryByRank, formatMoney, calcStandardTotal } from '../constants/salaryGuide';
 import { haptic } from '../utils/haptics';
 import { guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useThemeColors } from '../theme/ThemeContext';
 import { radius as r, space as sp, type as ty } from '../theme/tokens';
-
-/* 표준 기준 총 복무 예상 수령액 */
-function calcStandardTotal(totalM) {
-  let total = 0;
-  SALARY_GUIDE.forEach((s) => {
-    const effective = Math.max(0, Math.min(s.end, totalM - 1) - s.start + 1);
-    total += effective * s.amount;
-  });
-  return total;
-}
 
 export default function SalaryScreen({ navigation }) {
   const tc = useThemeColors();
@@ -51,6 +41,8 @@ export default function SalaryScreen({ navigation }) {
   const [customMode, setCustomMode] = useState(false);
   const [customSalary, setCustomSalary] = useState('');
   const [totalMonths, setTotalMonths] = useState('');
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);   // 연타 방지 — 같은 프레임의 두 번째 탭까지 막는다
 
   /* 급여 정보 저장은 '주요 저장' 이라 전면 광고 지점이다 (하루 2회·30분 간격은
      adManager 가 강제한다). 직접 입력 폼이 열려 있을 때만 프리로드한다. */
@@ -58,24 +50,33 @@ export default function SalaryScreen({ navigation }) {
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
+  /* 입력 폼을 저장된 값(없으면 표준값)으로 되돌린다. 취소했는데 버린 입력이
+     다음에 폼을 열 때 그대로 남아 있던 문제 — 로드와 취소가 같은 규칙을 쓴다. */
+  const resetForm = (si, mi) => {
+    setCustomSalary(si ? String(si.monthlyAmount) : '');
+    setTotalMonths(si ? String(si.totalMonths) : String(mi?.months ?? ''));
+  };
+
   const loadData = async () => {
     const mi = await loadMilitaryInfo();
     setMilitaryInfo(mi);
     const si = await loadSalaryInfo();
     setSalaryInfo(si);
-    if (si) {
-      setCustomSalary(String(si.monthlyAmount));
-      setTotalMonths(String(si.totalMonths));
-    } else if (mi) {
-      setTotalMonths(String(mi.months));
-    }
+    resetForm(si, mi);
     setPromotions(await loadRankPromotions(mi?.enlistDate));
   };
 
+  const handleCancel = () => {
+    resetForm(salaryInfo, militaryInfo);
+    setCustomMode(false);
+  };
+
   const handleSave = async () => {
+    if (savingRef.current) return;
     const salary = parseInt(customSalary.replace(/,/g, ''), 10);
     const months = parseInt(totalMonths, 10);
-    if (isNaN(salary) || salary < 0) {
+    // 0원은 '직접 입력' 모드로 들어가 0원·0원을 그리기만 한다 — 1원 이상만 받는다
+    if (isNaN(salary) || salary < 1) {
       haptic.warning();
       Alert.alert('오류', '월급을 올바르게 입력해주세요.');
       return;
@@ -86,7 +87,16 @@ export default function SalaryScreen({ navigation }) {
       return;
     }
     const si = { monthlyAmount: salary, totalMonths: months };
-    if ((await guardSave(() => saveSalaryInfo(si))) === SAVE_FAILED) return;
+    savingRef.current = true;
+    setSaving(true);
+    let res;
+    try {
+      res = await guardSave(() => saveSalaryInfo(si));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+    if (res === SAVE_FAILED) return;
     setSalaryInfo(si);
     setCustomMode(false);
     haptic.success();
@@ -103,8 +113,7 @@ export default function SalaryScreen({ navigation }) {
           if ((await guardSave(() => saveSalaryInfo(null))) === SAVE_FAILED) return;
           setSalaryInfo(null);
           setCustomMode(false);
-          setCustomSalary('');
-          setTotalMonths(String(militaryInfo?.months ?? ''));
+          resetForm(null, militaryInfo);
         },
       },
     ]);
@@ -280,6 +289,7 @@ export default function SalaryScreen({ navigation }) {
                 placeholder="예: 1000000"
                 placeholderTextColor={tc.textLight}
                 keyboardType="number-pad"
+                maxLength={9}   // 길이 제한이 없으면 22자리부터 formatMoney 가 '1e+21' 을 찍는다
               />
 
               <Txt role="label" tone="secondary" style={s.formLabel}>총 복무 개월 수</Txt>
@@ -297,10 +307,10 @@ export default function SalaryScreen({ navigation }) {
                 <Button
                   title="취소"
                   variant="ghost"
-                  onPress={() => setCustomMode(false)}
+                  onPress={handleCancel}
                   style={{ flex: 1 }}
                 />
-                <Button title="저장" onPress={handleSave} style={{ flex: 1 }} />
+                <Button title="저장" onPress={handleSave} loading={saving} style={{ flex: 1 }} />
               </View>
             </View>
           )}

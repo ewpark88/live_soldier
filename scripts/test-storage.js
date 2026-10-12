@@ -23,13 +23,17 @@ global.__DEV__ = false;   // 릴리즈 빌드처럼 (경고 출력 억제)
 /* ─── AsyncStorage 메모리 목 ─────────────────────────────────────────── */
 let store = {};
 let failReads = false;
+let failWrites = false;   // 저장공간 부족 같은 '쓰기만 실패'
 
 const AsyncStorageMock = {
   getItem: async (k) => {
     if (failReads) throw new Error('storage unavailable');
     return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null;
   },
-  setItem: async (k, v) => { store[k] = String(v); },
+  setItem: async (k, v) => {
+    if (failWrites) throw new Error('disk full');
+    store[k] = String(v);
+  },
   removeItem: async (k) => { delete store[k]; },
   multiRemove: async (ks) => { ks.forEach((k) => delete store[k]); },
 };
@@ -75,7 +79,7 @@ function eq(actual, expected, label) {
   else { fail++; fails.push(`✗ ${label}\n    기대: ${e}\n    실제: ${a}`); }
 }
 function ok(cond, label) { eq(!!cond, true, label); }
-function reset() { store = {}; failReads = false; }
+function reset() { store = {}; failReads = false; failWrites = false; }
 
 (async () => {
   /* ── 전역일 자동 보정 (파생값 재계산) ── */
@@ -205,6 +209,53 @@ function reset() { store = {}; failReads = false; }
   const afterClear = store['@profiles_v1'];
   store['@profiles_v1'] = afterClear.slice(0, 10);
   eq(await S.loadTodos(), [], '전체 삭제 후 손상: 지운 데이터가 부활하지 않음');
+
+  /* 쓰기 실패는 던져야 한다 — 예전엔 _saveStore 가 삼켜서 guardSave 가 성공으로
+     처리했고(시트 닫힘·광고), 다음 진입에서 기록이 사라져 있었다. */
+  reset();
+  await S.addLeaveRecord({ date: '2025-03-01', days: 2, memo: '' });
+  const beforeFail = store['@profiles_v1'];
+  failWrites = true;
+  for (const [label, fn] of [
+    ['휴가 추가', () => S.addLeaveRecord({ date: '2025-04-01', days: 1, memo: '' })],
+    ['휴가 삭제', () => S.deleteLeaveRecord('nope')],
+    ['포상 추가', () => S.addLeaveBonusRecord({ date: '2025-04-01', days: 3, memo: '' })],
+    ['연가 일수', () => S.saveLeaveTotal(30)],
+    ['급여 저장', () => S.saveSalaryInfo({ monthlyAmount: 1, totalMonths: 18 })],
+    ['프로필 추가', () => S.addProfile('x')],
+  ]) {
+    let t = false;
+    try { await fn(); } catch (e) { t = true; }
+    ok(t, `쓰기 실패: ${label} 은 예외로 실패를 알린다`);
+  }
+  failWrites = false;
+  eq(store['@profiles_v1'], beforeFail, '쓰기 실패: 저장소는 이전 상태 그대로');
+  eq((await S.loadLeaveRecords()).length, 1, '쓰기 실패 후: 기록 수 그대로');
+  // 실패 뒤에도 큐가 막히지 않는다
+  eq((await S.addLeaveRecord({ date: '2025-05-01', days: 1, memo: '' })).length, 2, '쓰기 실패 후: 다음 저장은 정상');
+
+  /* 읽기 경로의 되쓰기(마이그레이션)는 쓰기 실패여도 읽기를 깨지 않는다 */
+  reset();
+  failWrites = true;
+  eq(await S.loadTodos(), [], '쓰기 실패 중 첫 실행: 읽기는 정상');
+  failWrites = false;
+
+  /* 동시 쓰기 — 저장 버튼 연타, 홈의 markCelebrated 와 휴가 저장이 겹치는 경우.
+     읽고-고쳐-쓰기가 겹치면 늦게 끝난 쪽이 먼저 쓴 쪽을 지웠다. */
+  reset();
+  await S.saveMilitaryInfo({ enlistDate: '2025-01-02', branch: 'army', months: 18 });
+  await Promise.all([
+    S.addLeaveRecord({ date: '2025-06-01', days: 1, memo: 'a' }),
+    S.addLeaveRecord({ date: '2025-06-10', days: 1, memo: 'b' }),
+    S.addLeaveBonusRecord({ date: '2025-06-05', days: 2, memo: '' }),
+    S.markCelebrated(['k1']),
+    S.addTodo({ title: 't', date: '2025-06-01' }),
+  ]);
+  eq((await S.loadLeaveRecords()).length, 2, '동시 쓰기: 휴가 2건 모두 남음');
+  eq((await S.loadLeaveBonusRecords()).length, 1, '동시 쓰기: 포상 남음');
+  eq(await S.loadCelebrated(), ['k1'], '동시 쓰기: 축하 기록 남음');
+  eq((await S.loadTodos()).length, 1, '동시 쓰기: 할일 남음');
+  eq((await S.loadMilitaryInfo()).branch, 'army', '동시 쓰기: 입대정보 보존');
 
 
   console.log('\n──────────── 저장소 테스트 ────────────');

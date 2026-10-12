@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View,
+  Alert, ScrollView, StyleSheet, TextInput, View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -379,7 +379,7 @@ export default function TodoScreen({ navigation, embedded = false }) {
           누르면 오늘 날짜로 기간이 자동 지정돼요
         </Txt>
 
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
           <Grid columns={3} gap={sp.sm}>
             {TRAINING_PRESETS.map((p) => (
               <PressScale
@@ -403,45 +403,43 @@ export default function TodoScreen({ navigation, embedded = false }) {
 
       {/* 추가 시트 */}
       <BottomSheet visible={sheet === 'add'} onClose={closeSheet}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            <Txt role="subtitle" style={{ marginBottom: sp.lg }}>일정 추가</Txt>
+        <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <Txt role="subtitle" style={{ marginBottom: sp.lg }}>일정 추가</Txt>
 
-            <Txt role="label" tone="secondary" style={s.formLabel}>할 일 내용 *</Txt>
-            <TextInput
-              style={s.input}
-              value={formTitle}
-              onChangeText={setFormTitle}
-              placeholder="예) 혹한기 훈련, 면회 신청..."
-              placeholderTextColor={tc.textLight}
+          <Txt role="label" tone="secondary" style={s.formLabel}>할 일 내용 *</Txt>
+          <TextInput
+            style={s.input}
+            value={formTitle}
+            onChangeText={setFormTitle}
+            placeholder="예) 혹한기 훈련, 면회 신청..."
+            placeholderTextColor={tc.textLight}
+          />
+
+          <Txt role="label" tone="secondary" style={s.formLabel}>날짜 · 기간</Txt>
+          <View style={s.calendarBox}>
+            <RangeCalendar
+              startDate={formDate}
+              endDate={formEndDate}
+              onChange={(start, end) => { setFormDate(start); setFormEndDate(end); }}
             />
+          </View>
 
-            <Txt role="label" tone="secondary" style={s.formLabel}>날짜 · 기간</Txt>
-            <View style={s.calendarBox}>
-              <RangeCalendar
-                startDate={formDate}
-                endDate={formEndDate}
-                onChange={(start, end) => { setFormDate(start); setFormEndDate(end); }}
-              />
-            </View>
+          <Txt role="label" tone="secondary" style={s.formLabel}>메모 (선택)</Txt>
+          <TextInput
+            style={[s.input, s.textarea]}
+            value={formNote}
+            onChangeText={setFormNote}
+            placeholder="추가 메모..."
+            placeholderTextColor={tc.textLight}
+            multiline
+            numberOfLines={2}
+          />
 
-            <Txt role="label" tone="secondary" style={s.formLabel}>메모 (선택)</Txt>
-            <TextInput
-              style={[s.input, s.textarea]}
-              value={formNote}
-              onChangeText={setFormNote}
-              placeholder="추가 메모..."
-              placeholderTextColor={tc.textLight}
-              multiline
-              numberOfLines={2}
-            />
-
-            <View style={s.sheetBtns}>
-              <Button title="취소" variant="ghost" onPress={closeSheet} style={{ flex: 1 }} />
-              <Button title="추가" onPress={handleAdd} style={{ flex: 1 }} />
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          <View style={s.sheetBtns}>
+            <Button title="취소" variant="ghost" onPress={closeSheet} style={{ flex: 1 }} />
+            <Button title="추가" onPress={handleAdd} style={{ flex: 1 }} />
+          </View>
+        </ScrollView>
       </BottomSheet>
     </>
   );

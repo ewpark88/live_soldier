@@ -85,7 +85,9 @@ export default function HeroCard({
         style,
       ]}
     >
-      <View style={{ borderRadius: rad, overflow: 'hidden' }}>
+      {/* flexGrow: 바깥이 minHeight 를 가질 때 클리핑 층도 같이 늘어나야
+          그라데이션이 바닥까지 칠해진다 (안 그러면 하단에 맨 띠가 남는다). */}
+      <View style={{ flexGrow: 1, borderRadius: rad, overflow: 'hidden' }}>
         {/* 그라데이션은 Animated.View 안에 둔다 — 홈이 스크롤에 맞춰
             이걸 늘렸다 줄였다 한다(러버밴드). 클리핑 부모 안이라 아무리
             키워도 카드 밖으로 새지 않는다. */}

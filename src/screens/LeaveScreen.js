@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
-  Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View,
+  Alert, ScrollView, StyleSheet, TextInput, View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,7 +23,7 @@ import {
   loadLeaveBonusRecords, addLeaveBonusRecord, deleteLeaveBonusRecord,
   loadMilitaryInfo,
 } from '../utils/storage';
-import { formatDateKo, daysBetweenInclusive } from '../utils/dateUtils';
+import { formatDateKo, daysBetweenInclusive, overlappingDates } from '../utils/dateUtils';
 import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
@@ -106,6 +106,16 @@ export default function LeaveScreen({ navigation, embedded = false }) {
   const [formEndDate, setFormEndDate] = useState('');
   const [formDays, setFormDays] = useState('');
   const [formMemo, setFormMemo] = useState('');
+  // 저장 중 재진입 차단 — 연타하면 같은 기록이 두 건 들어가 남은 휴가가 틀어졌다.
+  // ref 는 같은 프레임의 두 번째 탭을 막고, state 는 버튼 로딩 표시용이다.
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const runSave = async (fn) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try { await fn(); } finally { savingRef.current = false; setSaving(false); }
+  };
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -144,28 +154,51 @@ export default function LeaveScreen({ navigation, embedded = false }) {
     haptic.select();
   };
 
-  const handleAddUse = async () => {
-    if (!formDate) { haptic.warning(); Alert.alert('오류', '휴가 시작일을 선택해주세요.'); return; }
-    const days = daysBetweenInclusive(formDate, formEndDate || formDate);
-    if (days < 1) { haptic.warning(); Alert.alert('오류', '휴가 날짜를 다시 선택해주세요.'); return; }
+  const commitUse = (days) => runSave(async () => {
     const next = await guardSave(() => addLeaveRecord({ date: formDate, days, memo: formMemo.trim() }));
     if (next === SAVE_FAILED) return;   // 모달을 닫지 않는다 — 입력을 날리지 않기 위해
     setRecords(next);
     haptic.success();
     closeModal();
     showAd();
+  });
+
+  const handleAddUse = () => {
+    if (savingRef.current) return;
+    if (!formDate) { haptic.warning(); Alert.alert('오류', '휴가 시작일을 선택해주세요.'); return; }
+    const days = daysBetweenInclusive(formDate, formEndDate || formDate);
+    if (days < 1) { haptic.warning(); Alert.alert('오류', '휴가 날짜를 다시 선택해주세요.'); return; }
+
+    // 이미 기록된 날짜와 겹치면 사용 일수가 이중으로 잡힌다 — 확인을 받는다
+    const dup = overlappingDates(records, formDate, days);
+    if (dup.length) {
+      haptic.warning();
+      Alert.alert(
+        '겹치는 날짜',
+        `${formatDateKo(dup[0])}${dup.length > 1 ? ` 외 ${dup.length - 1}일` : ''}은(는) 이미 휴가로 기록돼 있어요.
+그래도 추가할까요?`,
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '추가', onPress: () => commitUse(days) },
+        ]
+      );
+      return;
+    }
+    commitUse(days);
   };
 
-  const handleAddBonus = async () => {
+  const handleAddBonus = () => {
     if (!formDate) { haptic.warning(); Alert.alert('오류', '부여일을 선택해주세요.'); return; }
     const days = parseInt(formDays, 10);
     if (isNaN(days) || days < 1) { haptic.warning(); Alert.alert('오류', '일수를 올바르게 입력해주세요.'); return; }
-    const next = await guardSave(() => addLeaveBonusRecord({ date: formDate, days, memo: formMemo.trim() }));
-    if (next === SAVE_FAILED) return;
-    setBonusRecords(next);
-    haptic.success();
-    closeModal();
-    showAd();
+    runSave(async () => {
+      const next = await guardSave(() => addLeaveBonusRecord({ date: formDate, days, memo: formMemo.trim() }));
+      if (next === SAVE_FAILED) return;
+      setBonusRecords(next);
+      haptic.success();
+      closeModal();
+      showAd();
+    });
   };
 
   const handleDeleteUse = (id, date) => {
@@ -399,79 +432,79 @@ export default function LeaveScreen({ navigation, embedded = false }) {
 
       {/* 추가 시트 (사용 / 포상 공용) */}
       <BottomSheet visible={modalType !== MODAL_NONE} onClose={closeModal}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <Txt role="subtitle" style={{ marginBottom: sp.lg }}>
-              {isBonus ? '포상휴가 추가' : '휴가 사용 기록'}
-            </Txt>
+        <ScrollView
+          style={{ flexShrink: 1 }}   // 시트 maxHeight·키보드에 맞춰 줄어들며 스크롤
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Txt role="subtitle" style={{ marginBottom: sp.lg }}>
+            {isBonus ? '포상휴가 추가' : '휴가 사용 기록'}
+          </Txt>
 
-            {isBonus ? (
-              <>
-                <View style={s.notice}>
-                  <Ionicons name="information-circle-outline" size={16} color={tc.accentText} />
-                  <Txt role="caption" tone="accent" style={{ flex: 1 }}>
-                    포상휴가는 총 가용 휴가에 자동으로 합산됩니다.
-                  </Txt>
-                </View>
-
-                <DatePickerField
-                  label="포상휴가 부여일"
-                  value={formDate}
-                  onChange={setFormDate}
-                  placeholder="날짜를 선택하세요"
-                />
-
-                <Txt role="label" tone="secondary" style={s.formLabel}>포상 일수</Txt>
-                <TextInput
-                  style={s.input}
-                  value={formDays}
-                  onChangeText={(t) => setFormDays(t.replace(/[^0-9]/g, ''))}
-                  placeholder="숫자만 입력 (예: 3)"
-                  placeholderTextColor={tc.textLight}
-                  keyboardType="number-pad"
-                  maxLength={3}
-                />
-              </>
-            ) : (
-              <>
-                <Txt role="label" tone="secondary" style={s.formLabel}>
-                  휴가 기간 (시작 ~ 종료)
+          {isBonus ? (
+            <>
+              <View style={s.notice}>
+                <Ionicons name="information-circle-outline" size={16} color={tc.accentText} />
+                <Txt role="caption" tone="accent" style={{ flex: 1 }}>
+                  포상휴가는 총 가용 휴가에 자동으로 합산됩니다.
                 </Txt>
-                <View style={s.calendarBox}>
-                  <RangeCalendar
-                    startDate={formDate}
-                    endDate={formEndDate}
-                    onChange={(start, end) => { setFormDate(start); setFormEndDate(end); }}
-                  />
-                </View>
-              </>
-            )}
+              </View>
 
-            <Txt role="label" tone="secondary" style={s.formLabel}>메모 (선택)</Txt>
-            <TextInput
-              style={[s.input, s.textarea]}
-              value={formMemo}
-              onChangeText={setFormMemo}
-              placeholder={isBonus ? '예) 분대장 포상, GOP 포상' : '예) 1박 2일 귀향'}
-              placeholderTextColor={tc.textLight}
-              multiline
-              numberOfLines={2}
-            />
-
-            <View style={s.sheetBtns}>
-              <Button title="취소" variant="ghost" onPress={closeModal} style={{ flex: 1 }} />
-              <Button
-                title="저장"
-                variant={isBonus ? 'accent' : 'primary'}
-                onPress={isBonus ? handleAddBonus : handleAddUse}
-                style={{ flex: 1 }}
+              <DatePickerField
+                label="포상휴가 부여일"
+                value={formDate}
+                onChange={setFormDate}
+                placeholder="날짜를 선택하세요"
               />
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+
+              <Txt role="label" tone="secondary" style={s.formLabel}>포상 일수</Txt>
+              <TextInput
+                style={s.input}
+                value={formDays}
+                onChangeText={(t) => setFormDays(t.replace(/[^0-9]/g, ''))}
+                placeholder="숫자만 입력 (예: 3)"
+                placeholderTextColor={tc.textLight}
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+            </>
+          ) : (
+            <>
+              <Txt role="label" tone="secondary" style={s.formLabel}>
+                휴가 기간 (시작 ~ 종료)
+              </Txt>
+              <View style={s.calendarBox}>
+                <RangeCalendar
+                  startDate={formDate}
+                  endDate={formEndDate}
+                  onChange={(start, end) => { setFormDate(start); setFormEndDate(end); }}
+                />
+              </View>
+            </>
+          )}
+
+          <Txt role="label" tone="secondary" style={s.formLabel}>메모 (선택)</Txt>
+          <TextInput
+            style={[s.input, s.textarea]}
+            value={formMemo}
+            onChangeText={setFormMemo}
+            placeholder={isBonus ? '예) 분대장 포상, GOP 포상' : '예) 1박 2일 귀향'}
+            placeholderTextColor={tc.textLight}
+            multiline
+            numberOfLines={2}
+          />
+
+          <View style={s.sheetBtns}>
+            <Button title="취소" variant="ghost" onPress={closeModal} style={{ flex: 1 }} />
+            <Button
+              title="저장"
+              variant={isBonus ? 'accent' : 'primary'}
+              onPress={isBonus ? handleAddBonus : handleAddUse}
+              loading={saving}
+              style={{ flex: 1 }}
+            />
+          </View>
+        </ScrollView>
       </BottomSheet>
     </>
   );
@@ -495,6 +528,7 @@ const makeStyles = (tc) =>
     },
     stepper: {
       flexDirection: 'row',
+      flexWrap: 'wrap',   // 360dp + 큰 글꼴에서 저장/취소가 히어로 밖으로 밀려났다
       alignItems: 'center',
       gap: sp.sm,
       marginTop: sp.md,

@@ -165,12 +165,14 @@ export default function DischargeScreen({ navigation }) {
       return;
     }
 
+    /* 진급일 초기화는 부수 작업이다 — 입대 정보는 이미 저장됐으니 여기서 실패했다고
+       핸들러를 끊으면 편집 화면이 안 닫힌다. 실패하면 이전 진급일이 남고, 진급일
+       편집에서 초기화할 수 있다. */
+    const resetPromos = () => resetRankPromotions().then(() => true, () => false);
     if (officer) {
-      await resetRankPromotions();
-      setPromotions(null);
+      if (await resetPromos()) setPromotions(null);
     } else if (!info || info.enlistDate !== enlistDate || info.personnelType !== personnelType) {
-      await resetRankPromotions();
-      setPromotions(calcDefaultPromotions(enlistDate));
+      if (await resetPromos()) setPromotions(calcDefaultPromotions(enlistDate));
     }
 
     setInfo(mi);

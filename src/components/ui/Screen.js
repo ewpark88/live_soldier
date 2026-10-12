@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../../theme/ThemeContext';
 import { space as sp } from '../../theme/tokens';
 import AdFooter from './AdFooter';
+import { getAdUnitId } from '../../constants/adUnits';
 
 /**
  * 화면 껍데기. 모든 화면은 이걸로 시작한다.
@@ -51,6 +52,7 @@ export default function Screen({
   const insets = useSafeAreaInsets();
 
   const bg = background || tc.background;
+  const hasFooter = !!(ad && getAdUnitId(ad, 'banner'));
 
   // 고정 헤더가 있으면 헤더가 상단 inset 을 먹는다. 없으면 콘텐츠가 먹는다.
   const fixedHeader = header && !headerInScroll;
@@ -67,7 +69,8 @@ export default function Screen({
     paddingTop: contentTop,
     paddingHorizontal: padded ? sp.lg : 0,
     // 광고 푸터가 있으면 그쪽이 하단 inset 을 먹으므로 콘텐츠는 더 안 밀어낸다.
-    paddingBottom: sp.xxl + (standalone && !ad ? insets.bottom : 0),
+    // `ad` 를 넘겨도 단위가 없으면 AdFooter 는 null 이다 — 그땐 inset 을 여기서 먹는다.
+    paddingBottom: sp.xxl + (standalone && !hasFooter ? insets.bottom : 0),
   };
 
   return (
@@ -83,6 +86,8 @@ export default function Screen({
           scrollEventThrottle={16}
           refreshControl={refreshControl}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
           contentContainerStyle={[pad, contentContainerStyle]}
         >
           {content}

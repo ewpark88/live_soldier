@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, StyleSheet, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import Animated, {
@@ -36,6 +37,7 @@ export default function MilestoneCelebration({
   const tc = useThemeColors();
   const m = useMotion();
   const nav = useNavigation();
+  const insets = useSafeAreaInsets();
   const s = useMemo(() => makeStyles(tc), [tc]);
 
   const scale = useSharedValue(0);
@@ -72,7 +74,15 @@ export default function MilestoneCelebration({
         entering={m.enter(FadeIn, 0, motion.duration.base)}
         style={[s.backdrop, { backgroundColor: tc.scrimStrong }]}
       >
-        <View style={s.center}>
+        {/* 가로·짧은 화면에선 카드(버튼 포함)가 화면보다 길어진다 — 가운데 정렬은
+            유지하되 넘치면 스크롤되게 한다. */}
+        <ScrollView
+          contentContainerStyle={[
+            s.center,
+            { paddingTop: insets.top + sp.lg, paddingBottom: insets.bottom + sp.lg },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
           <HeroCard gradient={ph.gradient} radiusKey="xl" sheen style={s.card}>
             {/* EmberField 는 반드시 overflow:'hidden' 부모 안에 — HeroCard 가 보장한다 */}
             <EmberField density="dense" color={ph.accent} rise={220} />
@@ -126,7 +136,7 @@ export default function MilestoneCelebration({
               <Button title="닫기" variant="ghost" onPress={onClose} full />
             </View>
           </HeroCard>
-        </View>
+        </ScrollView>
       </Animated.View>
     </Modal>
   );
@@ -135,7 +145,7 @@ export default function MilestoneCelebration({
 const makeStyles = (tc) =>
   StyleSheet.create({
     backdrop: { flex: 1 },
-    center: { flex: 1, justifyContent: 'center', paddingHorizontal: sp.xl },
+    center: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: sp.xl },
     card: { alignItems: 'center' },
 
     ringWrap: { marginBottom: sp.lg },

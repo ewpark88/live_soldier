@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LeaveScreen from './LeaveScreen';
@@ -14,6 +14,12 @@ import {
 } from '../utils/storage';
 import { useThemeColors } from '../theme/ThemeContext';
 import { space as sp } from '../theme/tokens';
+
+/* 달력을 남은 공간에 꽉 채우는(fill) 데 필요한 최소 높이.
+   헤더 ~46 + 요일 20 + 6주 × 38 + 범례 ~41 + 선택일 상세 ~60 + 카드 패딩·여백 ~80.
+   이보다 짧은 화면(360×640 등)에서 fill 로 두면 overflow:hidden 에 마지막 주·범례·
+   상세가 잘린다 — 그땐 자연 높이로 그리고 스크롤시킨다. */
+const CAL_FILL_MIN = 480;
 
 const SECTIONS = [
   { key: 'month', label: '달력', icon: 'calendar-outline' },
@@ -45,6 +51,8 @@ export default function CalendarScreen({ navigation, route }) {
   const [records, setRecords] = useState([]);
   const [bonus, setBonus] = useState([]);
   const [todos, setTodos] = useState([]);
+  const [bodyH, setBodyH] = useState(0);
+  const fillCal = bodyH === 0 || bodyH >= CAL_FILL_MIN;
 
   useEffect(() => {
     const next = route?.params?.section;
@@ -88,24 +96,30 @@ export default function CalendarScreen({ navigation, route }) {
     <View style={[s.root, { backgroundColor: tc.background }]}>
       {header}
 
-      <View style={s.body}>
+      <View style={s.body} onLayout={(e) => setBodyH(e.nativeEvent.layout.height)}>
         {section === 'month' ? (
           info === undefined ? null : !info ? (
             <SetupRequired />
           ) : (
             <>
-              <View style={s.monthPad}>
-                <Card style={s.calCard}>
-                  <View style={s.calInner}>
-                    <EventCalendar
-                      fill
-                      records={records}
-                      bonusRecords={bonus}
-                      todos={todos}
-                    />
-                  </View>
-                </Card>
-              </View>
+              <ScrollView
+                scrollEnabled={!fillCal}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={fillCal ? s.flex : null}
+              >
+                <View style={[s.monthPad, fillCal && s.flex]}>
+                  <Card style={[s.calCard, fillCal && s.flex]}>
+                    <View style={[s.calInner, fillCal && s.flex]}>
+                      <EventCalendar
+                        fill={fillCal}
+                        records={records}
+                        bonusRecords={bonus}
+                        todos={todos}
+                      />
+                    </View>
+                  </Card>
+                </View>
+              </ScrollView>
             </>
           )
         ) : section === 'leave' ? (
@@ -133,8 +147,10 @@ const makeStyles = () =>
       paddingBottom: sp.sm,
     },
     body: { flex: 1 },
-    // 달력은 남은 공간을 flex 로 꽉 채운다 (EventCalendar fill 모드)
-    monthPad: { flex: 1, paddingHorizontal: sp.lg, paddingBottom: sp.md },
-    calCard: { flex: 1, overflow: 'hidden' },
-    calInner: { flex: 1, marginTop: sp.sm },
+    // 화면이 충분히 길면 달력이 남은 공간을 flex 로 꽉 채운다 (EventCalendar fill 모드).
+    // 짧으면 flex 를 빼고 자연 높이 + 스크롤 (CAL_FILL_MIN 참고).
+    flex: { flexGrow: 1 },
+    monthPad: { paddingHorizontal: sp.lg, paddingBottom: sp.md },
+    calCard: { overflow: 'hidden' },
+    calInner: { marginTop: sp.sm },
   });
