@@ -2,7 +2,7 @@
   "expo": {
     "name": "전역까지",
     "slug": "jeonryeokkami",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
