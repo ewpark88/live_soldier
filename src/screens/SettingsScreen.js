@@ -9,6 +9,7 @@ import { useTheme, useThemeColors } from '../theme/ThemeContext';
 import { usePrefs } from '../theme/PrefsContext';
 import { clearAllData, loadMilitaryInfo, loadRankPromotions } from '../utils/storage';
 import { haptic } from '../utils/haptics';
+import { guardDelete, SAVE_FAILED } from '../utils/saveGuard';
 import {
   enableNotifications, disableNotifications, isNotifAvailable,
   loadNotifPrefs, saveNotifPrefs, refreshScheduledNotifications, DEFAULT_NOTIF_PREFS,
@@ -167,7 +168,7 @@ export default function SettingsScreen({ navigation }) {
           text: '삭제',
           style: 'destructive',
           onPress: async () => {
-            await clearAllData();
+            if ((await guardDelete(() => clearAllData())) === SAVE_FAILED) return;
             Alert.alert('삭제 완료', '모든 데이터가 초기화되었습니다.', [
               { text: '확인', onPress: () => navigation.navigate('home') },
             ]);

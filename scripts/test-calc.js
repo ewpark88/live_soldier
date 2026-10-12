@@ -248,6 +248,20 @@ eq(leaveLeft(24, [], []), 24, '휴가: 기본 24, 사용/포상 없음 → 24');
 eq(leaveLeft(24, [{ days: 4 }, { days: 2 }], [{ days: 3 }]), 27, '휴가: 24+6포상-3사용 = 27');
 eq(leaveLeft(24, [], [{ days: 10 }, { days: 15 }]), -1, '휴가: 초과 사용 시 음수 허용(경고 표시용)');
 
+/* 겹침 판정 — 같은 휴가를 두 번 기록하면 사용 일수가 두 배로 잡혔다 */
+const used = [{ date: '2024-05-01', days: 3 }, { date: '2024-05-10', days: 1 }];
+eq(api.overlappingDates(used, '2024-05-03', 2), ['2024-05-03'], '겹침: 끝날과 겹침');
+eq(api.overlappingDates(used, '2024-04-29', 5), ['2024-05-01', '2024-05-02', '2024-05-03'], '겹침: 기존 기간을 감쌈');
+eq(api.overlappingDates(used, '2024-05-04', 6), [], '겹침: 사이 구간은 겹치지 않음');
+eq(api.overlappingDates(used, '2024-05-10', 1), ['2024-05-10'], '겹침: 같은 하루');
+eq(api.overlappingDates([], '2024-05-10', 3), [], '겹침: 기록 없음');
+
+/* 표준 누적 급여 — SalaryScreen 의 총액/수령액 */
+eq(api.calcStandardTotal(0), 0, '급여: 0개월 = 0');
+eq(api.calcStandardTotal(2), 2 * 750000, '급여: 이병 2개월');
+eq(api.calcStandardTotal(18), 2 * 750000 + 6 * 900000 + 6 * 1200000 + 4 * 1500000, '급여: 18개월(육군)');
+eq(api.calcStandardTotal(21), 2 * 750000 + 6 * 900000 + 6 * 1200000 + 7 * 1500000, '급여: 21개월(공군)');
+
 /* 기본값은 군종에서 온다 — 예전에는 군종과 무관하게 21일 고정이었다.
    (21은 단축 이전 육군 21개월 시절 값) */
 eq(api.resolveLeaveDays('army'), 24, 'resolveLeaveDays: 육군 24일');

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   BackHandler,
+  KeyboardAvoidingView,
   Modal,
   Pressable,
   StyleSheet,
@@ -29,6 +30,12 @@ import { useMotion } from '../../hooks/useMotion';
  *
  * 드래그로 내리기는 없다 — react-native-gesture-handler 를 설치하지 않았다.
  * 배경 탭 + 안드로이드 뒤로가기로 닫는다.
+ *
+ * 키보드: 시트는 KeyboardAvoidingView(padding, 양 플랫폼) 바닥에 붙는다.
+ * 예전엔 화면마다 iOS 전용 KAV 를 따로 감싸서 안드로이드에선 키보드가 메모
+ * 입력·저장 버튼을 덮었다. 자식은 flexShrink 래퍼 안에 들어가므로, 내용이
+ * maxHeight 를 넘으면 자식의 ScrollView 가 줄어들어 스크롤된다 (버튼이 잘리지 않음).
+ * 화면 쪽에서 KAV 를 또 감싸지 말 것 — 패딩이 이중으로 들어간다.
  */
 export default function BottomSheet({ visible, onClose, children, maxHeightRatio = 0.9 }) {
   const tc = useThemeColors();
@@ -87,20 +94,26 @@ export default function BottomSheet({ visible, onClose, children, maxHeightRatio
           <Pressable style={styles.fill} onPress={onClose} accessibilityLabel="닫기" />
         </Animated.View>
 
-        <Animated.View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: tc.card,
-              maxHeight: winH * maxHeightRatio,
-              paddingBottom: insets.bottom + space.lg,
-            },
-            sheetStyle,
-          ]}
+        <KeyboardAvoidingView
+          behavior="padding"
+          style={styles.kav}
+          pointerEvents="box-none"
         >
-          <View style={[styles.grabber, { backgroundColor: tc.border }]} />
-          {children}
-        </Animated.View>
+          <Animated.View
+            style={[
+              styles.sheet,
+              {
+                backgroundColor: tc.card,
+                maxHeight: winH * maxHeightRatio,
+                paddingBottom: insets.bottom + space.lg,
+              },
+              sheetStyle,
+            ]}
+          >
+            <View style={[styles.grabber, { backgroundColor: tc.border }]} />
+            <View style={styles.body}>{children}</View>
+          </Animated.View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -109,11 +122,10 @@ export default function BottomSheet({ visible, onClose, children, maxHeightRatio
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   backdrop: { ...StyleSheet.absoluteFillObject },
+  kav: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end' },
+  body: { flexShrink: 1 },
   sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flexShrink: 1,   // 키보드가 올라와 남은 높이가 maxHeight 보다 작으면 시트가 줄어든다
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     paddingTop: space.sm,

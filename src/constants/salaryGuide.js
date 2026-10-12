@@ -29,6 +29,19 @@ export function getSalaryByRank(rank) {
 }
 
 /**
+ * 표준 봉급표 기준 totalM 개월 동안 받는 총액 (0개월째부터 totalM-1 개월째까지).
+ * 18개월 = 이병 2 + 일병 6 + 상병 6 + 병장 4. SalaryScreen 이 쓰고 test-calc 가 검증한다.
+ */
+export function calcStandardTotal(totalM) {
+  let total = 0;
+  SALARY_GUIDE.forEach((s) => {
+    const effective = Math.max(0, Math.min(s.end, totalM - 1) - s.start + 1);
+    total += effective * s.amount;
+  });
+  return total;
+}
+
+/**
  * 복무 개월수 → 해당 구간의 계급 (봉급 구간 조회용)
  *
  * 경계는 dateUtils.rankFromServedMonths 와 같아야 한다 —

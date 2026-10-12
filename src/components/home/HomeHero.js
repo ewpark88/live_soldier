@@ -95,7 +95,7 @@ export default function HomeHero({
       /* 불티가 뜨는 단계에선 sheen 을 끈다 — 무한 루프 예산(§4)도 아끼고,
          어차피 둘이 같은 영역에서 서로를 잡아먹어 지저분해진다. */
       sheen={!meta.embers}
-      contentStyle={[s.pad, { paddingTop: insets.top + sp.sm }]}
+      contentStyle={[s.pad, s.fill, { paddingTop: insets.top + sp.sm }]}
       /* "첫 화면 = 히어로" 계약은 세로에서의 약속이다. 가로에서는 높이가
          짧아 어차피 콘텐츠가 더 크므로 minHeight 를 강요하지 않는다. */
       style={[s.hero, width > height ? null : { minHeight: Math.round(height * 0.62) }]}
@@ -112,12 +112,29 @@ export default function HomeHero({
         <View style={{ flex: 1 }}>
           <ProfileBar onChange={onReloadProfiles} onDark />
         </View>
-        <StreakBadge
-          count={streak?.count ?? 0}
-          tier={streak?.tier}
-          onHero
-          onPress={onPressStreak}
-        />
+        {/* 연속출석 아래에 계급장 — 예전엔 링 우상단에 absolute 로 얹혀
+            진행률 7~21% 구간의 호와 선단 맥박 점을 가렸다. */}
+        <View style={s.sideCol}>
+          <StreakBadge
+            count={streak?.count ?? 0}
+            tier={streak?.tier}
+            onHero
+            onPress={onPressStreak}
+          />
+          <View style={s.crestWrap} pointerEvents="none">
+            {cfg.glow ? <View style={[s.crestGlow, { backgroundColor: cfg.accent }]} /> : null}
+            {crest ? (
+              <Image source={crest} style={s.crest} resizeMode="contain" />
+            ) : (
+              <Ionicons
+                name={info.personnelType === 'officer' ? 'star' : 'ribbon'}
+                size={26}
+                color={cfg.accent}
+              />
+            )}
+            <Txt role="micro" tone="hero" style={s.rankText}>{rank}</Txt>
+          </View>
+        </View>
       </View>
 
       {meta.text ? (
@@ -166,21 +183,6 @@ export default function HomeHero({
             )}
           </PressScale>
         </LiveServiceGauge>
-
-        {/* 계급장 — 링의 빈 우상단 모서리에 앉힌다 */}
-        <View style={s.crestWrap} pointerEvents="none">
-          {cfg.glow ? <View style={[s.crestGlow, { backgroundColor: cfg.accent }]} /> : null}
-          {crest ? (
-            <Image source={crest} style={s.crest} resizeMode="contain" />
-          ) : (
-            <Ionicons
-              name={info.personnelType === 'officer' ? 'star' : 'ribbon'}
-              size={30}
-              color={cfg.accent}
-            />
-          )}
-          <Txt role="micro" tone="hero" style={s.rankText}>{rank}</Txt>
-        </View>
       </View>
 
       <View style={s.dateRow}>
@@ -218,8 +220,11 @@ const makeStyles = (tc) =>
   StyleSheet.create({
     hero: { justifyContent: 'space-between' },
     pad: { paddingHorizontal: sp.lg, paddingBottom: sp.xl },
+    // 클리핑 층이 늘어난 만큼 콘텐츠도 위아래로 벌어지게
+    fill: { flexGrow: 1, justifyContent: 'space-between' },
 
-    topRow: { flexDirection: 'row', alignItems: 'center', gap: sp.md },
+    topRow: { flexDirection: 'row', alignItems: 'flex-start', gap: sp.md },
+    sideCol: { alignItems: 'center', gap: sp.xs },
     milestone: { alignSelf: 'center', marginTop: sp.md },
 
     ringWrap: { alignSelf: 'center', marginTop: sp.lg },
@@ -228,14 +233,14 @@ const makeStyles = (tc) =>
     ddayRow: { flexDirection: 'row', alignItems: 'baseline', gap: sp.xxs },
     glow: { textShadowRadius: 18, textShadowOffset: { width: 0, height: 0 } },
 
-    crestWrap: { position: 'absolute', top: -2, right: -10, alignItems: 'center', gap: 1, width: 58 },
-    crest: { width: 42, height: 42 },
+    crestWrap: { alignItems: 'center', gap: 1, minWidth: 52 },
+    crest: { width: 36, height: 36 },
     crestGlow: {
       position: 'absolute',
       top: 2,
-      width: 38,
-      height: 38,
-      borderRadius: 19,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       opacity: 0.28,
     },
     rankText: { fontWeight: '800' },

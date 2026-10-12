@@ -46,7 +46,13 @@ export default function StatTile({
     <>
       <View style={styles.labelRow}>
         {icon ? <Ionicons name={icon} size={13} color={labelColor} /> : null}
-        <Text style={[ty.statLabel, { color: labelColor }]} numberOfLines={1}>
+        {/* 360dp 에서 타일 3개면 라벨 폭이 ~80px — "다음 진급 · 상병" 이 잘렸다 */}
+        <Text
+          style={[ty.statLabel, styles.label, { color: labelColor }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+        >
           {label}
         </Text>
       </View>
@@ -107,5 +113,6 @@ const makeStyles = (tc) =>
       borderWidth: StyleSheet.hairlineWidth,
     },
     labelRow: { flexDirection: 'row', alignItems: 'center', gap: sp.xs },
+    label: { flexShrink: 1 },
     valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: sp.xs },
   });

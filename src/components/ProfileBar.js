@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  Image, Modal, TextInput, Alert, Linking, Platform,
+  Image, Modal, TextInput, Alert, Linking, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -211,7 +211,8 @@ export default function ProfileBar({ onChange, onDark = false }) {
 
       {/* 추가 / 수정 모달 */}
       <Modal visible={modalMode !== null} transparent animationType="fade" onRequestClose={closeModal}>
-        <View style={s.overlay}>
+        {/* 키보드가 이름 입력·저장 버튼을 덮지 않게 박스를 밀어 올린다 */}
+        <KeyboardAvoidingView behavior="padding" style={s.overlay}>
           <View style={s.modalBox}>
             <Text style={s.modalTitle}>{modalMode === 'add' ? '프로필 추가' : '프로필 수정'}</Text>
 
@@ -251,7 +252,7 @@ export default function ProfileBar({ onChange, onDark = false }) {
               </PressScale>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

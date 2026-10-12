@@ -32,7 +32,9 @@ export default function WeekStrip({ records = [], bonusRecords = [], todos = [],
     const used = new Set();
     for (const rec of records) spanDates(rec.date, rec.days || 1).forEach((d) => used.add(d));
     const bonus = new Set();
-    for (const rec of bonusRecords) spanDates(rec.date, rec.days || 1).forEach((d) => bonus.add(d));
+    // 포상휴가의 date 는 '부여일'이지 사용한 기간이 아니다 — 하루만 표시한다
+    // (캘린더 EventCalendar 와 같은 규칙. 예전엔 3일 포상이 3일 휴가처럼 칠해졌다).
+    for (const rec of bonusRecords) if (rec.date) bonus.add(rec.date);
     const todoDays = new Set();
     for (const t of todos) {
       if (!t.date) continue;

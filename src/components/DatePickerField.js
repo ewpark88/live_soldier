@@ -4,6 +4,7 @@ import {
   StyleSheet, Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import PressScale from './ui/PressScale';
 import { useThemeColors } from '../theme/ThemeContext';
@@ -33,6 +34,7 @@ export default function DatePickerField({
 }) {
   const tc = useThemeColors();
   const styles = useMemo(() => makeStyles(tc), [tc]);
+  const insets = useSafeAreaInsets();
   const [show, setShow] = useState(false);
 
   // value가 있으면 해당 날짜, 없으면 오늘
@@ -71,7 +73,10 @@ export default function DatePickerField({
           size={18}
           color={disabled ? tc.textSecondary : tc.primary}
         />
-        <Text style={[styles.valueText, !value && styles.placeholder, disabled && styles.textDisabled]}>
+        <Text
+          style={[styles.valueText, !value && styles.placeholder, disabled && styles.textDisabled]}
+          numberOfLines={1}
+        >
           {value ? formatDateKo(value) : placeholder}
         </Text>
         {!disabled && <Ionicons name="chevron-forward" size={18} color={tc.textLight} />}
@@ -100,7 +105,8 @@ export default function DatePickerField({
         >
           {/* 배경 딤은 '눌리는 표면'이 아니다 — 축소도 햅틱도 없어야 한다 */}
           <Pressable style={styles.modalOverlay} onPress={() => setShow(false)} />
-          <View style={styles.modalBox}>
+          {/* 고정 32 는 홈 인디케이터 영역(34)보다 작아 스피너 하단이 가렸다 */}
+          <View style={[styles.modalBox, { paddingBottom: insets.bottom + sp.lg }]}>
             {/* 헤더 */}
             <View style={styles.modalHeader}>
               <PressScale onPress={() => setShow(false)} haptic="light">
@@ -186,7 +192,6 @@ const makeStyles = (tc) => StyleSheet.create({
     backgroundColor: tc.card,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: 32,
   },
   modalHeader: {
     flexDirection: 'row',

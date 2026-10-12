@@ -215,6 +215,17 @@ export function spanDates(startStr, days) {
   return out;
 }
 
+/**
+ * 새 기간(startStr 부터 days 일)이 기존 기록들과 겹치는 날짜 목록 (오름차순).
+ * 같은 휴가를 두 번 기록하면 사용 일수가 두 배로 잡혀 남은 휴가가 틀어진다 —
+ * 저장 전에 이걸로 확인한다. records: [{ date, days }]
+ */
+export function overlappingDates(records, startStr, days) {
+  const taken = new Set();
+  for (const r of records || []) spanDates(r.date, r.days).forEach((d) => taken.add(d));
+  return spanDates(startStr, days).filter((d) => taken.has(d));
+}
+
 /** 시작일 + days(시작일 포함) → 종료일 'YYYY-MM-DD' (days=1이면 시작일과 동일) */
 export function endDateFromSpan(startStr, days) {
   const d = parseDate(startStr);

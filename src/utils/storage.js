@@ -148,7 +148,7 @@ async function _loadStore() {
       const restored = backup ? _parseStore(backup) : null;
       if (restored) {
         _warn('백업에서 복구합니다', '마지막 정상 스냅샷 사용');
-        await _saveStore(restored);
+        await _saveStoreQuiet(restored);
         return restored;
       }
     } catch (e) {
@@ -157,7 +157,7 @@ async function _loadStore() {
   }
 
   const migrated = await _migrateLegacy();
-  await _saveStore(migrated);
+  await _saveStoreQuiet(migrated);
   return migrated;
 }
 
@@ -199,19 +199,38 @@ async function _saveStore(store) {
     json = JSON.stringify(store);
   } catch (e) {
     _warn('직렬화 실패', e);
-    return;
+    throw new StorageUnavailableError('저장할 데이터를 변환하지 못했습니다');
   }
   try {
     await AsyncStorage.setItem(STORE_KEY, json);
   } catch (e) {
-    // 일시적 쓰기 실패는 여기서 삼킨다 — 던지면 catch 없는 화면 핸들러가
-    // 전부 미처리 거부가 된다. 저장소를 아예 못 쓰는 경우(__degraded)만 던진다.
+    // 예전엔 여기서 삼켰다. 그러면 guardSave 가 실패를 몰라서 성공 햅틱·시트
+    // 닫기·전면광고까지 다 지나간 뒤, 다음 진입에서 기록이 사라져 있었다
+    // (저장공간 부족). 저장 핸들러는 전부 guardSave 로 감싸져 있으니 던진다.
     _warn('저장 실패', e);
-    return;
+    throw new StorageUnavailableError('기기 저장소에 쓰지 못했습니다');
   }
   // 방금 쓴 값이 곧 '마지막 정상 상태'다. 읽기 시점에만 스냅샷을 뜨면
   // 백업이 항상 한 번씩 뒤처져서, 복구해도 마지막 변경이 사라진다.
   await _snapshot(json);
+}
+
+/* 읽기 경로(_loadStore)의 되쓰기 — 마이그레이션·백업 복구. 여기서 실패해도
+   읽은 값은 이번 세션에 쓸 수 있으니 던지지 않는다 (다음 저장 때 다시 쓴다). */
+async function _saveStoreQuiet(store) {
+  try { await _saveStore(store); } catch (e) { /* _saveStore 가 이미 경고했다 */ }
+}
+
+/* 쓰기 직렬화.
+   모든 쓰기는 '저장소 전체 읽기 → 고치기 → 전체 쓰기'라, 둘이 겹치면 늦게 끝난
+   쪽이 먼저 끝난 쪽의 변경을 지운다 (저장 버튼 연타, 홈의 markCelebrated 와
+   휴가 저장이 동시에 도는 경우 등). 큐에 줄 세워 하나씩 돌린다.
+   ⚠️ 큐 안에서 다시 _serial 을 부르면 교착된다 — 공개 API 만 감싼다. */
+let _writeChain = Promise.resolve();
+function _serial(fn) {
+  const run = _writeChain.then(fn, fn);
+  _writeChain = run.catch(() => {});
+  return run;
 }
 
 function _activeIndex(store) {
@@ -232,17 +251,24 @@ async function _getField(key) {
   }
 }
 
+/* 활성 프로필의 data 필드 1개를 읽고-고쳐-쓴다. update(현재값) → 새 값.
+   읽기와 쓰기가 같은 큐 슬롯 안에 있어야 '추가'가 다른 쓰기와 겹쳐도 안 사라진다.
+   실패하면 호출부(화면의 저장 핸들러)가 알 수 있게 그대로 던진다. */
+function _updateField(key, update) {
+  return _serial(async () => {
+    const store = await _loadStore();
+    const i = _activeIndex(store);
+    const data = { ..._emptyData(), ...store.profiles[i].data };
+    const value = update(data[key]);
+    store.profiles[i] = { ...store.profiles[i], data: { ...data, [key]: value } };
+    await _saveStore(store);
+    return value;
+  });
+}
+
 /* 활성 프로필의 data 필드 1개 쓰기 */
-async function _setField(key, value) {
-  // 실패하면 호출부(화면의 저장 핸들러)가 알 수 있게 그대로 던진다.
-  const store = await _loadStore();
-  const i = _activeIndex(store);
-  store.profiles[i] = {
-    ...store.profiles[i],
-    data: { ..._emptyData(), ...store.profiles[i].data, [key]: value },
-  };
-  await _saveStore(store);
-  return value;
+function _setField(key, value) {
+  return _updateField(key, () => value);
 }
 
 /* 앱 시작 시 1회 호출(선택) — 저장소 보장 + 레거시 마이그레이션 트리거 */
@@ -345,17 +371,12 @@ export async function loadLeaveRecords() {
   return (await _getField('leaveRecords')) ?? [];
 }
 
-export async function addLeaveRecord(record) {
-  const records = await loadLeaveRecords();
-  const newRecords = [{ id: _newId(), ...record }, ...records];
-  await saveLeaveRecords(newRecords);
-  return newRecords;
+export function addLeaveRecord(record) {
+  return _updateField('leaveRecords', (cur) => [{ id: _newId(), ...record }, ...(cur ?? [])]);
 }
 
-export async function deleteLeaveRecord(id) {
-  const updated = (await loadLeaveRecords()).filter((r) => r.id !== id);
-  await saveLeaveRecords(updated);
-  return updated;
+export function deleteLeaveRecord(id) {
+  return _updateField('leaveRecords', (cur) => (cur ?? []).filter((r) => r.id !== id));
 }
 
 export async function saveLeaveTotal(total) {
@@ -383,17 +404,12 @@ export async function saveLeaveBonusRecords(records) {
   await _setField('leaveBonus', records);
 }
 
-export async function addLeaveBonusRecord(record) {
-  const records = await loadLeaveBonusRecords();
-  const newRecords = [{ id: _newId(), ...record }, ...records];
-  await saveLeaveBonusRecords(newRecords);
-  return newRecords;
+export function addLeaveBonusRecord(record) {
+  return _updateField('leaveBonus', (cur) => [{ id: _newId(), ...record }, ...(cur ?? [])]);
 }
 
-export async function deleteLeaveBonusRecord(id) {
-  const updated = (await loadLeaveBonusRecords()).filter((r) => r.id !== id);
-  await saveLeaveBonusRecords(updated);
-  return updated;
+export function deleteLeaveBonusRecord(id) {
+  return _updateField('leaveBonus', (cur) => (cur ?? []).filter((r) => r.id !== id));
 }
 
 // ─── Salary Info ──────────────────────────────────────────────────────
@@ -423,24 +439,17 @@ export async function loadTodos() {
   return (await _getField('todos')) ?? [];
 }
 
-export async function addTodo(todo) {
-  const todos = await loadTodos();
-  const newTodos = [{ id: _newId(), done: false, ...todo }, ...todos];
-  await saveTodos(newTodos);
-  return newTodos;
+export function addTodo(todo) {
+  return _updateField('todos', (cur) => [{ id: _newId(), done: false, ...todo }, ...(cur ?? [])]);
 }
 
-export async function toggleTodo(id) {
-  const todos = await loadTodos();
-  const updated = todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
-  await saveTodos(updated);
-  return updated;
+export function toggleTodo(id) {
+  return _updateField('todos', (cur) =>
+    (cur ?? []).map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
 }
 
-export async function deleteTodo(id) {
-  const updated = (await loadTodos()).filter((t) => t.id !== id);
-  await saveTodos(updated);
-  return updated;
+export function deleteTodo(id) {
+  return _updateField('todos', (cur) => (cur ?? []).filter((t) => t.id !== id));
 }
 
 // ─── 프로필 관리 API ──────────────────────────────────────────────────
@@ -465,44 +474,52 @@ export async function getActiveProfileId() {
 }
 
 /** 활성 프로필 전환 */
-export async function setActiveProfile(id) {
-  const store = await _loadStore();
-  if (store.profiles.some((p) => p.id === id)) {
-    store.activeId = id;
-    await _saveStore(store);
-  }
-  return store.activeId;
+export function setActiveProfile(id) {
+  return _serial(async () => {
+    const store = await _loadStore();
+    if (store.profiles.some((p) => p.id === id)) {
+      store.activeId = id;
+      await _saveStore(store);
+    }
+    return store.activeId;
+  });
 }
 
 /** 프로필 추가 (추가 후 자동 전환). 최대 MAX_PROFILES개. 새 id 반환(한도 초과 시 null) */
-export async function addProfile(name, photo = null) {
-  const store = await _loadStore();
-  if (store.profiles.length >= MAX_PROFILES) return null;
-  const profile = _newProfile(name, photo);
-  store.profiles.push(profile);
-  store.activeId = profile.id;
-  await _saveStore(store);
-  return profile.id;
+export function addProfile(name, photo = null) {
+  return _serial(async () => {
+    const store = await _loadStore();
+    if (store.profiles.length >= MAX_PROFILES) return null;
+    const profile = _newProfile(name, photo);
+    store.profiles.push(profile);
+    store.activeId = profile.id;
+    await _saveStore(store);
+    return profile.id;
+  });
 }
 
 /** 프로필 이름/사진 수정 (photo: null이면 제거, undefined면 변경 안 함) */
-export async function updateProfile(id, { name, photo } = {}) {
-  const store = await _loadStore();
-  const i = store.profiles.findIndex((p) => p.id === id);
-  if (i < 0) return;
-  if (name != null)      store.profiles[i].name  = name;
-  if (photo !== undefined) store.profiles[i].photo = photo;
-  await _saveStore(store);
+export function updateProfile(id, { name, photo } = {}) {
+  return _serial(async () => {
+    const store = await _loadStore();
+    const i = store.profiles.findIndex((p) => p.id === id);
+    if (i < 0) return;
+    if (name != null)      store.profiles[i].name  = name;
+    if (photo !== undefined) store.profiles[i].photo = photo;
+    await _saveStore(store);
+  });
 }
 
 /** 프로필 삭제 (최소 1개 유지). 활성 프로필 삭제 시 첫 프로필로 전환. 새 활성 id 반환 */
-export async function deleteProfile(id) {
-  const store = await _loadStore();
-  if (store.profiles.length <= 1) return store.activeId;
-  store.profiles = store.profiles.filter((p) => p.id !== id);
-  if (store.activeId === id) store.activeId = store.profiles[0].id;
-  await _saveStore(store);
-  return store.activeId;
+export function deleteProfile(id) {
+  return _serial(async () => {
+    const store = await _loadStore();
+    if (store.profiles.length <= 1) return store.activeId;
+    store.profiles = store.profiles.filter((p) => p.id !== id);
+    if (store.activeId === id) store.activeId = store.profiles[0].id;
+    await _saveStore(store);
+    return store.activeId;
+  });
 }
 
 // ─── 테마 모드 ('system' | 'light' | 'dark') — 앱 전역 UI 설정 ─────────
@@ -606,11 +623,8 @@ export async function loadCelebrated() {
 }
 
 /** 합집합으로 저장 — 이미 축하한 항목은 절대 되돌리지 않는다 */
-export async function markCelebrated(keys) {
-  const cur = (await _getField('celebrated')) ?? [];
-  const next = [...new Set([...cur, ...keys])];
-  await _setField('celebrated', next);
-  return next;
+export function markCelebrated(keys) {
+  return _updateField('celebrated', (cur) => [...new Set([...(cur ?? []), ...keys])]);
 }
 
 // ─── 출석 스트릭 ──────────────────────────────────────────────────────
@@ -653,7 +667,11 @@ export async function saveUIPrefs(prefs) {
 // 테마·해금(@theme_v2)·알림·모션 설정은 유지하고, 사용자가 입력한 데이터만
 // 모두 지운다. 해금은 복무의 결과이지 데이터가 아니라, 회수하면 징벌적이다.
 // 삭제 후 빈 프로필 1개로 재초기화되어 온보딩부터 다시 시작된다.
-export async function clearAllData() {
+export function clearAllData() {
+  return _serial(_clearAllData);
+}
+
+async function _clearAllData() {
   await AsyncStorage.multiRemove([
     STORE_KEY,
     STORE_BACKUP_KEY,   // 백업을 남기면 손상 복구 경로가 삭제한 데이터를 되살린다
