@@ -1,39 +1,40 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Card from '../Card';
-import SectionTitle from '../SectionTitle';
 import { Txt, PressScale } from '../ui';
 import { useThemeColors } from '../../theme/ThemeContext';
 import { radius as r, space as sp, tabular, type as ty } from '../../theme/tokens';
-import { spanDates, formatDate } from '../../utils/dateUtils';
+import { spanDates, parseDate } from '../../utils/dateUtils';
 import { todayStrOffset } from '../../utils/streak';
 
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 
 /**
- * 이번 주 7일 스트립 — 홈에서 월간 캘린더를 대신한다.
+ * 이번 주 7일 스트립 (카드 없음 — ThisWeek 가 감싼다).
  *
  * 홈은 "오늘", 캘린더 탭은 "이번 달"이라는 위계다. 월간 그리드를 홈에 두면
  * D-Day 히어로와 세로 공간을 나눠 갖게 되고, 그러면 정작 이 앱을 여는 이유인
  * 전역일이 주인공이 못 된다.
  *
+ * '오늘'은 부모가 준다 (StreakContext.today — 자정·포그라운드 복귀 때 갱신).
+ * 예전엔 useMemo 안에서 new Date() 를 불러서, 밤새 켜 둔 홈의 '오늘' 테두리가
+ * 어제에 머물렀다.
+ *
  * 셀은 flex:1 행이다 (퍼센트 폭이 아니라 — Grid 규칙과 같은 이유).
+ * 상태는 색만으로 전하지 않는다 — 스크린리더용 라벨을 셀마다 붙인다.
  */
-export default function WeekStrip({ records = [], bonusRecords = [], todos = [], attendance = [], onPress }) {
+export default function WeekStrip({ today, records = [], bonusRecords = [], todos = [], attendance = [], onPress }) {
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
 
-  const { days, rangeLabel } = useMemo(() => {
-    const now = new Date();
-    const today = formatDate(now);
+  const days = useMemo(() => {
+    const dow = parseDate(today)?.getDay() ?? 0;
     // 일요일 시작
-    const start = todayStrOffset(today, -now.getDay());
+    const start = todayStrOffset(today, -dow);
 
     const used = new Set();
     for (const rec of records) spanDates(rec.date, rec.days || 1).forEach((d) => used.add(d));
     const bonus = new Set();
     // 포상휴가의 date 는 '부여일'이지 사용한 기간이 아니다 — 하루만 표시한다
-    // (캘린더 EventCalendar 와 같은 규칙. 예전엔 3일 포상이 3일 휴가처럼 칠해졌다).
     for (const rec of bonusRecords) if (rec.date) bonus.add(rec.date);
     const todoDays = new Set();
     for (const t of todos) {
@@ -48,7 +49,7 @@ export default function WeekStrip({ records = [], bonusRecords = [], todos = [],
     }
     const present = new Set(attendance.filter((a) => a.present).map((a) => a.date));
 
-    const list = Array.from({ length: 7 }, (_, i) => {
+    return Array.from({ length: 7 }, (_, i) => {
       const date = todayStrOffset(start, i);
       return {
         date,
@@ -61,29 +62,28 @@ export default function WeekStrip({ records = [], bonusRecords = [], todos = [],
         attended: present.has(date),
       };
     });
-
-    const a = list[0].date.replace(/^\d{4}-/, '').replace('-', '.');
-    const b = list[6].date.replace(/^\d{4}-/, '').replace('-', '.');
-    return { days: list, rangeLabel: `${a} – ${b}` };
-  }, [records, bonusRecords, todos, attendance]);
+  }, [today, records, bonusRecords, todos, attendance]);
 
   return (
-    <Card>
-      <SectionTitle
-        icon="calendar-outline"
-        right={<Txt role="caption" tone="light" numeric>{rangeLabel}</Txt>}
-      >
-        이번 주
-      </SectionTitle>
-
-      <View style={s.row}>
-        {days.map((d) => (
+    <View style={s.row}>
+      {days.map((d) => {
+        const label = [
+          `${WD[d.dow]}요일 ${d.num}일`,
+          d.isToday && '오늘',
+          d.used && '휴가',
+          d.bonus && '포상휴가 부여',
+          d.todo && '일정 있음',
+          d.attended && '출석',
+        ].filter(Boolean).join(', ');
+        return (
           <PressScale
             key={d.date}
             onPress={onPress ? () => onPress(d.date) : undefined}
             haptic="light"
             scale={0.94}
             style={s.cell}
+            accessibilityRole="button"
+            accessibilityLabel={label}
           >
             <Txt
               role="micro"
@@ -92,6 +92,7 @@ export default function WeekStrip({ records = [], bonusRecords = [], todos = [],
                 d.dow === 0 && { color: tc.sun },
                 d.dow === 6 && { color: tc.sat },
               ]}
+              maxFontSizeMultiplier={1.2}
             >
               {WD[d.dow]}
             </Txt>
@@ -100,8 +101,8 @@ export default function WeekStrip({ records = [], bonusRecords = [], todos = [],
               style={[
                 s.num,
                 d.used && { backgroundColor: tc.primary },
-                d.bonus && { backgroundColor: tc.accent },
-                d.isToday && { borderWidth: 2, borderColor: tc.primary },
+                d.bonus && !d.used && { backgroundColor: tc.accentSoft },
+                d.isToday && { borderWidth: 2, borderColor: d.used ? tc.primaryDark : tc.primary },
               ]}
             >
               <Txt
@@ -109,8 +110,10 @@ export default function WeekStrip({ records = [], bonusRecords = [], todos = [],
                 numeric
                 style={[
                   s.numText,
-                  (d.used || d.bonus) && { color: d.bonus ? tc.onGold : tc.onPrimary },
+                  d.used && { color: tc.onPrimary },
+                  d.bonus && !d.used && { color: tc.accentText },
                 ]}
+                maxFontSizeMultiplier={1.2}
               >
                 {d.num}
               </Txt>
@@ -121,20 +124,20 @@ export default function WeekStrip({ records = [], bonusRecords = [], todos = [],
               {d.attended ? <View style={[s.dot, { backgroundColor: tc.accent }]} /> : null}
             </View>
           </PressScale>
-        ))}
-      </View>
-    </Card>
+        );
+      })}
+    </View>
   );
 }
 
 const makeStyles = (tc) =>
   StyleSheet.create({
-    row: { flexDirection: 'row', marginTop: sp.md },
-    cell: { flex: 1, alignItems: 'center', gap: 4 },
+    row: { flexDirection: 'row' },
+    cell: { flex: 1, alignItems: 'center', gap: sp.xs, minHeight: 44 },
     wd: { color: tc.textLight, fontWeight: '700' },
     num: {
-      width: 32,
-      height: 32,
+      width: 36,
+      height: 36,
       borderRadius: r.sm,
       alignItems: 'center',
       justifyContent: 'center',
@@ -142,5 +145,5 @@ const makeStyles = (tc) =>
     },
     numText: { ...ty.label, ...tabular, color: tc.text },
     marks: { flexDirection: 'row', gap: 3, height: 5 },
-    dot: { width: 4, height: 4, borderRadius: 2 },
+    dot: { width: 4, height: 4, borderRadius: r.pill },
   });

@@ -1,8 +1,49 @@
 # AsyncStorage 스키마 & Storage 유틸리티
 
+> ⚠️ **현행 스키마는 아래 §0 이다.** §1 이하는 v1.0.x 단일 프로필 시절 키로,
+> 지금은 최초 1회 마이그레이션(`storage._migrateLegacy`)에서만 읽힌다.
+
 ---
 
-## 1. 저장 키 전체 목록
+## 0. 현행 스키마 (v1.3)
+
+| 키 | 범위 | 내용 |
+|---|---|---|
+| `@profiles_v1` | 프로필 | `{ activeId, profiles: [{ id, name, photo, data }] }` — 최대 12개 |
+| `@profiles_v1.bak` | 프로필 | 마지막으로 정상 파싱된 스냅샷 (손상 복구용) |
+| `@profiles_v1.preimport` | 프로필 | v1.3 — 백업 복원 **직전** 상태 (되돌리기 안전망) |
+| `@theme_v2` | 기기 | `{ themeId, mode, unlocked[], introSeen }` |
+| `@streak_v1` | 기기 | 출석 스트릭 |
+| `@ui_prefs_v1` | 기기 | `{ haptics, reduceMotion }` |
+| `@notif_prefs_v1` | 기기 | `{ master, discharge, leave, milestone, streak, daily, dailyHour }` — `leave` 는 v1.3 |
+| `@notif_sig` | 기기 | 마지막 알림 예약 입력 해시 (재예약 생략 게이트) |
+
+`data` 필드: `personnelType, militaryInfo, leaveRecords, leaveTotal, leaveBonus,
+salaryInfo, todos, rankPromotions, savingsPlan, celebrated`.
+
+- `photo` 는 v1.3 부터 `documentDirectory/profile-photos/` 의 파일 경로다 (예전엔 캐시 경로 —
+  첫 실행 때 `ProfileBar` 가 옮긴다).
+- 쓰기는 전부 `_serial` 큐(프로필) / `_themeSerial`(테마) / `_prefsChain`(알림 설정)로 직렬화된다.
+
+### 백업 파일 (v1.3, `utils/backup.js`)
+
+```json
+{ "app": "jeonryeokkami", "schema": 1, "exportedAt": "ISO",
+  "data": { "profiles": { "activeId", "profiles": [...] }, "theme", "streak", "uiPrefs" } }
+```
+
+사진(경로가 기기마다 다름)과 알림 설정(새 기기에선 권한부터 다시 받아야 함)은 싣지 않는다.
+`schema` 가 앱이 아는 값보다 크면 거부한다 (업데이트 안내).
+
+### 공유 코드 (v1.3, `utils/shareCode.js`)
+
+`JY1-<base64url(JSON 배열)><체크섬 2자>` — `[이름, YYYYMMDD 입대일, 군별, 신분, 장교계급|0,
+복무개월, 일병|0, 상병|0, 병장|0]`. 받는 쪽은 `addSharedProfile` / `updateProfileFromShare`
+로 프로필을 만든다. 같은 사람 판정은 `입대일|군별|신분`.
+
+---
+
+## 1. 저장 키 전체 목록 (레거시 — 마이그레이션 전용)
 
 | 키 상수 | 실제 키 문자열 | 데이터 타입 | 설명 |
 |---------|---------------|-------------|------|

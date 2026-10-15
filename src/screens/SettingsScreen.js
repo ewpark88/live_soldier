@@ -1,28 +1,35 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef } from 'react';
 import { Alert, Platform, StyleSheet, Switch, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Card from '../components/Card';
 import ProfileBar from '../components/ProfileBar';
-import { Screen, AppHeader, Section, ListRow, Divider, Chip, Txt } from '../components/ui';
+import { Screen, AppHeader, Section, ListRow, ListGroup, Chip, Txt } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import { useTheme, useThemeColors } from '../theme/ThemeContext';
 import { usePrefs } from '../theme/PrefsContext';
-import { clearAllData, loadMilitaryInfo, loadRankPromotions } from '../utils/storage';
+import { useStreak } from '../state/StreakContext';
+import { clearAllData, importAll, listProfiles, loadMilitaryInfo, loadRankPromotions } from '../utils/storage';
+import { removeProfilePhoto } from '../utils/imagePicker';
 import { haptic } from '../utils/haptics';
-import { guardDelete, SAVE_FAILED } from '../utils/saveGuard';
+import { guardDelete, guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import {
   enableNotifications, disableNotifications, isNotifAvailable,
   loadNotifPrefs, saveNotifPrefs, refreshScheduledNotifications, DEFAULT_NOTIF_PREFS,
 } from '../utils/notifications';
 import {
-  calcDaysLeft, calcServedDays, calcRankByEnlistDate, calcRankFromPromotions, formatDateKo,
+  calcDaysLeft, calcRankByEnlistDate, calcRankFromPromotions, formatDateKo,
 } from '../utils/dateUtils';
 import { BRANCHES, isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { backupAvailable, exportBackupFile, pickBackupFile } from '../utils/backupFile';
+import { backupErrorMessage } from '../utils/backup';
+import { emitProfilesChanged } from '../state/appEvents';
+import { updateDischargeWidget } from '../widget/updateWidget';
 import { expo as appInfo } from '../../app.json';
 import { space as sp } from '../theme/tokens';
 
 const NOTIF_SUB = [
   { key: 'discharge', title: '전역·진급 알림', desc: 'D-100·D-30·D-7·D-1·진급일', icon: 'flag-outline' },
+  { key: 'leave', title: '휴가 전날 알림', desc: '기록한 휴가 시작 전날 저녁 9시', icon: 'airplane-outline' },
   { key: 'milestone', title: '마일스톤 전날 알림', desc: '진급·반환점 하루 전 저녁 9시', icon: 'trophy-outline' },
   { key: 'streak', title: '출석 스트릭 알림', desc: '그날 앱을 안 열었으면 저녁 9시에', icon: 'flame-outline' },
   { key: 'daily', title: '매일 D-day 알림', desc: '남은 일수를 매일 알려드려요', icon: 'today-outline' },
@@ -34,37 +41,18 @@ const DAILY_HOURS = [
   { value: 21, label: '저녁 9시' },
 ];
 
-/** 그룹 라벨 + 카드 + (선택) 힌트 */
-function Group({ label, hint, index, children }) {
-  return (
-    <Section index={index} gap={sp.md}>
-      <Txt role="label" tone="secondary" style={{ marginLeft: sp.xs, marginBottom: sp.sm }}>
-        {label}
-      </Txt>
-      {/* pad="none": 행이 좌우 패딩을 직접 갖는다.
-          overflow:'hidden' 은 쓰지 않는다 — iOS 에서 카드 그림자가 잘려 사라진다. */}
-      <Card pad="none" style={styles.group}>
-        {children}
-      </Card>
-      {hint ? (
-        <Txt role="caption" tone="light" style={{ marginTop: sp.sm, marginLeft: sp.xs }}>
-          {hint}
-        </Txt>
-      ) : null}
-    </Section>
-  );
-}
-
 export default function SettingsScreen({ navigation }) {
   const tc = useThemeColors();
-  const { theme: currentTheme, introSeen } = useTheme();
-  const { haptics, reduceMotion, setHaptics, setReduceMotion } = usePrefs();
+  const { theme: currentTheme, introSeen, reload: reloadTheme } = useTheme();
+  const { haptics, reduceMotion, setHaptics, setReduceMotion, reload: reloadPrefs } = usePrefs();
+  const { refresh: refreshStreak } = useStreak();
 
   const [notifOn, setNotifOn] = useState(false);
   const [notifBusy, setNotifBusy] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState(DEFAULT_NOTIF_PREFS);
   const [info, setInfo] = useState(null);
   const [promotions, setPromotions] = useState(null);
+  const backupBusy = useRef(false);
 
   const loadProfile = useCallback(async () => {
     const mi = await loadMilitaryInfo();
@@ -107,15 +95,19 @@ export default function SettingsScreen({ navigation }) {
 
   const SHORTCUTS = [
     { title: '전역 정보', subtitle: '입대일·군별·진급일 수정', icon: 'flag-outline', route: 'discharge' },
+    { title: '가족·곰신에게 공유', subtitle: '공유 코드·QR 로 전역일 함께 세기', icon: 'people-outline', route: 'shareProfile' },
     { title: '전역 로드맵', subtitle: '진급·반환점·전역까지의 이정표', icon: 'map-outline', route: 'roadmap' },
     payRow,
-    { title: '장병내일적금', subtitle: '전역 시 받을 목돈 계산', icon: 'wallet-outline', route: 'savings' },
+    // 홈·급여 탭과 같은 아이콘 — 같은 기능이 화면마다 다른 아이콘이면 다른 기능처럼 보인다
+    { title: '장병내일적금', subtitle: '전역 시 받을 목돈 계산', icon: 'calculator-outline', route: 'savings' },
     { title: '군인 혜택 모음', subtitle: '금융·교통·문화 할인', icon: 'gift-outline', route: 'benefits' },
   ];
 
-  const switchProps = (on) => ({
+  const switchProps = (on, label) => ({
     trackColor: { false: tc.border, true: tc.primaryLight },
     thumbColor: Platform.OS === 'android' ? (on ? tc.primary : tc.card) : undefined,
+    accessibilityLabel: label,
+    accessibilityRole: 'switch',
   });
 
   const handleToggleNotif = async (next) => {
@@ -133,7 +125,7 @@ export default function SettingsScreen({ navigation }) {
           setNotifOn(true);
           setNotifPrefs(await loadNotifPrefs());
           haptic.success();
-          Alert.alert('알림 켜짐', '전역 D-day·진급·일정 리마인더를 보내드릴게요.');
+          Alert.alert('알림 켜짐', '전역 D-day·진급·휴가·일정 리마인더를 보내드릴게요.');
         } else {
           setNotifOn(false);
           haptic.warning();
@@ -150,11 +142,26 @@ export default function SettingsScreen({ navigation }) {
   };
 
   const handleSubToggle = async (key, value) => {
-    const next = await saveNotifPrefs({ [key]: value });
-    setNotifPrefs(next);
+    // 낙관적 반영 → 실패하면 되돌린다. 예전엔 쓰기 실패를 삼켜서 저장 안 된
+    // 스위치가 화면에서는 바뀐 것처럼 보였다.
+    const prev = notifPrefs;
+    setNotifPrefs({ ...prev, [key]: value });
     haptic.select();
+    const next = await guardSave(() => saveNotifPrefs({ [key]: value }));
+    if (next === SAVE_FAILED) { setNotifPrefs(prev); return; }
+    setNotifPrefs(next);
     // 예약 구성이 바뀌었으므로 시그니처 게이트를 건너뛰고 다시 잡는다
     refreshScheduledNotifications({ force: true }).catch(() => {});
+  };
+
+  /* 데이터가 통째로 바뀐 뒤(삭제·복원) — 화면 밖에 남아 있는 것들까지 맞춘다.
+     예전엔 전체 삭제 후 홈 위젯이 지운 프로필의 D-day 를 계속 보여주고,
+     지운 데이터의 'D-30' 알림이 그대로 울렸다. */
+  const afterDataReplaced = async () => {
+    emitProfilesChanged();
+    updateDischargeWidget();
+    await refreshScheduledNotifications({ force: true }).catch(() => {});
+    loadProfile();
   };
 
   const handleClearData = () => {
@@ -169,6 +176,7 @@ export default function SettingsScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             if ((await guardDelete(() => clearAllData())) === SAVE_FAILED) return;
+            await afterDataReplaced();
             Alert.alert('삭제 완료', '모든 데이터가 초기화되었습니다.', [
               { text: '확인', onPress: () => navigation.navigate('home') },
             ]);
@@ -178,13 +186,78 @@ export default function SettingsScreen({ navigation }) {
     );
   };
 
+  const handleExport = async () => {
+    if (backupBusy.current) return;
+    backupBusy.current = true;
+    try {
+      await exportBackupFile();
+    } catch (e) {
+      haptic.warning();
+      Alert.alert('백업 실패', '백업 파일을 만들지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      backupBusy.current = false;
+    }
+  };
+
+  const handleImport = async () => {
+    if (backupBusy.current) return;
+    backupBusy.current = true;
+    let picked;
+    try {
+      picked = await pickBackupFile();
+    } catch (e) {
+      picked = { ok: false, reason: 'json' };
+    } finally {
+      backupBusy.current = false;
+    }
+    if (!picked) return;   // 취소
+    if (!picked.ok) {
+      haptic.warning();
+      Alert.alert('복원할 수 없어요', backupErrorMessage(picked.reason));
+      return;
+    }
+    const { summary } = picked;
+    // exportedAt 은 UTC(toISOString) — 앞 10자를 자르면 한국 0~9시에 만든 백업이 전날로 보인다
+    const when = summary.exportedAt ? formatDateKo(new Date(summary.exportedAt)) : '';
+    haptic.warning();
+    Alert.alert(
+      '백업에서 복원',
+      `${when ? `${when}에 만든 ` : ''}백업 (${summary.names.join(', ')})으로 이 기기의 데이터를 덮어씁니다.\n지금 데이터는 사라져요. 계속할까요?`,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '복원',
+          style: 'destructive',
+          onPress: async () => {
+            // 복원하면 모든 프로필 사진이 빠진다 — 덮어쓰기 전 사진 파일을 기억해 두고 지운다
+            const oldPhotos = (await listProfiles().catch(() => ({ profiles: [] }))).profiles
+              .map((p) => p.photo).filter(Boolean);
+            const res = await guardSave(() => importAll(picked.text), '백업을 복원하지 못했습니다.\n기기 저장공간을 확인한 뒤 다시 시도해주세요.', '복원 실패');
+            if (res === SAVE_FAILED) return;
+            oldPhotos.forEach((u) => removeProfilePhoto(u));
+            await Promise.all([reloadTheme?.(), reloadPrefs?.(), refreshStreak?.()]).catch(() => {});
+            await afterDataReplaced();
+            haptic.success();
+            Alert.alert(
+              '복원 완료',
+              `프로필 ${res.count}개를 되살렸어요.\n프로필 사진은 백업에 들어가지 않으니 다시 골라 주세요.`,
+              [{ text: '확인', onPress: () => navigation.navigate('home') }]
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const canBackup = backupAvailable();
+
   return (
     <Screen
       ad={AD_UNITS.HOME_BOTTOM}
       header={<AppHeader title="내 정보" />}
     >
       {/* ── 프로필 ── */}
-      <Section index={0} gap={sp.md}>
+      <Section index={0} gap={sp.xl}>
         <Card pad="lg">
           <ProfileBar onChange={loadProfile} />
           {summary ? (
@@ -199,191 +272,181 @@ export default function SettingsScreen({ navigation }) {
       {/* ── 바로가기 ──
           예전엔 이 항목들이 우상단 햄버거 메뉴에만 있었다. 탭 + 드로어라는
           두 개의 네비게이션이 공존해 "이 기능 어디 있지"를 두 군데서 찾아야 했다. */}
-      <Group label="바로가기" index={1}>
-        {SHORTCUTS.map((row, i) => (
-          <View key={row.route}>
+      <Section index={1} gap={sp.xl}>
+        <ListGroup label="바로가기">
+          {SHORTCUTS.map((row) => (
             <ListRow
+              key={row.route}
               title={row.title}
               subtitle={row.subtitle}
               icon={row.icon}
               chevron
               onPress={() => navigation.navigate(row.route)}
-              style={styles.row}
             />
-            {i < SHORTCUTS.length - 1 ? <Divider inset={sp.lg + 48} /> : null}
-          </View>
-        ))}
-      </Group>
+          ))}
+        </ListGroup>
+      </Section>
 
-      {/* ── 외형 ──
-          예전엔 여기서 시스템/라이트/다크 3행을 직접 골랐다. 이제 테마까지
-          고를 수 있으므로 외형 설정을 전용 화면 한 곳으로 모은다. */}
-      <Group label="외형" index={2}>
-        <ListRow
-          title="테마"
-          subtitle="앱 전체 색과 밝기"
-          icon="color-palette-outline"
-          iconTone="accent"
-          chevron
-          onPress={() => navigation.navigate('theme')}
-          style={styles.row}
-          value={
-            introSeen ? currentTheme?.name : undefined
-          }
-          right={
-            introSeen ? undefined : (
-              <View style={[styles.newBadge, { backgroundColor: tc.accentSoft }]}>
-                <Txt role="micro" style={{ color: tc.accentText, fontWeight: '800' }}>NEW</Txt>
-              </View>
-            )
-          }
-        />
-      </Group>
+      {/* ── 외형 ── */}
+      <Section index={2} gap={sp.xl}>
+        <ListGroup label="외형">
+          <ListRow
+            title="테마"
+            subtitle="앱 전체 색과 밝기"
+            icon="color-palette-outline"
+            iconTone="accent"
+            chevron
+            onPress={() => navigation.navigate('theme')}
+            value={introSeen ? currentTheme?.name : undefined}
+            right={introSeen ? undefined : <Chip label="NEW" size="sm" tone="accent" />}
+          />
+        </ListGroup>
+      </Section>
 
       {/* ── 알림 ──
           마스터 + 하위 토글. 매일 알림은 기본 꺼짐이다 — 원치 않는 데일리
           알림은 앱 삭제 유발 1위다. */}
-      <Group
-        label="알림"
-        index={3}
-        hint="* 알림은 이 기기에서만 예약되며, 현재 선택된 프로필 기준으로 발송됩니다."
-      >
-        <ListRow
-          title="알림 받기"
-          subtitle="전역·진급·일정·출석 리마인더"
-          icon="notifications-outline"
-          iconTone={notifOn ? 'primary' : 'neutral'}
-          style={styles.row}
-          right={
-            <Switch
-              value={notifOn}
-              onValueChange={handleToggleNotif}
-              disabled={notifBusy}
-              {...switchProps(notifOn)}
-            />
-          }
-        />
-
-        {notifOn ? (
-          <>
-            <Divider inset={sp.lg + 48} />
-            {NOTIF_SUB.map((opt, i) => (
-              <View key={opt.key}>
-                <ListRow
-                  title={opt.title}
-                  subtitle={opt.desc}
-                  icon={opt.icon}
-                  iconTone={notifPrefs[opt.key] ? 'primary' : 'neutral'}
-                  style={styles.row}
-                  right={
-                    <Switch
-                      value={!!notifPrefs[opt.key]}
-                      onValueChange={(v) => handleSubToggle(opt.key, v)}
-                      {...switchProps(!!notifPrefs[opt.key])}
-                    />
-                  }
-                />
-                {i < NOTIF_SUB.length - 1 ? <Divider inset={sp.lg + 48} /> : null}
-              </View>
-            ))}
-
-            {notifPrefs.daily ? (
-              <View style={styles.hourRow}>
-                {DAILY_HOURS.map((h) => (
-                  <Chip
-                    key={h.value}
-                    label={h.label}
-                    size="sm"
-                    selected={notifPrefs.dailyHour === h.value}
-                    onPress={() => handleSubToggle('dailyHour', h.value)}
+      <Section index={3} gap={sp.xl}>
+        <ListGroup label="알림" footnote="* 알림은 이 기기에서만 예약되며, 현재 선택된 프로필 기준으로 발송됩니다.">
+          <ListRow
+            title="알림 받기"
+            subtitle="전역·진급·휴가·일정·출석 리마인더"
+            icon="notifications-outline"
+            iconTone={notifOn ? 'primary' : 'neutral'}
+            right={
+              <Switch
+                value={notifOn}
+                onValueChange={handleToggleNotif}
+                disabled={notifBusy}
+                {...switchProps(notifOn, '알림 받기')}
+              />
+            }
+          />
+          {notifOn
+            ? NOTIF_SUB.map((opt) => (
+              <ListRow
+                key={opt.key}
+                title={opt.title}
+                subtitle={opt.desc}
+                icon={opt.icon}
+                iconTone={notifPrefs[opt.key] ? 'primary' : 'neutral'}
+                right={
+                  <Switch
+                    value={!!notifPrefs[opt.key]}
+                    onValueChange={(v) => handleSubToggle(opt.key, v)}
+                    {...switchProps(!!notifPrefs[opt.key], opt.title)}
                   />
-                ))}
-              </View>
-            ) : null}
-          </>
-        ) : null}
-      </Group>
+                }
+              />
+            ))
+            : null}
+          {notifOn && notifPrefs.daily ? (
+            <View style={styles.hourRow} accessibilityRole="radiogroup" accessibilityLabel="매일 알림 시각">
+              {DAILY_HOURS.map((h) => (
+                <Chip
+                  key={h.value}
+                  label={h.label}
+                  size="sm"
+                  selected={notifPrefs.dailyHour === h.value}
+                  onPress={() => handleSubToggle('dailyHour', h.value)}
+                />
+              ))}
+            </View>
+          ) : null}
+        </ListGroup>
+      </Section>
 
       {/* ── 모션 (애니메이션·햅틱) ── */}
-      <Group
-        label="모션"
-        index={4}
-        hint="* 기기의 '동작 줄이기' 접근성 설정이 켜져 있으면 애니메이션은 자동으로 꺼집니다."
-      >
-        <ListRow
-          title="햅틱 반응"
-          subtitle="버튼·선택 시 가볍게 진동합니다"
-          icon="pulse-outline"
-          iconTone={haptics ? 'primary' : 'neutral'}
-          style={styles.row}
-          right={
-            <Switch
-              value={haptics}
-              onValueChange={(v) => { setHaptics(v); if (v) haptic.light(); }}
-              {...switchProps(haptics)}
-            />
-          }
-        />
-        <Divider inset={sp.lg + 48} />
-        <ListRow
-          title="애니메이션 줄이기"
-          subtitle="화면 전환·카운트업 등의 움직임을 최소화합니다"
-          icon="eye-off-outline"
-          iconTone={reduceMotion ? 'primary' : 'neutral'}
-          style={styles.row}
-          right={
-            <Switch
-              value={reduceMotion}
-              onValueChange={setReduceMotion}
-              {...switchProps(reduceMotion)}
-            />
-          }
-        />
-      </Group>
+      <Section index={4} gap={sp.xl}>
+        <ListGroup label="모션" footnote="* 기기의 '동작 줄이기' 접근성 설정이 켜져 있으면 애니메이션은 자동으로 꺼집니다.">
+          <ListRow
+            title="햅틱 반응"
+            subtitle="버튼·선택 시 가볍게 진동합니다"
+            icon="pulse-outline"
+            iconTone={haptics ? 'primary' : 'neutral'}
+            right={
+              <Switch
+                value={haptics}
+                onValueChange={(v) => { setHaptics(v); if (v) haptic.light(); }}
+                {...switchProps(haptics, '햅틱 반응')}
+              />
+            }
+          />
+          <ListRow
+            title="애니메이션 줄이기"
+            subtitle="화면 전환·카운트업 등의 움직임을 최소화합니다"
+            icon="eye-off-outline"
+            iconTone={reduceMotion ? 'primary' : 'neutral'}
+            right={
+              <Switch
+                value={reduceMotion}
+                onValueChange={setReduceMotion}
+                {...switchProps(reduceMotion, '애니메이션 줄이기')}
+              />
+            }
+          />
+        </ListGroup>
+      </Section>
 
-      {/* ── 데이터 ── */}
-      <Group
-        label="데이터"
-        index={5}
-        hint="* 모든 데이터는 이 기기에만 저장되며 외부로 전송되지 않습니다."
-      >
-        <ListRow
-          title="모든 데이터 삭제"
-          subtitle="모든 프로필·군생활 데이터를 초기화합니다"
-          icon="trash-outline"
-          danger
-          chevron
-          onPress={handleClearData}
-          style={styles.row}
-        />
-      </Group>
+      {/* ── 데이터 ──
+          서버가 없으니 폰을 바꾸면 데이터가 따라오지 않는다. 백업 파일을
+          카톡 '나와의 채팅'·드라이브에 두면 새 폰에서 되살릴 수 있다. */}
+      <Section index={5} gap={sp.xl}>
+        <ListGroup
+          label="데이터"
+          footnote="* 모든 데이터는 이 기기에만 저장됩니다. 폰을 바꾸기 전에 백업 파일을 카톡 '나와의 채팅'이나 드라이브에 보관하세요."
+        >
+          {canBackup ? (
+            <ListRow
+              title="백업 파일 만들기"
+              subtitle="모든 프로필·휴가·일정·설정을 파일로 내보내요"
+              icon="cloud-upload-outline"
+              chevron
+              onPress={handleExport}
+            />
+          ) : null}
+          {canBackup ? (
+            <ListRow
+              title="백업에서 복원"
+              subtitle="백업 파일로 이 기기의 데이터를 덮어써요"
+              icon="cloud-download-outline"
+              chevron
+              onPress={handleImport}
+            />
+          ) : null}
+          <ListRow
+            title="모든 데이터 삭제"
+            subtitle="모든 프로필·군생활 데이터를 초기화합니다"
+            icon="trash-outline"
+            danger
+            chevron
+            onPress={handleClearData}
+          />
+        </ListGroup>
+      </Section>
 
       {/* ── 앱 정보 ── */}
-      <Group label="앱 정보" index={6}>
-        <ListRow
-          title="앱 이름"
-          icon="information-circle-outline"
-          iconTone="neutral"
-          value={appInfo.name}
-          style={styles.row}
-        />
-        <Divider inset={sp.lg + 48} />
-        <ListRow
-          title="버전"
-          icon="pricetag-outline"
-          iconTone="neutral"
-          value={appInfo.version}
-          style={styles.row}
-        />
-      </Group>
+      <Section index={6} gap={sp.lg}>
+        <ListGroup label="앱 정보">
+          <ListRow
+            title="앱 이름"
+            icon="information-circle-outline"
+            iconTone="neutral"
+            value={appInfo.name}
+          />
+          <ListRow
+            title="버전"
+            icon="pricetag-outline"
+            iconTone="neutral"
+            value={appInfo.version}
+          />
+        </ListGroup>
+      </Section>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  group: { paddingHorizontal: 0 },
-  newBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
-  hourRow: { flexDirection: 'row', gap: sp.sm, paddingHorizontal: sp.lg, paddingBottom: sp.md },
-  summary: { marginTop: sp.md, gap: 2 },
-  row: { paddingHorizontal: sp.lg },
+  hourRow: { flexDirection: 'row', gap: sp.sm, paddingBottom: sp.md },
+  summary: { marginTop: sp.md, gap: sp.xxs },
 });

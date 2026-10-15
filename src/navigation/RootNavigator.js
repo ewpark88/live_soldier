@@ -10,6 +10,7 @@ import OfficerPayScreen from '../screens/OfficerPayScreen';
 import SavingsScreen from '../screens/SavingsScreen';
 import BenefitsScreen from '../screens/BenefitsScreen';
 import ThemeScreen from '../screens/ThemeScreen';
+import ShareProfileScreen from '../screens/ShareProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -53,6 +54,8 @@ export default function RootNavigator() {
       <Stack.Screen name="savings" component={SavingsScreen} />
       <Stack.Screen name="benefits" component={BenefitsScreen} />
       <Stack.Screen name="theme" component={ThemeScreen} />
+      {/* 홈·설정·공유 시트 여러 곳에서 들어온다 — 그래서 루트 스택에 둔다 */}
+      <Stack.Screen name="shareProfile" component={ShareProfileScreen} />
     </Stack.Navigator>
   );
 }

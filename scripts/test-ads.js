@@ -127,13 +127,20 @@ const flush = () => new Promise((r) => setImmediate(r));
   eq(loads, 2, '30분 경과: 로드');
   fire(AdEventType.LOADED);
 
-  /* 55분 넘게 묵은 광고는 보여주지 않고 폐기 → 재로드 */
+  /* 55분 넘게 묵은 광고는 보여주지 않고 폐기.
+     표시는 저장 직후 = 폼이 이미 닫힌 뒤라, 그 자리에서 재로드하지 않는다 (v1.3) */
   advance(56 * MIN);
   eq(A.isInterstitialReady(), false, '만료: ready 아님');
   eq(await A.showInterstitial(), false, '만료 광고: 표시하지 않음');
   eq(shows, 1, '만료 광고: show() 호출 없음');
   await flush(); await flush();
-  eq(loads, 3, '만료 광고: 폐기 후 재로드');
+  eq(loads, 2, '만료 광고: 폼이 닫혀 있으면 재로드하지 않음');
+
+  /* 폼이 열려 있는 동안의 만료는 바로 다시 받는다 */
+  A.setInterstitialArmed(true);
+  eq(await A.showInterstitial(), false, '무장 상태 미로드: 표시하지 않음');
+  await flush(); await flush();
+  eq(loads, 3, '무장 상태 미로드: 재로드');
   fire(AdEventType.LOADED);
 
   /* 2회차 표시 → 하루 한도 도달 */
@@ -142,6 +149,21 @@ const flush = () => new Promise((r) => setImmediate(r));
   await flush(); await flush();
   fire(AdEventType.CLOSED);
   eq(store['@ad_count_today'], '2', '노출 기록: 오늘 2회');
+
+  A.setInterstitialArmed(false);
+
+  /* 로드 실패 재시도 — 재시도 시각에 폼이 닫혀 있으면 요청하지 않는다 (v1.3) */
+  {
+    const realSetTimeout = global.setTimeout;
+    const timers = [];
+    global.setTimeout = (fn, ms) => { timers.push(fn); return 0; };
+    fire(AdEventType.ERROR, { message: 'no fill' });
+    global.setTimeout = realSetTimeout;
+    const before = loads;
+    timers.forEach((fn) => fn());
+    await flush(); await flush();
+    eq(loads, before, '실패 재시도: 폼이 닫혀 있으면 로드 안 함');
+  }
 
   /* 한도를 다 쓴 날엔 로드 자체를 하지 않는다 */
   advance(40 * MIN);

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
-  Alert, ScrollView, StyleSheet, TextInput, View,
+  Alert, StyleSheet, View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +14,8 @@ import RangeCalendar from '../components/RangeCalendar';
 import SetupRequired from '../components/SetupRequired';
 import {
   Screen, AppHeader, Section, HeroCard, Button, Chip, StatTile,
-  ListRow, Divider, EmptyState, Txt, AnimatedNumber, BottomSheet, PressScale,
+  ListRow, Divider, EmptyState, Txt, AnimatedNumber, PressScale,
+  Stepper, TextField, FormSheet, GROUP_INSET,
 } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import {
@@ -29,6 +30,8 @@ import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
 import { guardSave, guardDelete, SAVE_FAILED } from '../utils/saveGuard';
 import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
+import { refreshScheduledNotifications } from '../utils/notifications';
+import { updateDischargeWidget } from '../widget/updateWidget';
 
 const MODAL_NONE = null;
 const MODAL_USE = 'use';
@@ -75,14 +78,15 @@ function RecordRow({ item, bonus, onDelete, last }) {
               onPress={() => onDelete(item.id, item.date)}
               haptic="light"
               style={s.trash}
-              accessibilityLabel="삭제"
+              accessibilityRole="button"
+              accessibilityLabel={`${formatDateKo(item.date)} ${bonus ? '포상휴가' : '휴가'} 기록 삭제`}
             >
-              <Ionicons name="trash-outline" size={17} color={tc.textLight} />
+              <Ionicons name="trash-outline" size={18} color={tc.textLight} />
             </PressScale>
           </View>
         }
       />
-      {!last ? <Divider inset={48} /> : null}
+      {!last ? <Divider inset={GROUP_INSET - sp.lg} /> : null}
     </Animated.View>
   );
 }
@@ -148,11 +152,6 @@ export default function LeaveScreen({ navigation, embedded = false }) {
     haptic.success();
   };
 
-  const stepBase = (delta) => {
-    const next = Math.max(1, Math.min(100, (parseInt(baseInput, 10) || 0) + delta));
-    setBaseInput(String(next));
-    haptic.select();
-  };
 
   const commitUse = (days) => runSave(async () => {
     const next = await guardSave(() => addLeaveRecord({ date: formDate, days, memo: formMemo.trim() }));
@@ -160,8 +159,15 @@ export default function LeaveScreen({ navigation, embedded = false }) {
     setRecords(next);
     haptic.success();
     closeModal();
+    afterLeaveChanged();
     showAd();
   });
+
+  // 휴가 기록은 '휴가 전날' 알림과 위젯의 '다음 휴가' 줄의 재료다
+  const afterLeaveChanged = () => {
+    refreshScheduledNotifications().catch(() => {});
+    updateDischargeWidget();
+  };
 
   const handleAddUse = () => {
     if (savingRef.current) return;
@@ -209,7 +215,9 @@ export default function LeaveScreen({ navigation, embedded = false }) {
         style: 'destructive',
         onPress: async () => {
           const next = await guardDelete(() => deleteLeaveRecord(id));
-          if (next !== SAVE_FAILED) setRecords(next);
+          if (next === SAVE_FAILED) return;
+          setRecords(next);
+          afterLeaveChanged();
         },
       },
     ]);
@@ -262,9 +270,9 @@ export default function LeaveScreen({ navigation, embedded = false }) {
                   label={`기본 ${leaveBase}일 수정`}
                   icon="create-outline"
                   size="sm"
+                  onHero
                   onPress={() => setEditingBase(true)}
-                  style={s.heroChip}
-                  textStyle={{ color: tc.heroText }}
+                  accessibilityLabel={`기본 휴가 ${leaveBase}일, 수정`}
                 />
               ) : null}
             </View>
@@ -277,24 +285,17 @@ export default function LeaveScreen({ navigation, embedded = false }) {
                 layout={m.layout(LinearTransition.springify())}
                 style={s.stepper}
               >
-                <PressScale onPress={() => stepBase(-1)} haptic="select" style={s.stepBtn}>
-                  <Ionicons name="remove" size={18} color={tc.heroText} />
-                </PressScale>
-
-                <TextInput
-                  style={s.stepInput}
+                <Stepper
                   value={baseInput}
-                  onChangeText={(t) => setBaseInput(t.replace(/[^0-9]/g, ''))}
-                  keyboardType="number-pad"
-                  maxLength={3}
-                  selectTextOnFocus
+                  onChange={(v) => setBaseInput(String(v))}
+                  min={1}
+                  max={100}
+                  label="기본 휴가 일수"
+                  editable
+                  onHero
                 />
 
-                <PressScale onPress={() => stepBase(1)} haptic="select" style={s.stepBtn}>
-                  <Ionicons name="add" size={18} color={tc.heroText} />
-                </PressScale>
-
-                <Button title="저장" size="sm" variant="accent" onPress={handleSaveBase} />
+                <Button title="저장" size="sm" onPress={handleSaveBase} />
                 <Button
                   title="취소"
                   size="sm"
@@ -351,19 +352,21 @@ export default function LeaveScreen({ navigation, embedded = false }) {
           </View>
         </Section>
 
-        {/* 달력 안내 */}
-        <Section index={2}>
-          <Card pad="none" style={{ paddingHorizontal: 0 }}>
-            <ListRow
-              title="휴가·일정 달력"
-              subtitle="이번 달 전체를 한눈에 볼 수 있어요"
-              icon="calendar-outline"
-              chevron
-              onPress={() => navigation.navigate('calendar', { section: 'month', ts: Date.now() })}
-              style={{ paddingHorizontal: sp.lg }}
-            />
-          </Card>
-        </Section>
+        {/* 달력 안내 — 캘린더 탭 안(embedded)에서는 바로 위 세그먼트가 같은 일을 한다.
+            예전엔 자기 탭의 '달력' 세그먼트로 가는 링크를 또 그리고 있었다. */}
+        {!embedded ? (
+          <Section index={2}>
+            <Card pad="none" style={{ paddingHorizontal: sp.lg }}>
+              <ListRow
+                title="휴가·일정 달력"
+                subtitle="이번 달 전체를 한눈에 볼 수 있어요"
+                icon="calendar-outline"
+                chevron
+                onPress={() => navigation.navigate('calendar', { section: 'month', ts: Date.now() })}
+              />
+            </Card>
+          </Section>
+        ) : null}
 
         {/* 포상휴가 */}
         {bonusRecords.length > 0 ? (
@@ -431,81 +434,63 @@ export default function LeaveScreen({ navigation, embedded = false }) {
 
 
       {/* 추가 시트 (사용 / 포상 공용) */}
-      <BottomSheet visible={modalType !== MODAL_NONE} onClose={closeModal}>
-        <ScrollView
-          style={{ flexShrink: 1 }}   // 시트 maxHeight·키보드에 맞춰 줄어들며 스크롤
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Txt role="subtitle" style={{ marginBottom: sp.lg }}>
-            {isBonus ? '포상휴가 추가' : '휴가 사용 기록'}
-          </Txt>
-
-          {isBonus ? (
-            <>
-              <View style={s.notice}>
-                <Ionicons name="information-circle-outline" size={16} color={tc.accentText} />
-                <Txt role="caption" tone="accent" style={{ flex: 1 }}>
-                  포상휴가는 총 가용 휴가에 자동으로 합산됩니다.
-                </Txt>
-              </View>
-
-              <DatePickerField
-                label="포상휴가 부여일"
-                value={formDate}
-                onChange={setFormDate}
-                placeholder="날짜를 선택하세요"
-              />
-
-              <Txt role="label" tone="secondary" style={s.formLabel}>포상 일수</Txt>
-              <TextInput
-                style={s.input}
-                value={formDays}
-                onChangeText={(t) => setFormDays(t.replace(/[^0-9]/g, ''))}
-                placeholder="숫자만 입력 (예: 3)"
-                placeholderTextColor={tc.textLight}
-                keyboardType="number-pad"
-                maxLength={3}
-              />
-            </>
-          ) : (
-            <>
-              <Txt role="label" tone="secondary" style={s.formLabel}>
-                휴가 기간 (시작 ~ 종료)
+      <FormSheet
+        visible={modalType !== MODAL_NONE}
+        onClose={closeModal}
+        title={isBonus ? '포상휴가 추가' : '휴가 사용 기록'}
+        onSubmit={isBonus ? handleAddBonus : handleAddUse}
+        submitVariant={isBonus ? 'accent' : 'primary'}
+        saving={saving}
+      >
+        {isBonus ? (
+          <>
+            <View style={s.notice}>
+              <Ionicons name="information-circle-outline" size={16} color={tc.accentText} />
+              <Txt role="caption" style={{ flex: 1, color: tc.accentText }}>
+                포상휴가는 총 가용 휴가에 자동으로 합산됩니다.
               </Txt>
-              <View style={s.calendarBox}>
-                <RangeCalendar
-                  startDate={formDate}
-                  endDate={formEndDate}
-                  onChange={(start, end) => { setFormDate(start); setFormEndDate(end); }}
-                />
-              </View>
-            </>
-          )}
+            </View>
 
-          <Txt role="label" tone="secondary" style={s.formLabel}>메모 (선택)</Txt>
-          <TextInput
-            style={[s.input, s.textarea]}
-            value={formMemo}
-            onChangeText={setFormMemo}
-            placeholder={isBonus ? '예) 분대장 포상, GOP 포상' : '예) 1박 2일 귀향'}
-            placeholderTextColor={tc.textLight}
-            multiline
-            numberOfLines={2}
-          />
-
-          <View style={s.sheetBtns}>
-            <Button title="취소" variant="ghost" onPress={closeModal} style={{ flex: 1 }} />
-            <Button
-              title="저장"
-              variant={isBonus ? 'accent' : 'primary'}
-              onPress={isBonus ? handleAddBonus : handleAddUse}
-              loading={saving}
-              style={{ flex: 1 }}
+            <DatePickerField
+              label="포상휴가 부여일"
+              value={formDate}
+              onChange={setFormDate}
+              placeholder="날짜를 선택하세요"
             />
+
+            <TextField
+              label="포상 일수"
+              value={formDays}
+              onChangeText={(t) => setFormDays(t.replace(/[^0-9]/g, ''))}
+              placeholder="숫자만 입력 (예: 3)"
+              keyboardType="number-pad"
+              maxLength={3}
+              suffix="일"
+            />
+          </>
+        ) : (
+          <View style={{ gap: sp.sm }}>
+            <Txt role="label" tone="secondary">휴가 기간 (시작 ~ 종료)</Txt>
+            <View style={s.calendarBox}>
+              <RangeCalendar
+                startDate={formDate}
+                endDate={formEndDate}
+                onChange={(start, end) => { setFormDate(start); setFormEndDate(end); }}
+              />
+            </View>
           </View>
-        </ScrollView>
-      </BottomSheet>
+        )}
+
+        <TextField
+          label="메모 (선택)"
+          value={formMemo}
+          onChangeText={setFormMemo}
+          placeholder={isBonus ? '예) 분대장 포상, GOP 포상' : '예) 1박 2일 귀향'}
+          multiline
+          numberOfLines={2}
+          maxLength={60}
+        />
+      </FormSheet>
     </>
   );
 }
@@ -518,7 +503,6 @@ const makeStyles = (tc) =>
       justifyContent: 'space-between',
       gap: sp.sm,
     },
-    heroChip: { backgroundColor: tc.heroSheen },
     heroAmount: {
       flexDirection: 'row',
       alignItems: 'baseline',
@@ -533,25 +517,6 @@ const makeStyles = (tc) =>
       gap: sp.sm,
       marginTop: sp.md,
     },
-    stepBtn: {
-      width: 34,
-      height: 34,
-      borderRadius: r.sm,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: tc.heroSheen,
-    },
-    stepInput: {
-      width: 56,
-      height: 34,
-      borderRadius: r.sm,
-      backgroundColor: tc.heroSheen,
-      color: tc.heroText,
-      textAlign: 'center',
-      ...ty.body,
-      fontWeight: '800',
-      padding: 0,
-    },
 
     usageHead: {
       flexDirection: 'row',
@@ -563,7 +528,8 @@ const makeStyles = (tc) =>
 
     btnRow: { flexDirection: 'row', gap: sp.sm },
     rowRight: { flexDirection: 'row', alignItems: 'center', gap: sp.sm },
-    trash: { padding: sp.xs },
+    // 아이콘은 18 이지만 누르는 면적은 40 — 예전엔 ~25 라 옆 칩을 잘못 누르기 쉬웠다
+    trash: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
 
     notice: {
       flexDirection: 'row',
@@ -572,24 +538,10 @@ const makeStyles = (tc) =>
       backgroundColor: tc.accentSoft,
       borderRadius: r.sm,
       padding: sp.md,
-      marginBottom: sp.md,
     },
-    formLabel: { marginTop: sp.md, marginBottom: sp.sm },
-    input: {
-      backgroundColor: tc.surfaceSunken,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: tc.surfaceSunkenBorder,
-      borderRadius: r.sm,
-      paddingHorizontal: sp.md,
-      paddingVertical: sp.md,
-      ...ty.bodyLg,
-      color: tc.text,
-    },
-    textarea: { minHeight: 64, textAlignVertical: 'top' },
     calendarBox: {
       backgroundColor: tc.surfaceSunken,
       borderRadius: r.md,
       padding: sp.sm,
     },
-    sheetBtns: { flexDirection: 'row', gap: sp.sm, marginTop: sp.xl },
   });

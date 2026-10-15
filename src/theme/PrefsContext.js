@@ -39,11 +39,20 @@ export function PrefsProvider({ children }) {
     saveUIPrefs(next);
   };
 
+  /** 저장소에서 다시 읽는다 — 백업 복원 직후 */
+  const reload = async () => {
+    const p = await loadUIPrefs();
+    prefsRef.current = p;
+    setPrefs(p);
+    setHapticsEnabled(p.haptics);
+  };
+
   const value = useMemo(
     () => ({
       ...prefs,
       setHaptics: (v) => update({ haptics: v }),
       setReduceMotion: (v) => update({ reduceMotion: v }),
+      reload,
     }),
     [prefs]
   );

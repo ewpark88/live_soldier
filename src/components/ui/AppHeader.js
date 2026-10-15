@@ -101,7 +101,7 @@ const makeStyles = (tc) =>
       paddingHorizontal: sp.lg,
       gap: sp.md,
     },
-    back: { marginLeft: -sp.sm, width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+    back: { marginLeft: -sp.sm, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     titleWrap: { flex: 1, transformOrigin: 'left center' },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: sp.sm },
     title: { ...ty.title, color: tc.text, flexShrink: 1 },

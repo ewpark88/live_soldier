@@ -1,15 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PressScale from './ui/PressScale';
 import { useThemeColors } from '../theme/ThemeContext';
-import { formatDate, formatDateKo, spanDates, daysBetweenInclusive } from '../utils/dateUtils';
+import { radius as r, space as sp, type as ty } from '../theme/tokens';
+import { formatDateKo, parseDate, spanDates, daysBetweenInclusive } from '../utils/dateUtils';
+import useToday from '../hooks/useToday';
 
 /**
  * 휴가 + 일정 통합 월간 캘린더 (의존성 없는 경량 구현).
  * - 연가 사용: 시작~종료 구간 각 날짜를 채움(primary)
- * - 포상휴가: 부여일에 별(★)
- * - 일정(할 일): 해당 기간 각 날짜 하단에 점(accent)
+ * - 포상휴가: 부여일 우상단에 별 아이콘
+ * - 일정(할 일): 해당 기간 각 날짜 하단에 점
  * 날짜를 탭하면 그 날의 휴가·일정 상세가 아래에 표시된다.
  */
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -17,18 +19,27 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 export default function EventCalendar({ records = [], bonusRecords = [], todos = [], fill = false }) {
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
-  const today = useMemo(() => new Date(), []);
-  const todayStr = formatDate(today);
+  // 캘린더 탭은 언마운트되지 않는다 — 자정을 넘기면 '오늘'도 넘어가야 한다
+  const todayStr = useToday();
+  const today = parseDate(todayStr);
   const [year, setYear]   = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [selected, setSelected] = useState(todayStr);
 
+  // 날짜가 바뀌었을 때, 사용자가 '어제(=당시 오늘)'를 보고 있었다면 오늘로 따라간다
+  const prevToday = useRef(todayStr);
+  useEffect(() => {
+    if (prevToday.current === todayStr) return;
+    setSelected((sel) => (sel === prevToday.current ? todayStr : sel));
+    prevToday.current = todayStr;
+  }, [todayStr]);
+
   /* 날짜별 이벤트 집합/맵 */
   const { usedSet, bonusSet, todoSet } = useMemo(() => {
     const used = new Set();
-    records.forEach((r) => spanDates(r.date, r.days).forEach((d) => used.add(d)));
+    records.forEach((rec) => spanDates(rec.date, rec.days).forEach((d) => used.add(d)));
     const bonus = new Set();
-    bonusRecords.forEach((r) => { if (r.date) bonus.add(r.date); });
+    bonusRecords.forEach((rec) => { if (rec.date) bonus.add(rec.date); });
     const todo = new Set();
     todos.forEach((t) => {
       if (!t.date) return;
@@ -74,14 +85,14 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
   const selectedEvents = useMemo(() => {
     if (!selected) return [];
     const out = [];
-    records.forEach((r) => {
-      if (spanDates(r.date, r.days).includes(selected)) {
-        out.push({ type: 'leave', label: `연가 ${r.days}일`, memo: r.memo, icon: 'airplane-outline', color: tc.primary });
+    records.forEach((rec) => {
+      if (spanDates(rec.date, rec.days).includes(selected)) {
+        out.push({ type: 'leave', label: `연가 ${rec.days}일`, memo: rec.memo, icon: 'airplane-outline', color: tc.primary });
       }
     });
-    bonusRecords.forEach((r) => {
-      if (r.date === selected) {
-        out.push({ type: 'bonus', label: `포상휴가 ＋${r.days}일`, memo: r.memo, icon: 'star', color: tc.accent });
+    bonusRecords.forEach((rec) => {
+      if (rec.date === selected) {
+        out.push({ type: 'bonus', label: `포상휴가 +${rec.days}일`, memo: rec.memo, icon: 'star', color: tc.accentText });
       }
     });
     todos.forEach((t) => {
@@ -102,13 +113,13 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
     <View style={[s.wrap, fill && s.wrapFill]}>
       {/* 헤더 */}
       <View style={s.header}>
-        <PressScale onPress={goPrev} haptic="select" scale={0.88} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="이전 달">
+        <PressScale onPress={goPrev} haptic="select" scale={0.88} style={s.navBtn} accessibilityRole="button" accessibilityLabel="이전 달">
           <Ionicons name="chevron-back" size={22} color={tc.primary} />
         </PressScale>
-        <PressScale onPress={goToday} haptic="select" accessibilityRole="button" accessibilityLabel="오늘로 이동">
-          <Text style={s.headerTitle}>{year}년 {month + 1}월</Text>
+        <PressScale onPress={goToday} haptic="select" style={s.titleBtn} accessibilityRole="button" accessibilityLabel={`${year}년 ${month + 1}월, 오늘로 이동`}>
+          <Text style={s.headerTitle} maxFontSizeMultiplier={1.3}>{year}년 {month + 1}월</Text>
         </PressScale>
-        <PressScale onPress={goNext} haptic="select" scale={0.88} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="다음 달">
+        <PressScale onPress={goNext} haptic="select" scale={0.88} style={s.navBtn} accessibilityRole="button" accessibilityLabel="다음 달">
           <Ionicons name="chevron-forward" size={22} color={tc.primary} />
         </PressScale>
       </View>
@@ -116,7 +127,7 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
       {/* 요일 */}
       <View style={s.weekRow}>
         {WEEKDAYS.map((w, i) => (
-          <Text key={w} style={[s.weekday, i === 0 && s.sun, i === 6 && s.sat]}>{w}</Text>
+          <Text key={w} style={[s.weekday, i === 0 && s.sun, i === 6 && s.sat]} maxFontSizeMultiplier={1.2}>{w}</Text>
         ))}
       </View>
 
@@ -131,26 +142,48 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
               const isTodo  = todoSet.has(cell.dateStr);
               const isToday = cell.dateStr === todayStr;
               const isSel   = cell.dateStr === selected;
+              const a11y = [
+                `${month + 1}월 ${cell.day}일`,
+                isToday && '오늘',
+                isUsed && '연가',
+                isBonus && '포상휴가',
+                isTodo && '일정 있음',
+              ].filter(Boolean).join(', ');
               return (
-                <PressScale key={ci} style={s.cell} haptic="select" onPress={() => setSelected(cell.dateStr)}>
+                <PressScale
+                  key={ci}
+                  style={s.cell}
+                  haptic="select"
+                  onPress={() => setSelected(cell.dateStr)}
+                  accessibilityRole="button"
+                  accessibilityLabel={a11y}
+                  accessibilityState={{ selected: isSel }}
+                >
                   <View style={[
                     s.dayBox,
                     isUsed && s.dayUsed,
                     isSel && !isUsed && s.daySel,
                     isToday && !isSel && s.dayToday,
                   ]}>
-                    <Text style={[
-                      s.dayText,
-                      ci === 0 && s.sun,
-                      ci === 6 && s.sat,
-                      isUsed && s.dayTextUsed,
-                      isSel && !isUsed && s.dayTextSel,
-                    ]}>
+                    <Text
+                      style={[
+                        s.dayText,
+                        ci === 0 && s.sun,
+                        ci === 6 && s.sat,
+                        isUsed && s.dayTextUsed,
+                        isSel && !isUsed && s.dayTextSel,
+                      ]}
+                      maxFontSizeMultiplier={1.2}
+                    >
                       {cell.day}
                     </Text>
-                    {isBonus && <Text style={s.bonusStar}>★</Text>}
+                    {isBonus ? (
+                      <View style={s.bonusStar}>
+                        <Ionicons name="star" size={11} color={tc.accentText} />
+                      </View>
+                    ) : null}
                   </View>
-                  {isTodo && <View style={[s.todoDot, { backgroundColor: isUsed ? tc.onPrimary : tc.accent }]} />}
+                  <View style={[s.todoDot, isTodo && { backgroundColor: isUsed ? tc.primary : tc.accent }]} />
                 </PressScale>
               );
             })}
@@ -162,14 +195,14 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
       <View style={s.legendRow}>
         <View style={s.legendItem}>
           <View style={[s.legendDot, { backgroundColor: tc.primary }]} />
-          <Text style={s.legendText}>연가 {usedThisMonth > 0 ? `(${usedThisMonth}일)` : ''}</Text>
+          <Text style={s.legendText}>연가{usedThisMonth > 0 ? ` (${usedThisMonth}일)` : ''}</Text>
         </View>
         <View style={s.legendItem}>
-          <Text style={[s.legendStar, { color: tc.accent }]}>★</Text>
+          <Ionicons name="star" size={13} color={tc.accentText} />
           <Text style={s.legendText}>포상</Text>
         </View>
         <View style={s.legendItem}>
-          <View style={[s.legendDot, { backgroundColor: tc.accent, width: 7, height: 7, borderRadius: 4 }]} />
+          <View style={[s.legendDotSm, { backgroundColor: tc.accent }]} />
           <Text style={s.legendText}>일정</Text>
         </View>
       </View>
@@ -193,48 +226,55 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
   );
 }
 
-const HIT = { top: 8, bottom: 8, left: 8, right: 8 };
+const DAY = 36;
 
 const makeStyles = (tc) => StyleSheet.create({
-  wrap: { paddingVertical: 4 },
+  wrap: { paddingVertical: sp.xs },
   wrapFill: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 8 },
-  navBtn: { paddingHorizontal: 8, paddingVertical: 4 },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: tc.text },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: sp.sm },
+  navBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  titleBtn: { minHeight: 44, paddingHorizontal: sp.md, justifyContent: 'center' },
+  headerTitle: { ...ty.section, color: tc.text },
 
-  weekRow: { flexDirection: 'row', marginBottom: 4 },
-  weekday: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '700', color: tc.textSecondary },
+  weekRow: { flexDirection: 'row', marginBottom: sp.xs },
+  weekday: { flex: 1, textAlign: 'center', ...ty.caption, fontWeight: '700', color: tc.textSecondary },
   sun: { color: tc.sun },
   sat: { color: tc.sat },
 
   grid: {},
   gridFill: { flex: 1 },
   weekLine: { flexDirection: 'row' },
-  weekLineFill: { flex: 1, minHeight: 38 },
-  cell: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
-  dayBox: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  weekLineFill: { flex: 1, minHeight: 44 },
+  // 셀 자체는 44 — 보이는 원(36)보다 누르는 면적이 크다
+  cell: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: sp.xxs },
+  dayBox: { width: DAY, height: DAY, borderRadius: DAY / 2, alignItems: 'center', justifyContent: 'center' },
   dayUsed: { backgroundColor: tc.primary },
   daySel: { backgroundColor: tc.highlightBg, borderWidth: 1.5, borderColor: tc.primary },
-  dayToday: { borderWidth: 1.5, borderColor: tc.accent },
-  dayText: { fontSize: 14, color: tc.text, fontWeight: '600' },
+  dayToday: { borderWidth: 1.5, borderColor: tc.accentText },
+  dayText: { ...ty.bodySm, fontWeight: '600', color: tc.text },
   // tc.white 가 아니라 onPrimary — 다크 테마의 primary 는 밝은 민트/블루라
   // 그 위에 흰 글자를 얹으면 읽히지 않는다 (대비 검증이 보는 페어도 이쪽이다)
   dayTextUsed: { color: tc.onPrimary, fontWeight: '800' },
   dayTextSel: { color: tc.primary, fontWeight: '800' },
-  bonusStar: { position: 'absolute', top: -2, right: -1, fontSize: 11, color: tc.accent },
-  todoDot: { width: 5, height: 5, borderRadius: 3, marginTop: 2 },
+  bonusStar: { position: 'absolute', top: -3, right: -3 },
+  // 점은 항상 자리를 차지한다 — 일정 유무에 따라 행 높이가 흔들리지 않게
+  todoDot: { width: 5, height: 5, borderRadius: r.pill, marginTop: sp.xxs, backgroundColor: 'transparent' },
 
-  legendRow: { flexDirection: 'row', justifyContent: 'center', gap: 18, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: tc.border },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  legendDot: { width: 12, height: 12, borderRadius: 6 },
-  legendStar: { fontSize: 14 },
-  legendText: { fontSize: 12, color: tc.textSecondary, fontWeight: '600' },
+  legendRow: {
+    flexDirection: 'row', justifyContent: 'center', gap: sp.lg,
+    marginTop: sp.md, paddingTop: sp.md,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tc.border,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: sp.xs },
+  legendDot: { width: 12, height: 12, borderRadius: r.pill },
+  legendDotSm: { width: 7, height: 7, borderRadius: r.pill },
+  legendText: { ...ty.caption, color: tc.textSecondary },
 
-  detail: { marginTop: 12, backgroundColor: tc.background, borderRadius: 12, padding: 14 },
-  detailDate: { fontSize: 14, fontWeight: '800', color: tc.text, marginBottom: 8 },
-  detailEmpty: { fontSize: 13, color: tc.textSecondary },
-  eventRow: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 5 },
-  eventLabel: { fontSize: 14, fontWeight: '600', color: tc.text, flexShrink: 1 },
+  detail: { marginTop: sp.md, backgroundColor: tc.surfaceSunken, borderRadius: r.md, padding: sp.md },
+  detailDate: { ...ty.bodySm, fontWeight: '800', color: tc.text, marginBottom: sp.sm },
+  detailEmpty: { ...ty.label, fontWeight: '500', color: tc.textSecondary },
+  eventRow: { flexDirection: 'row', alignItems: 'center', gap: sp.sm, paddingVertical: sp.xs },
+  eventLabel: { ...ty.bodySm, fontWeight: '600', color: tc.text, flexShrink: 1 },
   eventDone: { textDecorationLine: 'line-through', color: tc.textSecondary },
-  eventMemo: { fontSize: 12.5, color: tc.textSecondary, flexShrink: 1 },
+  eventMemo: { ...ty.caption, fontWeight: '500', color: tc.textSecondary, flexShrink: 1 },
 });

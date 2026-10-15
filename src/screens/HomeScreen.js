@@ -5,14 +5,14 @@ import { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimate
 import { useThemeColors } from '../theme/ThemeContext';
 import ProfileBar from '../components/ProfileBar';
 import OnboardingScreen from '../components/OnboardingScreen';
-import StreakCard from '../components/StreakCard';
 import HomeHero from '../components/home/HomeHero';
 import HomeTopBar from '../components/home/HomeTopBar';
 import DailyCard from '../components/home/DailyCard';
-import WeekStrip from '../components/home/WeekStrip';
-import TodayTodos from '../components/home/TodayTodos';
-import NextMilestone from '../components/home/NextMilestone';
+import ThisWeek from '../components/home/ThisWeek';
+import Upcoming, { won } from '../components/home/Upcoming';
+import StreakSheet from '../components/home/StreakSheet';
 import QuickActions from '../components/home/QuickActions';
+import ShareSheet from '../components/share/ShareSheet';
 import { Screen, Section, EmptyState } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import { RANK_IMAGES } from '../constants/rankImages';
@@ -20,9 +20,13 @@ import {
   loadMilitaryInfo, loadLeaveRecords, loadLeaveTotal,
   loadLeaveBonusRecords, loadRankPromotions, listProfiles,
   loadPersonnelType, savePersonnelType, loadTodos, toggleTodo,
+  loadSavingsPlan, loadSalaryInfo,
 } from '../utils/storage';
-import { shareDischarge } from '../utils/shareUtils';
+import { shareDischarge, shareStreak } from '../utils/shareUtils';
 import { refreshScheduledNotifications } from '../utils/notifications';
+import { getNextLeave, getNextPayday, getSavingsMaturity } from '../utils/upcoming';
+import { getSalaryByRank } from '../constants/salaryGuide';
+import { useProfilesChanged } from '../state/appEvents';
 import { useDailyHero } from '../hooks/useDailyHero';
 import { useStreak } from '../state/StreakContext';
 import { haptic } from '../utils/haptics';
@@ -30,19 +34,27 @@ import { guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import {
   calcDaysLeft, calcServedDays, calcProgress,
   calcRankByEnlistDate, calcRankFromPromotions, nextPromotion,
+  formatDateKo, parseDate,
 } from '../utils/dateUtils';
 import { buildRoadmap, milestoneProgress } from '../utils/roadmapUtils';
-import { isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { BRANCHES, isOfficer, personnelLabel } from '../constants/serviceTerms';
 import { getPhase, PHASE_META } from '../constants/phases';
 import { space as sp } from '../theme/tokens';
 
 /* 단계별 히어로 색은 테마 팔레트가 소유한다 — tc.phase[stage].
    아이콘·문구·불티 밀도는 constants/phases.js 의 PHASE_META. */
 
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+/** 'YYYY-MM-DD' → '11월 2일(월)' */
+function md(dateStr) {
+  const d = parseDate(dateStr);
+  return d ? `${d.getMonth() + 1}월 ${d.getDate()}일(${WD[d.getDay()]})` : '';
+}
+
 export default function HomeScreen({ navigation }) {
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
-  const { streak, days, tier, usedFreeze } = useStreak();
+  const { streak, days, tier, usedFreeze, today } = useStreak();
 
   const [info, setInfo] = useState(null);
   const [leaveUsed, setLeaveUsed] = useState(0);
@@ -53,7 +65,11 @@ export default function HomeScreen({ navigation }) {
   const [leaveRecords, setLeaveRecords] = useState([]);
   const [bonusRecords, setBonusRecords] = useState([]);
   const [todos, setTodos] = useState([]);
+  const [savingsPlan, setSavingsPlan] = useState(null);
+  const [salaryInfo, setSalaryInfo] = useState(null);
   const [replay, setReplay] = useState(0);
+  const [streakOpen, setStreakOpen] = useState(false);
+  const [shareCard, setShareCard] = useState(null);   // { title, kind, data, onText, family } | null
 
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
@@ -61,6 +77,9 @@ export default function HomeScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => { loadData(); }, [])
   );
+  // 공유 코드로 프로필을 받거나 백업을 복원하면 탭 포커스는 그대로라 위 effect 가
+  // 다시 돌지 않는다 — 신호로 다시 읽는다.
+  useProfilesChanged(() => { loadData(); });
 
   const loadData = async () => {
     try {
@@ -94,6 +113,8 @@ export default function HomeScreen({ navigation }) {
 
     setTodos(await loadTodos());
     setPromotions(await loadRankPromotions(mi?.enlistDate));
+    setSavingsPlan(await loadSavingsPlan());
+    setSalaryInfo(await loadSalaryInfo());
   };
 
   const handleSelectType = async (type) => {
@@ -149,7 +170,7 @@ export default function HomeScreen({ navigation }) {
         <EmptyState
           icon="shield-half"
           title={profileName ? `${profileName} 님, 환영합니다!` : '환영합니다!'}
-          desc={'입대 정보를 입력하면\n전역까지 얼마나 남았는지 알 수 있어요.'}
+          desc={'입대 정보를 입력하면\n전역까지 얼마나 남았는지 알 수 있어요.\n\n가족·곰신이라면 장병에게 받은 공유 코드로\n바로 추가할 수도 있어요 (위쪽 프로필 \'추가\').'}
           action={{
             label: '입대 정보 입력하기',
             icon: 'create-outline',
@@ -160,7 +181,7 @@ export default function HomeScreen({ navigation }) {
     );
   }
 
-  const servedDays = calcServedDays(info.enlistDate);
+  const servedDays = calcServedDays(info.enlistDate, info.dischargeDate);
   const officer = isOfficer(info.personnelType);
   const rank = officer
     ? (info.officerRank ?? personnelLabel(info.personnelType))
@@ -170,21 +191,127 @@ export default function HomeScreen({ navigation }) {
   const meta = PHASE_META[phase];
   const promo = officer ? null : nextPromotion(promotions);
   const crest = RANK_IMAGES[rank];
+  const branchLabel = BRANCHES.find((b) => b.key === info.branch)?.label ?? '';
 
   const roadmap = buildRoadmap(info, promotions);
   const nextMs = roadmap.find((mi) => !mi.done) ?? null;
-  /* 카드의 바는 '다음 마일스톤까지의 구간'이다. 예전엔 servedDays/(servedDays+daysLeft),
+  /* 행의 링은 '다음 마일스톤까지의 구간'이다. 예전엔 servedDays/(servedDays+daysLeft),
      즉 전체 복무 진행률이라 마일스톤이 바뀌어도 리셋되지 않았다. */
   const msProgress = nextMs ? milestoneProgress(roadmap, nextMs.key) : 0;
   /* 히어로 배경 광원의 세기 — 일 기준 진행률(위젯·공유와 같은 값) */
   const heroProgress = calcProgress(info.enlistDate, info.dischargeDate) / 100;
 
+  /* ── 다가오는 일정 ── */
+  const upcoming = [];
+  const nextLeave = getNextLeave(leaveRecords, today);
+  if (nextLeave?.state === 'ongoing') {
+    upcoming.push({
+      key: 'leave',
+      icon: 'airplane',
+      tone: 'primary',
+      title: `휴가 중 · ${nextLeave.dayNo}일차`,
+      subtitle: `${md(nextLeave.start)} ~ ${md(nextLeave.end)}${nextLeave.memo ? ` · ${nextLeave.memo}` : ''}`,
+      ddayLabel: nextLeave.returnDday > 0 ? `복귀 D-${nextLeave.returnDday}` : '마지막 날',
+      onPress: () => goCalendar('leave'),
+    });
+  } else if (nextLeave?.state === 'upcoming') {
+    upcoming.push({
+      key: 'leave',
+      icon: 'airplane-outline',
+      tone: 'primary',
+      title: '다음 휴가',
+      subtitle: `${md(nextLeave.start)}${nextLeave.days > 1 ? ` ~ ${md(nextLeave.end)}` : ''} · ${nextLeave.days}일${nextLeave.memo ? ` · ${nextLeave.memo}` : ''}`,
+      dday: nextLeave.dday,
+      onPress: () => goCalendar('leave'),
+    });
+  } else if (daysLeft > 0) {
+    upcoming.push({
+      key: 'leave',
+      icon: 'airplane-outline',
+      tone: 'neutral',
+      title: '다음 휴가',
+      subtitle: '계획한 휴가를 기록하면 출발까지 남은 날을 세어 드려요',
+      ddayLabel: '기록',
+      ddayMuted: true,
+      onPress: () => goCalendar('leave'),
+    });
+  }
+
+  // 월급날 — 병 봉급(매월 10일)만. 간부 지급일·호봉 반영은 확실하지 않아 넣지 않는다.
+  if (!officer && daysLeft > 0) {
+    const pay = getNextPayday(today);
+    const amount = salaryInfo?.monthlyAmount || getSalaryByRank(rank);
+    upcoming.push({
+      key: 'payday',
+      icon: 'cash-outline',
+      tone: 'success',
+      title: '월급날',
+      subtitle: `${md(pay.date)} · 예상 ${won(amount)}\n${pay.shifted ? '10일이 주말이라 앞당겨 계산 · ' : ''}공휴일은 반영하지 않아요`,
+      dday: pay.dday,
+      onPress: () => navigation.navigate('salary'),
+    });
+  }
+
+  if (nextMs) {
+    upcoming.push({
+      key: 'milestone',
+      icon: nextMs.icon ?? 'flag',
+      tone: 'accent',
+      title: nextMs.label,
+      subtitle: `${formatDateKo(nextMs.date)} · 이 구간 ${Math.round(msProgress * 100)}%`,
+      dday: Math.max(0, nextMs.dday),
+      progress: msProgress,
+      onPress: () => navigation.navigate('roadmap'),
+    });
+  }
+
+  const maturity = daysLeft > 0 ? getSavingsMaturity(savingsPlan, info.dischargeDate, today) : null;
+  if (maturity) {
+    upcoming.push({
+      key: 'savings',
+      icon: 'calculator-outline',
+      tone: 'success',
+      title: '적금 만기 (전역 시)',
+      subtitle: `예상 수령 ${won(maturity.total)} · 원금 ${won(maturity.principal)}`,
+      dday: maturity.dday,
+      onPress: () => navigation.navigate('savings'),
+    });
+  }
+
+  /* 바로가기 — 탭바와 겹치는 항목(휴가 기록·급여)은 뺐다. 탭 한 번이면 가는 곳을
+     홈에 또 두면 버튼만 늘고 발견성은 늘지 않는다. */
   const quickActions = [
-    { key: 'leave', icon: 'airplane-outline', label: '휴가 기록', tone: 'primary', onPress: () => goCalendar('leave') },
-    { key: 'salary', icon: 'wallet-outline', label: '급여 계산', tone: 'accent', onPress: () => navigation.navigate('salary') },
+    { key: 'family', icon: 'people-outline', label: '가족·곰신 공유', tone: 'primary', onPress: () => navigation.navigate('shareProfile') },
     { key: 'savings', icon: 'calculator-outline', label: '장병내일적금', tone: 'success', onPress: () => navigation.navigate('savings') },
+    { key: 'roadmap', icon: 'map-outline', label: '전역 로드맵', tone: 'accent', onPress: () => navigation.navigate('roadmap') },
     { key: 'benefits', icon: 'gift-outline', label: '군인 혜택', tone: 'neutral', onPress: () => navigation.navigate('benefits') },
   ];
+
+  const openDdayShare = () => setShareCard({
+    title: '전역일 자랑하기',
+    kind: 'dday',
+    data: {
+      name: profileName,
+      branchLabel,
+      rank,
+      daysLeft,
+      progress: calcProgress(info.enlistDate, info.dischargeDate),
+      dischargeDate: info.dischargeDate,
+    },
+    onText: () => shareDischarge(info, rank, profileName),
+    family: true,
+  });
+
+  const openStreakShare = () => {
+    setStreakOpen(false);
+    setShareCard({
+      title: '스트릭 자랑하기',
+      kind: 'streak',
+      data: { name: profileName, branchLabel, rank, daysLeft, streak },
+      onText: () => shareStreak(streak, info, profileName),
+      family: false,
+    });
+  };
 
   return (
     <>
@@ -194,6 +321,9 @@ export default function HomeScreen({ navigation }) {
         그 위에 얹으면 D-Day 가 반드시 작아지기 때문이다.
         그래서 캘린더를 캘린더 탭에 내주고, 대신 "첫 화면 = 히어로" 계약을 지킨다.
         스크롤은 더 보고 싶은 사람만 쓰는 깊이다.
+
+        v1.3: 히어로 아래 6섹션 → 4섹션. 스트릭 카드는 배지 → 시트로,
+        '이번 주'와 '오늘 할 일'은 한 카드로, '다음 마일스톤'은 '다가오는 일정'으로.
       */}
       <Screen
         scroll
@@ -221,15 +351,32 @@ export default function HomeScreen({ navigation }) {
           streak={{ count: streak.current, tier }}
           replayKey={replay}
           onTapDday={() => { haptic.medium(); setReplay((x) => x + 1); }}
-          onShare={() => shareDischarge(info, rank, profileName)}
+          onShare={openDdayShare}
           onReloadProfiles={loadData}
-          onPressStreak={() => {}}
+          onPressStreak={() => setStreakOpen(true)}
           onPressPromo={() => navigation.navigate('roadmap')}
           onPressLeave={() => goCalendar('leave')}
         />
 
         <View style={s.body}>
           <Section index={0}>
+            <Upcoming items={upcoming} />
+          </Section>
+
+          <Section index={1}>
+            <ThisWeek
+              today={today}
+              records={leaveRecords}
+              bonusRecords={bonusRecords}
+              todos={todos}
+              attendance={days}
+              onToggle={handleToggleTodo}
+              onPressAll={() => goCalendar('todo')}
+              onPressDay={() => goCalendar('month')}
+            />
+          </Section>
+
+          <Section index={2}>
             <DailyCard
               message={daily.message}
               subline={daily.subline}
@@ -237,44 +384,32 @@ export default function HomeScreen({ navigation }) {
             />
           </Section>
 
-          <Section index={1}>
-            <WeekStrip
-              records={leaveRecords}
-              bonusRecords={bonusRecords}
-              todos={todos}
-              attendance={days}
-              onPress={() => goCalendar('leave')}
-            />
-          </Section>
-
-          <Section index={2}>
-            <TodayTodos
-              todos={todos}
-              onToggle={handleToggleTodo}
-              onPressAll={() => goCalendar('todo')}
-            />
-          </Section>
-
-          <Section index={3}>
-            <NextMilestone
-              milestone={nextMs}
-              progress={msProgress}
-              onPress={() => navigation.navigate('roadmap')}
-            />
-          </Section>
-
-          <Section index={4}>
-            <StreakCard streak={streak} days={days} tier={tier} usedFreeze={usedFreeze} />
-          </Section>
-
           {/* 본문 인라인 배너(AD_UNITS.HOME_TOP)는 걷어냈다 — 홈 한 화면에 배너가
               둘이면 콘텐츠보다 광고가 먼저 읽힌다. 홈의 광고는 푸터 하나뿐이다. */}
-          <Section index={5} gap={0}>
+          <Section index={3} gap={0}>
             <QuickActions items={quickActions} />
           </Section>
         </View>
       </Screen>
 
+      <StreakSheet
+        visible={streakOpen}
+        onClose={() => setStreakOpen(false)}
+        streak={streak}
+        days={days}
+        tier={tier}
+        usedFreeze={usedFreeze}
+        onShare={openStreakShare}
+      />
+
+      <ShareSheet
+        visible={!!shareCard}
+        onClose={() => setShareCard(null)}
+        title={shareCard?.title}
+        card={shareCard}
+        onText={shareCard?.onText}
+        onFamily={shareCard?.family ? () => navigation.navigate('shareProfile') : undefined}
+      />
     </>
   );
 }

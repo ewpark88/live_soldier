@@ -17,7 +17,7 @@ const BRANCH_LABEL = { army: '육군', navy: '해군', airforce: '공군', marin
 export function buildShareMessage(info, rank, name) {
   const dleft = calcDaysLeft(info.dischargeDate);
   const progress = calcProgress(info.enlistDate, info.dischargeDate);
-  const served = calcServedDays(info.enlistDate);
+  const served = calcServedDays(info.enlistDate, info.dischargeDate);
   const who = name ? `${name} · ` : '';
   const branch = BRANCH_LABEL[info.branch] ?? '';
   const ddayText = dleft > 0 ? `전역까지 D-${dleft}` : dleft === 0 ? '오늘 전역! 🎉' : '전역 완료! 🎉';
@@ -47,7 +47,7 @@ export async function shareDischarge(info, rank, name) {
  */
 export function buildMilestoneMessage(info, milestone, rank, name) {
   const dleft = calcDaysLeft(info.dischargeDate);
-  const served = calcServedDays(info.enlistDate);
+  const served = calcServedDays(info.enlistDate, info.dischargeDate);
   const who = name ? `${name} · ` : '';
   const branch = BRANCH_LABEL[info.branch] ?? '';
   const ddayText = dleft > 0 ? `전역까지 D-${dleft}` : '전역 완료! 🎉';
@@ -89,4 +89,21 @@ export async function shareStreak(streak, info, name) {
   } catch (e) {
     // 취소/불가 — 조용히 무시
   }
+}
+
+/**
+ * 가족·곰신에게 보내는 공유 코드 메시지.
+ * 받는 쪽은 이 메시지를 **통째로** 붙여넣어도 된다 (shareCode.findShareCode 가 코드를 찾는다).
+ */
+export function buildFamilyShareMessage(name, info, code) {
+  const who = name ? `${name} 님의` : '제';
+  const dleft = info?.dischargeDate ? calcDaysLeft(info.dischargeDate) : null;
+  const dday = dleft != null && dleft > 0 ? ` (D-${dleft})` : '';
+  return (
+    `🪖 ${who} 전역일을 같이 세어요!\n` +
+    `${formatDateKo(info.dischargeDate)} 전역${dday}\n\n` +
+    `① '전역까지' 앱 설치\n${STORE_URL}\n` +
+    `② 프로필 '추가' → '공유 코드로 추가'에 이 메시지를 붙여넣기\n\n` +
+    `${code}`
+  );
 }

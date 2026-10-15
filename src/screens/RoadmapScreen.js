@@ -101,7 +101,7 @@ export default function RoadmapScreen({ navigation }) {
           <HeroCard>
             <View style={s.nextRow}>
               <View style={s.nextIcon}>
-                <Ionicons name={next.icon} size={22} color={tc.accentLight} />
+                <Ionicons name={next.icon} size={22} color={tc.phase.normal.accent} />
               </View>
 
               <View style={{ flex: 1 }}>
@@ -113,7 +113,7 @@ export default function RoadmapScreen({ navigation }) {
                 <Txt role="caption" tone="heroMuted">D-</Txt>
                 <AnimatedNumber
                   value={next.dday}
-                  style={[ty.statValue, { color: tc.accentLight }]}
+                  style={[ty.statValue, { color: tc.phase.normal.accent }]}
                 />
               </View>
             </View>

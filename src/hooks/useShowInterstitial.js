@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { showInterstitial, preloadInterstitial } from '../utils/adManager';
+import { showInterstitial, preloadInterstitial, setInterstitialArmed } from '../utils/adManager';
 
 /**
  * 전면광고 훅.
@@ -18,7 +18,12 @@ import { showInterstitial, preloadInterstitial } from '../utils/adManager';
 export default function useShowInterstitial(armed = false) {
   const inFlight = useRef(false);
 
-  useEffect(() => { if (armed) preloadInterstitial(); }, [armed]);
+  useEffect(() => {
+    if (!armed) return undefined;
+    setInterstitialArmed(true);
+    preloadInterstitial();
+    return () => setInterstitialArmed(false);
+  }, [armed]);
 
   const show = useCallback(async () => {
     if (inFlight.current) return false;   // 중복 호출 방지

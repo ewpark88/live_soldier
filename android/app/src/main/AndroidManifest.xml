@@ -31,6 +31,15 @@
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
+      <!-- 공유 코드 딥링크 (v1.3) — QR 에 담긴 jeonryeokkami://add?c=JY1-… 를 폰 카메라가
+           열면 앱이 뜨고 '공유 코드로 추가' 시트가 열린다. app.json 의 scheme 과 같은 값.
+           bare 워크플로라 prebuild 가 넣어주지 않는다 — 여기서 직접 관리한다. -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="jeonryeokkami" android:host="add"/>
+      </intent-filter>
     </activity>
   </application>
 </manifest>

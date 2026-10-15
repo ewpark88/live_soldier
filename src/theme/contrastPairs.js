@@ -53,6 +53,18 @@ export const CONTRAST_PAIRS = [
   // 솔리드 위 글자
   { fg: 'onDanger', bg: 'danger', min: 4.5, label: 'Button danger' },
   { fg: 'primary', bg: 'card', min: 3.0, label: 'primary 아이콘' },
+
+  // v1.3 — 일반 히어로(로드맵·휴가·전역 정보) 위의 강조색. 예전엔 accentLight 를
+  // 썼는데 이 표에 없어서, 라이트 히어로 위에서 묻혀도 검사가 통과했다.
+  { fg: 'phase.normal.accent', bg: 'heroFrom', min: 4.5, label: '히어로 강조 (로드맵 D-N · 상단)' },
+  { fg: 'phase.normal.accent', bg: 'heroTo', min: 4.5, label: '히어로 강조 (로드맵 D-N · 하단)' },
+  { fg: 'heroTextMuted', bg: 'heroFrom', min: 3.0, label: '히어로 보조 텍스트 (상단)' },
+
+  // v1.3 — 체크박스 완료(success 바탕 위 체크 아이콘), 세그먼트 컨트롤 선택 칸
+  { fg: 'onPrimary', bg: 'success', min: 3.0, label: '체크박스 완료 아이콘' },
+  { fg: 'text', bg: 'surfaceSunken', min: 7.0, label: '세그먼트·입력칸 글자' },
+  // 입력칸 placeholder 는 textSecondary 를 쓴다 ('Chip neutral / 가라앉은 표면' 페어가 검사).
+  // textLight 는 라이트 테마 6종에서 2.7~2.95:1 이라 v1.3 에서 바꿨다.
 ];
 
 /**

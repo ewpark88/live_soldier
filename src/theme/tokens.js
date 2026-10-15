@@ -43,7 +43,8 @@ export const type = {
   hero: { fontSize: 40, lineHeight: 46, fontWeight: '800', letterSpacing: -0.8, includeFontPadding: false },
   title: { fontSize: 26, lineHeight: 34, fontWeight: '800', letterSpacing: -0.4 },
   subtitle: { fontSize: 20, lineHeight: 28, fontWeight: '700', letterSpacing: -0.3 },
-  section: { fontSize: 17, lineHeight: 24, fontWeight: '800', letterSpacing: -0.2 },
+  // 섹션 제목은 700 — 페이지 제목(800)과 굵기로도 위계를 나눈다
+  section: { fontSize: 17, lineHeight: 24, fontWeight: '700', letterSpacing: -0.2 },
   bodyLg: { fontSize: 16, lineHeight: 24, fontWeight: '500' },
   body: { fontSize: 15, lineHeight: 22, fontWeight: '500' },
   bodySm: { fontSize: 14, lineHeight: 20, fontWeight: '500' },

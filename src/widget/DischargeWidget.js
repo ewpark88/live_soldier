@@ -17,7 +17,7 @@ const FALLBACK = {
 };
 
 export function DischargeWidget(props = {}) {
-  const { empty, name, ddayText, progress = 0, rank, dischargeText } = props;
+  const { empty, name, ddayText, progress = 0, rank, dischargeText, leaveText } = props;
   const t = { ...FALLBACK, ...(props.theme || {}) };
 
   const rootStyle = {
@@ -74,7 +74,9 @@ export function DischargeWidget(props = {}) {
         style={{ fontSize: 38, fontWeight: 'bold', color: t.accent, marginTop: 2 }}
       />
 
-      {/* 하단: 진행률 바 + 전역일 */}
+      {/* 하단: 진행률 바 + 전역일
+          위젯 렌더러의 width 는 숫자·'match_parent'·'wrap_content' 만 받는다.
+          예전의 width:'62%' 는 무시되어 바가 비어 보였다 — flex 두 칸으로 나눈다. */}
       <FlexWidget
         style={{
           width: 'match_parent',
@@ -83,23 +85,24 @@ export function DischargeWidget(props = {}) {
           borderRadius: 3,
           marginTop: 4,
           flexDirection: 'row',
-          alignItems: 'center',
         }}
       >
-        <FlexWidget
-          style={{
-            width: `${pct}%`,
-            height: 6,
-            backgroundColor: t.accent,
-            borderRadius: 3,
-          }}
-        />
+        {pct > 0 ? (
+          <FlexWidget style={{ flex: pct, height: 6, backgroundColor: t.accent, borderRadius: 3 }} />
+        ) : null}
+        {pct < 100 ? <FlexWidget style={{ flex: 100 - pct, height: 6 }} /> : null}
       </FlexWidget>
 
       <TextWidget
         text={`복무 ${pct}% · ${dischargeText || ''}`}
         style={{ fontSize: 11, color: t.muted, marginTop: 6 }}
       />
+      {leaveText ? (
+        <TextWidget
+          text={leaveText}
+          style={{ fontSize: 11, color: t.accent, fontWeight: 'bold', marginTop: 2 }}
+        />
+      ) : null}
     </FlexWidget>
   );
 }

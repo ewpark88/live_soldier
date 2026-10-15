@@ -14,7 +14,7 @@ import CircularGauge from './CircularGauge';
 import { calcLiveProgress, parseDate } from '../utils/dateUtils';
 import { useMotion } from '../hooks/useMotion';
 import { useThemeColors } from '../theme/ThemeContext';
-import { space as sp } from '../theme/tokens';
+import { radius as r, space as sp, type as ty, tabular } from '../theme/tokens';
 
 /**
  * 실시간 복무 진행률 게이지 — 이 앱의 간판.
@@ -75,7 +75,8 @@ export default function LiveServiceGauge({
 
   // 색 기본값은 테마가 준다. 예전엔 여기에 hex 가 박혀 있어서 테마를 바꿔도
   // 게이지만 옛 골드로 남았다.
-  const cFill = fillColor ?? tc.accentLight;
+  // accentLight 는 라이트 히어로(밝은 표면) 위에서 대비가 무너진다 — heroText 계열로
+  const cFill = fillColor ?? tc.heroText;
   const cTrack = trackColor ?? tc.heroTrack;
   const cText = textColor ?? tc.heroText;
   const cSub = subColor ?? tc.heroTextMuted;
@@ -134,7 +135,7 @@ export default function LiveServiceGauge({
         {children}
 
         <View style={s.pctRow}>
-          <Text style={[s.pct, { color: cText }]} numberOfLines={1}>
+          <Text style={[s.pct, { color: cText }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>
             {intPart}
             <Text style={[s.pctDec, { color: cSub }]}>.{decPart}</Text>
             <Text style={[s.pctUnit, { color: cSub }]}>%</Text>
@@ -144,7 +145,7 @@ export default function LiveServiceGauge({
 
       <View style={s.footRow}>
         <Animated.View style={[s.dot, { backgroundColor: cFill }, blinkStyle]} />
-        <Text style={[s.sub, { color: cSub }]} numberOfLines={1}>
+        <Text style={[s.sub, { color: cSub }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
           {done
             ? '전역! 복무를 마쳤습니다'
             : `복무 ${clock.days.toLocaleString()}일  ${clock.hms} 흐르는 중`}
@@ -157,16 +158,10 @@ export default function LiveServiceGauge({
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
 
-  pctRow: { marginTop: 2 },
-  pct: {
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: '900',
-    letterSpacing: 0.2,
-    fontVariant: ['tabular-nums'],
-  },
-  pctDec: { fontSize: 12, fontWeight: '800' },
-  pctUnit: { fontSize: 11, fontWeight: '700' },
+  pctRow: { marginTop: sp.xxs },
+  pct: { ...ty.section, ...tabular, fontWeight: '800', letterSpacing: 0.2 },
+  pctDec: { ...ty.caption, fontWeight: '800' },
+  pctUnit: { ...ty.micro, fontWeight: '700' },
 
   footRow: {
     flexDirection: 'row',
@@ -174,11 +169,6 @@ const styles = StyleSheet.create({
     gap: sp.xs,
     marginTop: sp.sm,
   },
-  dot: { width: 7, height: 7, borderRadius: 3.5 },
-  sub: {
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
+  dot: { width: 7, height: 7, borderRadius: r.pill },
+  sub: { ...ty.caption, ...tabular, fontWeight: '700' },
 });

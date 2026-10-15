@@ -11,7 +11,8 @@ import PressScale from './PressScale';
  * 선택 상태는 "채운다" — 예전의 15% 알파 틴트는 싸구려로 읽힌다.
  */
 const SIZES = {
-  sm: { height: 28, padH: sp.sm, text: ty.micro, icon: 13 },
+  // sm 은 28 이었다 — 버튼으로 쓰이는 곳(기본휴가 수정·알림 시각)에서 너무 작았다
+  sm: { height: 32, padH: sp.md, text: ty.label, icon: 14 },
   md: { height: 36, padH: sp.md, text: ty.label, icon: 15 },
 };
 
@@ -22,6 +23,7 @@ export default function Chip({
   onPress,
   size = 'md',
   tone = 'neutral', // 'neutral' | 'primary' | 'accent' | 'danger' | 'success'
+  onHero = false,   // 히어로 위 — heroSheen 바탕 + heroText 글자 (라이트 히어로는 밝다)
   style,
   textStyle,
   ...rest
@@ -45,13 +47,13 @@ export default function Chip({
     success: tc.success,
   };
 
-  const bg = selected ? tc.primary : TONE_BG[tone];
-  const fg = selected ? tc.onPrimary : TONE_FG[tone];
+  const bg = selected ? tc.primary : onHero ? tc.heroSheen : TONE_BG[tone];
+  const fg = selected ? tc.onPrimary : onHero ? tc.heroText : TONE_FG[tone];
 
   const body = (
     <>
       {icon ? <Ionicons name={icon} size={s.icon} color={fg} /> : null}
-      <Text style={[s.text, { color: fg }, textStyle]} numberOfLines={1}>
+      <Text style={[s.text, { color: fg }, textStyle]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
         {label}
       </Text>
     </>

@@ -161,11 +161,17 @@ export function calcLiveProgress(enlistDate, dischargeDate, now = new Date()) {
 
 /**
  * 복무한 날수
+ *
+ * dischargeDate 를 넘기면 그 날을 상한으로 둔다. 상한이 없으면 전역 뒤에도
+ * 계속 늘어나서 547일 복무자가 "복무 600일째" 로 공유됐다.
  */
-export function calcServedDays(enlistDate) {
+export function calcServedDays(enlistDate, dischargeDate) {
   const start = parseDate(enlistDate);
   if (!start) return 0;
-  const diff = startOfToday() - start;
+  const end = parseDate(dischargeDate);
+  const today = startOfToday();
+  const until = end && end < today ? end : today;
+  const diff = until - start;
   if (diff < 0) return 0;
   return Math.round(diff / 86400000);
 }
@@ -377,9 +383,14 @@ export const PHASE_MESSAGES = {
  * 춤췄다. 이제 날짜에 고정된다: 같은 날엔 몇 번을 불러도 같고, 자정에 정확히
  * 한 칸 넘어간다. 인자를 안 넘기면 오늘 기준이라 기존 호출부는 그대로 둬도 된다.
  */
-export function getMessageForPhase(phase, dateStr = todayStr()) {
+export function getMessageForPhase(phase, dateStr = todayStr(), offset = 0) {
   const pool = PHASE_MESSAGES[phase] ?? PHASE_MESSAGES.normal;
-  return pickDaily(pool, dateStr, `msg:${phase}`) ?? pool[0];
+  const base = pickDaily(pool, dateStr, `msg:${phase}`) ?? pool[0];
+  if (!offset) return base;
+  // '다른 메시지 보기' — 오늘의 메시지에서 offset 칸 이동 (풀을 한 바퀴 돌면 원위치)
+  const i = pool.indexOf(base);
+  const n = pool.length;
+  return pool[(((i + offset) % n) + n) % n];
 }
 
 /** 단계 무관 응원 메시지 (fallback) */
@@ -396,6 +407,9 @@ export function calcServedMonths(enlistDate) {
   const now = startOfToday();
   let months = (now.getFullYear() - start.getFullYear()) * 12;
   months += now.getMonth() - start.getMonth();
-  if (now.getDate() < start.getDate()) months--;
+  // 해당일이 없는 달(12-31 입대 → 2월)은 말일이 해당일이다 — calcPromotionDate 와
+  // 같은 클램프 규칙. 안 그러면 2/28 에 진급일은 일병인데 개월 수는 1 이 나온다.
+  const dueDay = Math.min(start.getDate(), daysInMonth(now.getFullYear(), now.getMonth()));
+  if (now.getDate() < dueDay) months--;
   return Math.max(0, months);
 }

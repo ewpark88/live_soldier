@@ -85,6 +85,21 @@ let retry = 0;
 let showGuard = null;
 let loadedAt = 0;
 
+/* ─── 무장(armed) 상태 ─────────────────────────────────────────────────
+ * '저장 폼이 열려 있다'는 신호. useShowInterstitial(armed) 가 올리고 내린다.
+ * 명시적 프리로드는 폼을 열 때 훅이 부른다. 여기서 막는 건 **내부 자동 재로드**다 —
+ * 만료·미로드 상태에서 show 를 시도했을 때, 로드 실패 재시도 타이머, 표시 안전장치.
+ * 예전엔 이 경로들이 폼이 닫힌 뒤(저장 직후)나 몇 분 뒤 아무 화면에서나 로드해서
+ * '보이지 않는 광고는 요청하지 않는다' 규칙을 깨고 노출률을 깎았다. */
+let armedCount = 0;
+export function setInterstitialArmed(on) {
+  armedCount = Math.max(0, armedCount + (on ? 1 : -1));
+}
+function _reloadIfArmed() {
+  if (armedCount > 0) preloadInterstitial();
+  else log('폼이 닫혀 있어 재로드 생략');
+}
+
 /* ─── SDK 초기화 신호 ───────────────────────────────────────────────────
  * App.js 가 MobileAds().initialize() 를 끝내면 markAdsReady() 를 부른다.
  * 배너는 그 전엔 요청하지 않는다 — 초기화 전에 나간 첫 요청은 미충전이 잦다.
@@ -135,9 +150,10 @@ function _init() {
     isLoaded = false; isLoading = false; isShowing = false;
     log('로드 실패:', error && error.message);
     // 한 번 실패하면 영영 멈추던 문제 — 간격을 늘려가며 재시도
+    // 재시도 시점에 폼이 닫혀 있으면 로드하지 않는다 (다음에 폼을 열 때 다시 시작)
     if (retry < MAX_RETRY) {
       retry += 1;
-      setTimeout(preloadInterstitial, 30000 * retry);
+      setTimeout(_reloadIfArmed, 30000 * retry);
     }
   });
 
@@ -186,13 +202,13 @@ export async function showInterstitial() {
     // 만료된 광고는 show() 해도 안 뜬다 → 폐기하고 이번엔 건너뛴다
     log('만료된 광고라 건너뜀');
     isLoaded = false;
-    preloadInterstitial();
+    _reloadIfArmed();
     return false;
   }
   if (!isLoaded) {
     // 아직 준비 안 됨 → 한도를 쓰지 않고 건너뛴다
     log('미로드 상태라 건너뜀');
-    preloadInterstitial();
+    _reloadIfArmed();
     return false;
   }
   if (!(await canShowInterstitial())) {
@@ -210,15 +226,18 @@ export async function showInterstitial() {
         log('CLOSED 미수신 — 상태 복구');
         isShowing = false;
         isLoaded = false;
-        preloadInterstitial();
+        _reloadIfArmed();
       }
     }, 5 * 60 * 1000);
-    interstitial.show();
+    // SDK 15 의 show() 는 Promise 를 돌려준다. await 하지 않으면 거절이 처리되지
+    // 않은 채 묻히고, isShowing 이 5분 안전장치가 풀릴 때까지 true 로 굳는다.
+    await interstitial.show();
     return true;
   } catch (e) {
+    if (showGuard) { clearTimeout(showGuard); showGuard = null; }
     isShowing = false; isLoaded = false;
     log('show() 예외:', e && e.message);
-    preloadInterstitial();
+    _reloadIfArmed();
     return false;
   }
 }

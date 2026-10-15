@@ -75,6 +75,9 @@ export default function TabNavigator() {
             includeFontPadding: false,
           },
           tabBarIconStyle: { marginTop: 2 },
+          // 탭바 높이는 고정(60)이다. 시스템 글꼴을 최대로 키우면 라벨이 상자를 넘어
+          // 잘렸다 — 라벨은 고정 크기로 두고 아이콘이 같은 뜻을 전한다.
+          tabBarAllowFontScaling: false,
           // 예전 paddingVertical:4 가 상자 밖으로 넘치던 주범이었다
           tabBarItemStyle: { paddingVertical: 0 },
           headerShown: false,

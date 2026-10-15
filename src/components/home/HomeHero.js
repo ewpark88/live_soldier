@@ -139,7 +139,8 @@ export default function HomeHero({
 
       {meta.text ? (
         <Animated.View entering={m.enter(FadeIn, 0, motion.duration.slow)}>
-          <Chip label={meta.text} icon={meta.icon} tone="accent" style={s.milestone} />
+          {/* tone="accent" 는 라이트 히어로 위에서 accentSoft 바탕이 히어로에 묻혔다 — onHero */}
+          <Chip label={meta.text} icon={meta.icon} onHero style={s.milestone} />
         </Animated.View>
       ) : null}
 
@@ -190,11 +191,12 @@ export default function HomeHero({
         <PressScale
           onPress={onShare}
           haptic="light"
-          style={s.shareBtn}
-          accessibilityLabel="전역일 공유"
+          style={[s.shareBtn, { borderColor: tc.heroBorder }]}
+          accessibilityRole="button"
+          accessibilityLabel="전역일 자랑하기 — 이미지·텍스트·가족 공유"
         >
           <Ionicons name="share-social" size={15} color={tc.heroText} />
-          <Txt role="micro" tone="hero">자랑하기</Txt>
+          <Txt role="label" tone="hero" maxFontSizeMultiplier={1.3}>자랑하기</Txt>
         </PressScale>
       </View>
 
@@ -256,9 +258,10 @@ const makeStyles = (tc) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: sp.xs,
-      paddingVertical: sp.xs,
-      paddingHorizontal: sp.sm,
+      minHeight: 32,
+      paddingHorizontal: sp.md,
       borderRadius: r.pill,
+      borderWidth: StyleSheet.hairlineWidth,
       backgroundColor: tc.heroSheen,
     },
 
