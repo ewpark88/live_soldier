@@ -19,7 +19,8 @@ export default function SetupRequired() {
       <EmptyState
         icon="shield-half"
         title="입대 정보가 필요해요"
-        desc={'이 기능을 사용하려면 먼저\n전역 탭에서 입대 정보를 입력해주세요.'}
+        /* '전역 탭'은 v1.0.8 에서 루트 스택 화면으로 바뀌어 더 이상 없다 */
+        desc={'이 기능을 사용하려면 먼저\n입대 정보를 입력해주세요.'}
         action={{
           label: '입대 정보 입력하러 가기',
           icon: 'create-outline',

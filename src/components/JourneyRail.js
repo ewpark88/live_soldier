@@ -53,7 +53,7 @@ export default function JourneyRail({
 
   /* 히어로 위에서는 카드 색을 쓸 수 없다 — 히어로 토큰으로 갈아탄다.
      (히어로 위 요소가 전부 이 토큰만 쓰기 때문에 테마·스킴이 알아서 따라온다) */
-  const cFill = onHero ? (fillColor ?? tc.accentLight) : tc.progressFill;
+  const cFill = onHero ? (fillColor ?? tc.phase.normal.accent) : tc.progressFill;
   const cTrack = onHero ? tc.heroTrack : tc.progressBg;
   const cNodeIdle = onHero ? tc.heroSheen : tc.card;
   const cNodeBorder = onHero ? tc.heroTrack : tc.border;

@@ -29,9 +29,10 @@ global.Date = class extends RealDate {
 
 /* ─── 목 ────────────────────────────────────────────────────────────── */
 let scheduled = [];
+let cancels = 0;
 const NotifMock = {
-  getAllScheduledNotificationsAsync: async () => [],
-  cancelAllScheduledNotificationsAsync: async () => { scheduled = []; },
+  getAllScheduledNotificationsAsync: async () => scheduled.slice(),
+  cancelAllScheduledNotificationsAsync: async () => { scheduled = []; cancels += 1; },
   scheduleNotificationAsync: async (o) => { scheduled.push({ title: o.content.title, trigger: o.trigger }); },
   setNotificationHandler: () => {},
   setNotificationChannelAsync: async () => {},
@@ -135,6 +136,51 @@ async function setup(prefs) {
   await setup({ discharge: false });
   eq(onDate(eve).length, 1, 'discharge 끔: 전야 알림은 유지');
   eq(onDate(eve)[0].trigger.date.getHours(), 21, 'discharge 끔: 21시 전야');
+
+  /* v1.3: 입대정보가 없는 프로필로 바꾸면 이전 프로필의 예약을 지운다 */
+  NOW = new RealDate(2026, 8, 20, 10, 0, 0);
+  await setup();
+  ok(scheduled.length > 0, '빈 프로필 전환: 전환 전엔 예약이 있다');
+  await S.addProfile('새 프로필');   // 추가 후 자동 전환 — 입대정보 없음
+  await N.refreshScheduledNotifications();
+  eq(scheduled.length, 0, '빈 프로필 전환: 이전 프로필 알림 전부 취소');
+  await setup();
+  await S.clearAllData();
+  await N.refreshScheduledNotifications();
+  eq(scheduled.length, 0, '전체 삭제: 예약도 비워진다');
+
+  /* v1.3: 스트릭 알림을 꺼 둬도 하루가 지나면 다시 계산한다 —
+     예전엔 서명이 같아 180일 밖 마일스톤 전야가 끝내 예약되지 않았다 */
+  NOW = new RealDate(2025, 4, 1, 10, 0, 0);
+  await setup({ streak: false });
+  const c0 = cancels;
+  await N.refreshScheduledNotifications();
+  eq(cancels, c0, '서명 게이트: 같은 날 다시 열면 재예약 안 함');
+  NOW = new RealDate(2025, 4, 2, 10, 0, 0);
+  await N.refreshScheduledNotifications();
+  eq(cancels, c0 + 1, '서명 게이트: 다음 날엔 스트릭 꺼져 있어도 재예약');
+
+  /* v1.3: 휴가 전날 저녁 */
+  NOW = new RealDate(2026, 8, 20, 10, 0, 0);
+  await setup();
+  await S.addLeaveRecord({ date: '2026-09-25', days: 3, memo: '' });
+  await N.refreshScheduledNotifications();
+  {
+    const l = onDate('2026-09-24').filter((x) => x.title.includes('휴가'));
+    eq(l.length, 1, '휴가 전날: 알림 1건');
+    eq(l[0] && l[0].trigger.date.getHours(), 21, '휴가 전날: 21시');
+  }
+  await N.saveNotifPrefs({ leave: false });
+  await N.refreshScheduledNotifications({ force: true });
+  eq(onDate('2026-09-24').filter((x) => x.title.includes('휴가')).length, 0, '휴가 알림 끔: 예약 안 함');
+
+  /* v1.3: 전역한 뒤에는 매일 '전역까지 한 걸음' 넛지를 보내지 않는다 */
+  NOW = new RealDate(2026, 9, 5, 10, 0, 0);   // 전역일(2026-09-30) 이후
+  await setup({ daily: true });
+  eq(scheduled.filter((x) => !x.trigger.date).length, 0, '전역 후: 매일 넛지 없음');
+  NOW = new RealDate(2026, 8, 20, 10, 0, 0);
+  await setup({ daily: true });
+  ok(scheduled.some((x) => !x.trigger.date), '전역 전: 매일 넛지 있음 (대조군)');
 
   console.log('\n──────────── 알림 예약 테스트 ────────────');
   if (fail === 0) { console.log(`✓ 전체 통과: ${pass}건`); process.exit(0); }

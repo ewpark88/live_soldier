@@ -1,10 +1,12 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-// PressScale 을 '쓰는' 것은 괜찮다 — 금지된 건 한 파일에서 RN Animated 와
-// react-native-reanimated 를 **동시에 import** 하는 것이다(§6).
 import PressScale from './ui/PressScale';
 import { useThemeColors } from '../theme/ThemeContext';
+import { radius as r, space as sp, type as ty } from '../theme/tokens';
+import { useMotion } from '../hooks/useMotion';
+import useToday from '../hooks/useToday';
 import { formatDate, formatDateKo, daysBetweenInclusive, parseDate } from '../utils/dateUtils';
 
 /**
@@ -37,8 +39,8 @@ export default function RangeCalendar({
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
 
-  const today = useMemo(() => new Date(), []);
-  const todayStr = formatDate(today);
+  const todayStr = useToday();
+  const today = parseDate(todayStr);
 
   // 보여줄 달: 선택된 시작일 우선, 없으면 오늘
   const initial = parseDate(startDate) ?? today;   // 문자열을 그대로 넘기면 UTC 파싱이라 달이 밀린다
@@ -99,13 +101,13 @@ export default function RangeCalendar({
     <View style={s.wrap}>
       {/* 헤더 */}
       <View style={s.header}>
-        <PressScale onPress={goPrev} haptic="select" scale={0.88} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="이전 달">
+        <PressScale onPress={goPrev} haptic="select" scale={0.88} style={s.navBtn} accessibilityRole="button" accessibilityLabel="이전 달">
           <Ionicons name="chevron-back" size={22} color={tc.primary} />
         </PressScale>
-        <PressScale onPress={goToday} haptic="select" accessibilityRole="button" accessibilityLabel="오늘로 이동">
-          <Text style={s.headerTitle}>{year}년 {month + 1}월</Text>
+        <PressScale onPress={goToday} haptic="select" style={s.titleBtn} accessibilityRole="button" accessibilityLabel={`${year}년 ${month + 1}월, 오늘로 이동`}>
+          <Text style={s.headerTitle} maxFontSizeMultiplier={1.3}>{year}년 {month + 1}월</Text>
         </PressScale>
-        <PressScale onPress={goNext} haptic="select" scale={0.88} hitSlop={HIT} style={s.navBtn} accessibilityRole="button" accessibilityLabel="다음 달">
+        <PressScale onPress={goNext} haptic="select" scale={0.88} style={s.navBtn} accessibilityRole="button" accessibilityLabel="다음 달">
           <Ionicons name="chevron-forward" size={22} color={tc.primary} />
         </PressScale>
       </View>
@@ -113,7 +115,7 @@ export default function RangeCalendar({
       {/* 요일 */}
       <View style={s.weekRow}>
         {WEEKDAYS.map((w, i) => (
-          <Text key={w} style={[s.weekday, i === 0 && s.sun, i === 6 && s.sat]}>{w}</Text>
+          <Text key={w} style={[s.weekday, i === 0 && s.sun, i === 6 && s.sat]} maxFontSizeMultiplier={1.2}>{w}</Text>
         ))}
       </View>
 
@@ -137,6 +139,10 @@ export default function RangeCalendar({
               style={s.cell}
               haptic={disabled ? null : 'select'}
               onPress={() => handleTap(dateStr)}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={`${month + 1}월 ${day}일${isToday ? ', 오늘' : ''}${isStart ? ', 시작일' : ''}${isEnd ? ', 종료일' : ''}`}
+              accessibilityState={{ selected, disabled: !!disabled }}
             >
               {showBand && (
                 <View style={[
@@ -150,7 +156,7 @@ export default function RangeCalendar({
                 selected && s.daySelected,
                 isToday && !selected && s.dayToday,
               ]}>
-                <Text style={[
+                <Text maxFontSizeMultiplier={1.2} style={[
                   s.dayText,
                   dow === 0 && s.sun,
                   dow === 6 && s.sat,
@@ -179,13 +185,9 @@ export default function RangeCalendar({
   );
 }
 
-/* 선택 결과 요약 — 변경 시 살짝 페이드 */
+/* 선택 결과 요약 — 변경 시 살짝 페이드 (useMotion 을 거친다 — 동작 줄이기면 즉시) */
 function SummaryBar({ s, start, end, effEnd, dur }) {
-  const fade = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    fade.setValue(0);
-    Animated.timing(fade, { toValue: 1, duration: 220, useNativeDriver: true }).start();
-  }, [start, end, fade]);
+  const m = useMotion();
 
   if (!start) {
     return (
@@ -195,7 +197,7 @@ function SummaryBar({ s, start, end, effEnd, dur }) {
     );
   }
   return (
-    <Animated.View style={[s.summary, { opacity: fade }]}>
+    <Animated.View key={`${start}|${end}`} entering={m.enter(FadeIn, 0, 220)} style={s.summary}>
       <Text style={s.summaryDate}>
         {end ? `${formatDateKo(start)}  ~  ${formatDateKo(effEnd)}` : formatDateKo(start)}
       </Text>
@@ -206,51 +208,55 @@ function SummaryBar({ s, start, end, effEnd, dur }) {
   );
 }
 
-const HIT = { top: 8, bottom: 8, left: 8, right: 8 };
+const DAY = 36;
 
 const makeStyles = (tc) => StyleSheet.create({
-  wrap: { paddingVertical: 4 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6, marginBottom: 10 },
-  // 화살표는 Ionicons 로 바뀌었다. 탭 영역·간격은 EventCalendar 의 navBtn 과 맞춘다.
-  navBtn: { paddingHorizontal: 12, paddingVertical: 4 },
-  headerTitle: { fontSize: 16, fontWeight: '800', color: tc.text },
+  wrap: { paddingVertical: sp.xs },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: sp.sm },
+  // EventCalendar 와 같은 탭 영역 (44)
+  navBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  titleBtn: { minHeight: 44, paddingHorizontal: sp.md, justifyContent: 'center' },
+  headerTitle: { ...ty.bodyLg, fontWeight: '800', color: tc.text },
 
-  weekRow: { flexDirection: 'row', marginBottom: 4 },
-  weekday: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '700', color: tc.textSecondary },
+  weekRow: { flexDirection: 'row', marginBottom: sp.xs },
+  weekday: { flex: 1, textAlign: 'center', ...ty.caption, fontWeight: '700', color: tc.textSecondary },
   sun: { color: tc.sun },
   sat: { color: tc.sat },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: `${100 / 7}%`, height: 42, alignItems: 'center', justifyContent: 'center' },
+  // 7칸 고정 그리드 — 정적 퍼센트라 자투리 문제(Grid 규칙)와 무관하다
+  cell: { width: `${100 / 7}%`, height: 44, alignItems: 'center', justifyContent: 'center' },
 
   /* 기간 밴드 (셀 배경) */
   band: {
     position: 'absolute',
-    top: 5, bottom: 5, left: 0, right: 0,
-    backgroundColor: `${tc.primary}22`,
+    top: (44 - DAY) / 2, bottom: (44 - DAY) / 2, left: 0, right: 0,
+    backgroundColor: tc.primarySoft,
   },
-  bandStart: { left: '18%', borderTopLeftRadius: 16, borderBottomLeftRadius: 16 },
-  bandEnd:   { right: '18%', borderTopRightRadius: 16, borderBottomRightRadius: 16 },
+  bandStart: { left: '50%' },
+  bandEnd: { right: '50%' },
 
-  dayBox: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  dayBox: { width: DAY, height: DAY, borderRadius: DAY / 2, alignItems: 'center', justifyContent: 'center' },
   daySelected: { backgroundColor: tc.primary },
-  dayToday: { borderWidth: 1.5, borderColor: tc.accent },
+  dayToday: { borderWidth: 1.5, borderColor: tc.accentText },
 
-  dayText: { fontSize: 14, color: tc.text, fontWeight: '600' },
+  dayText: { ...ty.bodySm, fontWeight: '600', color: tc.text },
   dayTextInRange: { color: tc.primary, fontWeight: '700' },
   // tc.white 가 아니라 onPrimary — 다크 테마의 primary 는 밝아서 흰 글자가 사라진다
   dayTextSelected: { color: tc.onPrimary, fontWeight: '800' },
-  dayTextToday: { color: tc.accent },
+  // tc.accent 는 라이트에서 2.2:1 — 글자에는 accentText 를 쓴다
+  dayTextToday: { color: tc.accentText, fontWeight: '800' },
   dayTextDisabled: { color: tc.textLight, opacity: 0.5 },
 
   /* 요약 */
   summary: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: tc.border,
-    minHeight: 30,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: sp.sm,
+    marginTop: sp.md, paddingTop: sp.md,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tc.border,
+    minHeight: 32,
   },
-  summaryHint: { fontSize: 12.5, color: tc.textSecondary, fontWeight: '500', textAlign: 'center' },
-  summaryDate: { fontSize: 15, fontWeight: '800', color: tc.text },
-  summaryBadge: { backgroundColor: tc.primary, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 3 },
-  summaryBadgeText: { fontSize: 13, fontWeight: '800', color: tc.onPrimary },
+  summaryHint: { ...ty.caption, fontWeight: '500', color: tc.textSecondary, textAlign: 'center' },
+  summaryDate: { ...ty.body, fontWeight: '800', color: tc.text },
+  summaryBadge: { backgroundColor: tc.primary, borderRadius: r.pill, paddingHorizontal: sp.md, paddingVertical: sp.xxs },
+  summaryBadgeText: { ...ty.label, fontWeight: '800', color: tc.onPrimary },
 });

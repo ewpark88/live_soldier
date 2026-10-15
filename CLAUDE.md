@@ -45,21 +45,29 @@ eas build --platform android --profile production
   `src/constants/colors.js` 는 하위호환 shim 이다. 팔레트 파일과
   `theme/contrastPairs.js` 는 `tokens.js` 처럼 **런타임 라이브러리 import 금지** —
   위젯 헤드리스 런타임과 맨 Node 검증 스크립트가 둘 다 이 파일을 로드한다.
-- 팔레트를 건드렸으면 **`npm run theme:check`** 가 통과해야 한다 (1,992개 대비 페어).
+- **입력·폼은 v1.3 공용 프리미티브로만** 만든다 — `TextField`(라벨·단위·에러, 48 높이),
+  `Stepper`(44 버튼), `FormSheet`(바텀시트 폼 골격), `ListGroup`(묶음 리스트 + 구분선),
+  `SegmentedControl`(같은 화면 보기 전환), `Checkbox`. 화면마다 `TextInput` 스타일을
+  복붙하지 않는다. 히어로 위 칩은 `<Chip onHero>` (tone="accent" 아님).
+  placeholder 는 `textSecondary` — `textLight` 는 가라앉은 표면 위에서 3:1 미만이다.
+- 히어로 위 강조색(D-N·레일·막대 채움)은 `tc.phase.normal.accent` — `accentLight` 금지
+  (밝은 히어로에서 묻힌다. `contrastPairs` 가 phase accent 만 검사한다).
+- 팔레트를 건드렸으면 **`npm run theme:check`** 가 통과해야 한다 (2,092개 대비 페어).
   그라데이션은 양 끝이 아니라 **모든 스톱**을 검사한다 — aurora 만 3스톱이라
   중간 색이 한 번도 검사되지 않아 D-Day 숫자 대비가 2.4:1 까지 떨어져 있었다.
   v1.2 부터는 **시간대 워시(`DAYPART_WASH`)를 합성한 뒤의** 스톱까지 검사한다.
   원본만 통과하고 밤 워시에서 무너지는 조합이 실제로 8건 있었다.
 - 네비게이션은 루트 native-stack + 4탭이다. **라우트 이름은 트리 전체에서 유일**해야
   하고, `navigate` 버블링은 위로만 간다 — 여러 곳에서 진입하는 화면은 루트 스택에 둔다.
-- `npm test` 는 6개 스위트를 돌린다. 순수 로직을 고쳤으면 반드시 돌린다.
-  - `test-calc.js` (242) 날짜·계급·로드맵·적금·스트릭·축하
-  - `test-clock.js` (29) **시계를 특정 날짜로 고정**해야만 드러나는 것
-    (윤일 임관자 호봉, DST 전환을 품은 구간) — 상대 날짜 테스트로는 못 잡는다
-  - `test-storage.js` (40) AsyncStorage 목 위에서 실제 저장소 로직
-  - `test-notifications.js` (11) expo-notifications 목 위에서 예약 로직
-  - `test-ads.js` (25) 전면광고 지연 로드·빈도 제한·만료 (노출률 회귀 방지)
-  - `test-tz.js` 위 두 날짜 스위트를 **10개 시간대**에서 반복
+- `npm test` 는 7개 스위트를 돌린다. 순수 로직을 고쳤으면 반드시 돌린다.
+  - `test-calc.js` (251) 날짜·계급·로드맵·적금·스트릭·축하
+  - `test-clock.js` (60) **시계를 특정 날짜로 고정**해야만 드러나는 것
+    (윤일 임관자 호봉, DST 전환, 월말 입대자 복무개월, 다음 휴가·월급날)
+  - `test-storage.js` (84) AsyncStorage 목 위에서 실제 저장소 로직 (공유 프로필·백업 복원 포함)
+  - `test-notifications.js` (21) expo-notifications 목 위에서 예약 로직
+  - `test-ads.js` (28) 전면광고 지연 로드·빈도 제한·만료·무장 상태 (노출률 회귀 방지)
+  - `test-share.js` (53) 공유 코드 왕복·변조 검출, 백업 파일 검증
+  - `test-tz.js` 계산·시계 스위트를 **10개 시간대**에서 반복
 - **테스트가 통과한다고 끝이 아니다.** 화면 파일은 계산 테스트가 로드하지 않으므로
   `npx expo export --platform android` 로 번들까지 확인한다. 실제로 문자열 파손이
   `npm test` 를 통과하고 번들에서 잡힌 적이 있다.
@@ -74,6 +82,26 @@ eas build --platform android --profile production
 - **보이지 않는 광고는 요청하지 않는다** (노출률). 배너는 포커스·포그라운드·SDK
   초기화 후에만 마운트되고, 전면광고는 저장 폼이 열렸을 때만(`useShowInterstitial(armed)`)
   로드한다. 앱 실행 시 프리로드를 되살리지 말 것.
+- 캘린더 탭만 `<AdFooter>` 를 직접 그린다 (세그먼트 3개가 배너 하나를 공유해야 해서).
+  다른 화면은 예외 없이 `<Screen ad>`.
+- 전면광고의 **내부 자동 재로드**(만료·미로드·실패 재시도)는 `useShowInterstitial(armed)`
+  로 폼이 열려 있을 때만 돈다 (`adManager.setInterstitialArmed`). 저장 직후엔 폼이 이미
+  닫혀 있으므로 그 자리에서 다시 받지 않는다.
+
+## 서버 없는 공유 (v1.3)
+
+- 곰신·부모님 공유는 **코드 복사**다 — 계정·동기화 없음. `src/utils/shareCode.js`
+  (`JY1-` + base64url + 체크섬). 싣는 것: 이름·입대일·군별·신분·장교계급·복무개월·
+  **직접 고친** 진급일. 전역일은 싣지 않는다(받는 쪽이 계산). 휴가·일정·급여·사진도 안 싣는다.
+- 코드 형식을 바꾸면 접두사 버전(`JY2-`)을 올리고 구버전 디코더를 남긴다 — 이미 카톡에
+  뿌려진 코드가 있다. `test-share.js` 를 함께 고친다.
+- 가져오기는 `requestShareImport()` 한 경로로 모인다 (프로필 바 · QR 딥링크
+  `jeonryeokkami://add?c=` · 클립보드 감지). 딥링크 intent-filter 는 bare 라
+  `AndroidManifest.xml` 에 **손으로** 넣어 두었다 — prebuild 하지 않는다.
+- 백업은 `storage.exportAll/importAll` + `utils/backup.js`(순수 검증). 사진·알림 설정은
+  싣지 않는다. 복원 직전 상태는 `@profiles_v1.preimport` 에 남는다.
+- 프로필이 바깥에서 바뀌면(공유 가져오기·복원) `emitProfilesChanged()` — 홈은 탭
+  포커스가 그대로라 `useFocusEffect` 만으로는 다시 읽지 않는다.
 
 ## 저장 핸들러
 

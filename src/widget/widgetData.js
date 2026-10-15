@@ -2,10 +2,11 @@
  * 홈 위젯에 표시할 데이터 계산 (활성 프로필 기준).
  * AsyncStorage만 읽으므로 헤드리스(위젯 태스크) 컨텍스트에서도 동작한다.
  */
-import { listProfiles, loadRankPromotions, loadThemeSettings } from '../utils/storage';
+import { listProfiles, loadRankPromotions, loadThemeSettings, loadLeaveRecords } from '../utils/storage';
+import { getNextLeave } from '../utils/upcoming';
 import { resolvePalette } from '../theme/palettes';
 import {
-  calcDaysLeft, calcProgress, calcServedDays,
+  calcDaysLeft, calcProgress,
   calcRankByEnlistDate, calcRankFromPromotions, formatDateKo,
 } from '../utils/dateUtils';
 import { isOfficer, personnelLabel } from '../constants/serviceTerms';
@@ -65,6 +66,19 @@ export async function getWidgetData() {
 
     const ddayText = daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-DAY' : '전역';
 
+    // 다음 휴가 한 줄 — 전역 전만. 휴가 중이면 '복귀까지'가 더 궁금하다.
+    let leaveText = '';
+    if (daysLeft > 0) {
+      try {
+        const next = getNextLeave(await loadLeaveRecords());
+        if (next?.state === 'ongoing') {
+          leaveText = next.returnDday > 0 ? `휴가 ${next.dayNo}일차 · 복귀 D-${next.returnDday}` : '휴가 마지막 날';
+        } else if (next?.state === 'upcoming') {
+          leaveText = next.dday === 1 ? '내일 휴가 출발' : `다음 휴가 D-${next.dday}`;
+        }
+      } catch (e) { /* 휴가 줄은 부가 정보 — 실패해도 위젯은 그린다 */ }
+    }
+
     return {
       empty: false,
       name: active?.name ?? '',
@@ -72,6 +86,7 @@ export async function getWidgetData() {
       progress,
       rank,
       dischargeText: formatDateKo(mi.dischargeDate),
+      leaveText,
       theme,
     };
   } catch {

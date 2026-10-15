@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Card from '../components/Card';
 import SectionTitle from '../components/SectionTitle';
@@ -11,8 +11,7 @@ import {
   Chip,
   Divider,
   Txt,
-  AnimatedNumber,
-} from '../components/ui';
+  AnimatedNumber, TextField } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import { loadMilitaryInfo, loadSavingsPlan, saveSavingsPlan } from '../utils/storage';
 import { calcServedMonths } from '../utils/dateUtils';
@@ -70,10 +69,14 @@ export default function SavingsScreen({ navigation }) {
     }, [])
   );
 
+  // 사용자가 이미 손댄 값은 다시 덮어쓰지 않는다. 예전엔 입대정보가 늦게 도착해
+  // 이 effect 가 한 번 더 돌면, 방금 입력한 개월 수가 권장값으로 되돌아갔다
+  // (그 사이 대기 중이던 자동저장은 옛 값을 들고 있었다).
+  const touched = useRef(false);
   useEffect(() => {
     let alive = true;
     loadSavingsPlan().then((plan) => {
-      if (!alive) return;
+      if (!alive || touched.current) return;
       if (plan) {
         setMonthly(String(plan.monthly));
         setMonths(String(plan.months));
@@ -122,8 +125,8 @@ export default function SavingsScreen({ navigation }) {
   useEffect(() => flushSave, [flushSave]);
 
   const onlyDigits = (t) => t.replace(/[^0-9]/g, '');
-  const onMonthly = (t) => { const v = onlyDigits(t); setMonthly(v); persist(v, months); };
-  const onMonths = (t) => { const v = onlyDigits(t); setMonths(v); persist(monthly, v); };
+  const onMonthly = (t) => { touched.current = true; const v = onlyDigits(t); setMonthly(v); persist(v, months); };
+  const onMonths = (t) => { touched.current = true; const v = onlyDigits(t); setMonths(v); persist(monthly, v); };
 
   return (
     <Screen
@@ -163,15 +166,17 @@ export default function SavingsScreen({ navigation }) {
         <Card>
           <SectionTitle icon="create-outline">납입 조건</SectionTitle>
 
-          <Txt role="label" tone="secondary" style={s.formLabel}>월 납입액 (원)</Txt>
-          <TextInput
-            style={[s.input, overLimit && { borderColor: tc.danger }]}
+          <TextField
+            label="월 납입액"
             value={monthly}
             onChangeText={onMonthly}
             keyboardType="number-pad"
             placeholder="예: 550000"
-            placeholderTextColor={tc.textLight}
+            suffix="원"
             maxLength={7}
+            // 예전엔 헤어라인 빨간 테두리뿐이라 한도 초과가 잘 안 보였다
+            error={overLimit ? '월 납입 한도는 55만원이에요. (55만원으로 계산돼요)' : undefined}
+            style={s.field}
           />
           <View style={s.chipRow}>
             {[200000, 400000, 550000].map((v) => (
@@ -184,23 +189,17 @@ export default function SavingsScreen({ navigation }) {
               />
             ))}
           </View>
-          {overLimit ? (
-            <Txt role="caption" tone="danger" style={s.warn}>
-              * 2025년 기준 월 납입 한도는 55만원입니다.
-            </Txt>
-          ) : null}
 
-          <Txt role="label" tone="secondary" style={[s.formLabel, { marginTop: sp.lg }]}>
-            가입 기간 (개월)
-          </Txt>
-          <TextInput
-            style={[s.input, overMonths && { borderColor: tc.danger }]}
+          <TextField
+            label="가입 기간"
             value={months}
             onChangeText={onMonths}
             keyboardType="number-pad"
             placeholder="예: 18"
-            placeholderTextColor={tc.textLight}
+            suffix="개월"
             maxLength={2}
+            error={overMonths ? '적금 최대 가입 기간은 24개월이에요. (24개월로 계산돼요)' : undefined}
+            style={[s.field, { marginTop: sp.xl }]}
           />
           <View style={s.chipRow}>
             {[12, 18, 24].map((v) => (
@@ -213,11 +212,6 @@ export default function SavingsScreen({ navigation }) {
               />
             ))}
           </View>
-          {overMonths ? (
-            <Txt role="caption" tone="danger" style={s.warn}>
-              * 적금 최대 가입 기간은 24개월입니다. (24개월로 계산됨)
-            </Txt>
-          ) : null}
           {servedMonths > 0 ? (
             <Txt role="caption" tone="light" style={s.warn}>
               현재 복무 {servedMonths}개월째 · 적금은 최대 24개월까지 가입 가능
@@ -275,17 +269,7 @@ const makeStyles = (tc) =>
       gap: sp.xs,
       marginTop: sp.xs,
     },
-    formLabel: { marginTop: sp.md, marginBottom: sp.sm },
-    input: {
-      backgroundColor: tc.surfaceSunken,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: tc.surfaceSunkenBorder,
-      borderRadius: r.sm,
-      paddingHorizontal: sp.md,
-      paddingVertical: sp.md,
-      ...ty.bodyLg,
-      color: tc.text,
-    },
+    field: { marginTop: sp.md },
     chipRow: { flexDirection: 'row', gap: sp.sm, marginTop: sp.sm },
     warn: { marginTop: sp.sm },
   });

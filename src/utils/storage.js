@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calcDischargeDate, calcPromotionDate, formatDate } from './dateUtils';
 import { resolveLeaveDays } from '../constants/serviceTerms';
+import { buildBackup, parseBackup } from './backup';
+import { shareIdentity } from './shareCode';
 
 /**
  * 멀티 프로필 저장소
@@ -597,9 +599,22 @@ export async function loadThemeSettings() {
   }
 }
 
-export async function saveThemeSettings(patch) {
+/* 테마 설정 쓰기 직렬화 — 프로필 저장소의 _serial 과 같은 이유.
+   테마 화면에 들어가면 markThemeIntroSeen 과 unlockTheme 이 동시에 돌았고,
+   둘 다 '읽기 → 고치기 → 쓰기'라 늦게 끝난 쪽이 먼저 끝난 쪽을 지웠다
+   (NEW 배지가 되살아나거나 방금 열린 해금이 사라졌다). */
+let _themeChain = Promise.resolve();
+function _themeSerial(fn) {
+  const run = _themeChain.then(fn, fn);
+  _themeChain = run.catch(() => {});
+  return run;
+}
+
+async function _applyThemePatch(patchOrFn) {
   try {
     const cur = await loadThemeSettings();
+    const patch = typeof patchOrFn === 'function' ? patchOrFn(cur) : patchOrFn;
+    if (!patch) return cur;
     const next = { ...cur, ...patch };
     await AsyncStorage.setItem(THEME_V2_KEY, JSON.stringify(next));
     // 롤백 안전망 — 구버전이 읽는 키에도 계속 써 둔다 (2릴리스 후 제거)
@@ -610,11 +625,15 @@ export async function saveThemeSettings(patch) {
   }
 }
 
+export function saveThemeSettings(patch) {
+  return _themeSerial(() => _applyThemePatch(patch));
+}
+
 /** 해금은 단조 증가한다 — 한 번 열리면 절대 회수하지 않는다 */
-export async function unlockTheme(themeId) {
-  const cur = await loadThemeSettings();
-  if (cur.unlocked.includes(themeId)) return cur;
-  return saveThemeSettings({ unlocked: [...cur.unlocked, themeId] });
+export function unlockTheme(themeId) {
+  return _themeSerial(() => _applyThemePatch((cur) => (
+    cur.unlocked.includes(themeId) ? null : { unlocked: [...cur.unlocked, themeId] }
+  )));
 }
 
 // ─── 마일스톤 축하 이력 (프로필 범위) ─────────────────────────────────
@@ -689,4 +708,129 @@ async function _clearAllData() {
   const fresh = { activeId: null, profiles: [_newProfile('본인')] };
   fresh.activeId = fresh.profiles[0].id;
   await _saveStore(fresh);
+}
+
+// ─── 공유 코드로 받은 프로필 (곰신·부모님) ────────────────────────────
+/**
+ * 받은 입대정보와 같은 사람의 프로필 id. 없으면 null.
+ * 같은 코드를 두 번 가져오면 프로필이 둘 생기는 대신 '갱신'을 제안하기 위해 쓴다.
+ */
+export async function findProfileByShare(militaryInfo) {
+  const key = shareIdentity(militaryInfo);
+  if (!key) return null;
+  const store = await _loadStore();
+  const hit = store.profiles.find((p) => shareIdentity(p.data && p.data.militaryInfo) === key);
+  return hit ? hit.id : null;
+}
+
+function _sharedData(base, { militaryInfo, promotions }) {
+  const months = Number(militaryInfo.months);
+  const discharge = calcDischargeDate(militaryInfo.enlistDate, months);
+  return {
+    ...base,
+    personnelType: militaryInfo.personnelType,
+    militaryInfo: {
+      enlistDate: militaryInfo.enlistDate,
+      branch: militaryInfo.branch,
+      personnelType: militaryInfo.personnelType,
+      officerRank: militaryInfo.officerRank ?? null,
+      dischargeDate: discharge ? formatDate(discharge) : null,
+      months,
+    },
+    rankPromotions: promotions || null,
+    // 받은 사람은 지나간 마일스톤을 축하받을 이유가 없다 — 처음 열 때
+    // CelebrationContext 가 지난 것들을 조용히 시딩하도록 null 로 둔다.
+    celebrated: null,
+  };
+}
+
+/**
+ * 공유 코드로 받은 프로필 추가 (추가 후 자동 전환). 한도 초과면 null.
+ * @param shared decodeShareCode(...).value
+ */
+export function addSharedProfile(shared) {
+  return _serial(async () => {
+    const store = await _loadStore();
+    if (store.profiles.length >= MAX_PROFILES) return null;
+    const profile = _newProfile(shared.name || '장병', null, _sharedData(_emptyData(), shared));
+    store.profiles.push(profile);
+    store.activeId = profile.id;
+    await _saveStore(store);
+    return profile.id;
+  });
+}
+
+/** 기존 프로필의 입대정보를 받은 코드로 갱신 (휴가·일정 등 나머지는 그대로) */
+export function updateProfileFromShare(id, shared) {
+  return _serial(async () => {
+    const store = await _loadStore();
+    const i = store.profiles.findIndex((p) => p.id === id);
+    if (i < 0) return null;
+    const prev = store.profiles[i];
+    const data = _sharedData({ ..._emptyData(), ...prev.data }, shared);
+    data.celebrated = prev.data ? prev.data.celebrated ?? null : null;
+    store.profiles[i] = { ...prev, name: shared.name || prev.name, data };
+    store.activeId = id;
+    await _saveStore(store);
+    return id;
+  });
+}
+
+/** 공유 코드를 만들 재료 — 활성(또는 지정) 프로필의 이름·입대정보·직접 고친 진급일 */
+export async function loadShareSource(id) {
+  const store = await _loadStore();
+  const p = id
+    ? store.profiles.find((x) => x.id === id)
+    : store.profiles[_activeIndex(store)];
+  if (!p) return null;
+  return {
+    name: p.name,
+    militaryInfo: _withRecomputedDischarge(p.data ? p.data.militaryInfo : null),
+    promotions: p.data ? p.data.rankPromotions ?? null : null,
+  };
+}
+
+// ─── 백업 / 복원 ─────────────────────────────────────────────────────
+const PREIMPORT_KEY = '@profiles_v1.preimport';   // 복원 직전 상태 (되돌리기 안전망)
+
+/** 전체 백업 객체 (JSON 직렬화 전) */
+export async function exportAll() {
+  const [store, theme, streak, uiPrefs] = await Promise.all([
+    _loadStore(),
+    AsyncStorage.getItem(THEME_V2_KEY).then((r) => _safeParse(r, null)).catch(() => null),
+    loadStreak(),
+    AsyncStorage.getItem(PREFS_KEY).then((r) => _safeParse(r, null)).catch(() => null),
+  ]);
+  if (store && store.__degraded) {
+    throw new StorageUnavailableError('저장소를 읽을 수 없어 백업하지 못했습니다');
+  }
+  return buildBackup({ store, theme, streak, uiPrefs });
+}
+
+/**
+ * 백업 복원 — 현재 데이터를 **덮어쓴다**. 실패하면 던진다 (guardSave 로 감쌀 것).
+ * 복원 직전 상태를 PREIMPORT_KEY 에 남겨 둔다.
+ * @returns parseBackup 의 summary
+ */
+export function importAll(input) {
+  return _serial(async () => {
+    const parsed = parseBackup(input);
+    if (!parsed.ok) {
+      const err = new Error('invalid backup');
+      err.reason = parsed.reason;
+      throw err;
+    }
+    const { store, theme, streak, uiPrefs } = parsed.value;
+    try {
+      const cur = await AsyncStorage.getItem(STORE_KEY);
+      if (cur) await AsyncStorage.setItem(PREIMPORT_KEY, cur);
+    } catch (e) {
+      _warn('복원 전 스냅샷 실패', e);
+    }
+    await _saveStore(store);
+    if (theme) await _themeSerial(() => AsyncStorage.setItem(THEME_V2_KEY, JSON.stringify(theme)));
+    if (streak) await saveStreak(streak);
+    if (uiPrefs) await saveUIPrefs(uiPrefs);
+    return parsed.summary;
+  });
 }

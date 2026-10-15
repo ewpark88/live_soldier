@@ -11,6 +11,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   loadMilitaryInfo, loadRankPromotions, loadTodos, listProfiles, loadStreak,
+  loadLeaveRecords,
 } from './storage';
 import { buildRoadmap } from './roadmapUtils';
 import { parseDate, formatDate } from './dateUtils';
@@ -39,6 +40,7 @@ export const DEFAULT_NOTIF_PREFS = {
   milestone: true,
   streak: true,
   daily: false,      // 매일 알림은 명시적으로 켜야 한다
+  leave: true,       // 휴가 전날 저녁
   dailyHour: 9,
 };
 
@@ -59,15 +61,25 @@ export async function loadNotifPrefs() {
   }
 }
 
-export async function saveNotifPrefs(patch) {
-  const cur = await loadNotifPrefs();
-  const next = { ...cur, ...patch };
-  try {
+/* 설정 쓰기 직렬화 — 스위치를 빠르게 연달아 바꾸면 '읽기 → 고치기 → 쓰기'가
+   겹쳐 앞의 변경이 사라졌다. */
+let _prefsChain = Promise.resolve();
+
+/**
+ * 알림 설정 저장. **실패하면 던진다** — 예전엔 쓰기 오류를 삼키고 새 값을
+ * 돌려줘서, 저장되지 않은 스위치가 화면에서는 바뀐 것처럼 보였다.
+ */
+export function saveNotifPrefs(patch) {
+  const run = _prefsChain.then(async () => {
+    const cur = await loadNotifPrefs();
+    const next = { ...cur, ...patch };
     await AsyncStorage.setItem(PREFS_KEY, JSON.stringify(next));
     // 롤백 안전망 — 구버전이 읽는 키에도 계속 써 둔다
-    await AsyncStorage.setItem(NOTIF_KEY, next.master ? '1' : '0');
-  } catch {}
-  return next;
+    try { await AsyncStorage.setItem(NOTIF_KEY, next.master ? '1' : '0'); } catch {}
+    return next;
+  });
+  _prefsChain = run.catch(() => {});
+  return run;
 }
 
 /** FNV-1a 32bit — 시그니처 게이트용 (utils/daily.js 와 동일 알고리즘) */
@@ -136,7 +148,12 @@ export async function isNotifEnabled() {
 }
 
 async function setNotifEnabledFlag(on) {
-  await saveNotifPrefs({ master: on });
+  try {
+    await saveNotifPrefs({ master: on });
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 /** 권한 요청 → 허용 시 true */
@@ -157,7 +174,7 @@ export async function enableNotifications() {
   if (!Notifications) return false;
   const ok = await requestPermission();
   if (!ok) return false;
-  await setNotifEnabledFlag(true);
+  if (!(await setNotifEnabledFlag(true))) return false;
   await refreshScheduledNotifications();
   return true;
 }
@@ -289,7 +306,14 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
   if (!(await isNotifEnabled())) return;
 
   const info = await loadMilitaryInfo();
-  if (!info?.dischargeDate || !info?.enlistDate) return;
+  if (!info?.dischargeDate || !info?.enlistDate) {
+    // 입대정보가 없는 프로필(새 프로필로 전환, 전체 삭제 직후)이면 이전 프로필의
+    // 예약을 반드시 지운다. 예전엔 그냥 return 해서 다른 사람 이름이 박힌
+    // 'D-30' 이 계속 울렸다.
+    try { await Notifications.cancelAllScheduledNotificationsAsync(); } catch (e) {}
+    try { await AsyncStorage.removeItem(SIG_KEY); } catch (e) {}
+    return;
+  }
 
   let name = '';
   try {
@@ -309,6 +333,8 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
     : await loadRankPromotions(info.enlistDate).catch(() => null);
   let todosForSig = [];
   try { todosForSig = await loadTodos(); } catch (e) {}
+  let leavesForSig = [];
+  try { leavesForSig = await loadLeaveRecords(); } catch (e) {}
 
   const sig = _hash(JSON.stringify({
     // 스트릭 알림이 켜져 있으면 '오늘'을 서명에 넣어 하루 한 번은 반드시
@@ -317,7 +343,10 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
     // 빠져나갔다. 그 결과 '앱을 열면 다음 날로 밀린다'가 동작하지 않아
     // 이미 출석한 사람에게도 알림이 울렸고, 한 번 울린 뒤에는 다시 예약되지
     // 않아 기능이 조용히 멈췄다.
-    day: prefs.streak ? _todayStr() : null,
+    //
+    // 스트릭 설정과 무관하게 날짜를 넣는다. 스트릭을 꺼 두면 서명이 영원히 같아져서
+    // 처음 열 때 180일 밖이던 마일스톤 전야(반환점 등)가 끝내 예약되지 않았다.
+    day: _todayStr(),
     streak: streakForSig ? streakForSig.current : null,
     lastCheck: streakForSig ? streakForSig.last ?? null : null,
     disc: info.dischargeDate,
@@ -330,6 +359,7 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
       .filter((t) => !t.done && t.date)
       .map((t) => `${t.id}|${t.date}|${t.title ?? ''}`)
       .sort(),
+    leaves: (leavesForSig || []).map((r) => `${r.id}|${r.date}|${r.days}`).sort(),
   }));
 
   if (!force) {
@@ -396,6 +426,24 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
     }
   }
 
+  // 휴가 전날 저녁 — 다가오는 휴가 최대 3건 (전역·진급 다음 우선순위)
+  if (prefs.leave) {
+    const today = _todayStr();
+    const upcoming = (leavesForSig || [])
+      .filter((r) => r && typeof r.date === 'string' && r.date > today)
+      .sort((a, b) => (a.date < b.date ? -1 : 1))
+      .slice(0, 3);
+    for (const r of upcoming) {
+      const days = Math.max(1, Math.floor(r.days) || 1);
+      await scheduleAt(
+        addDaysStr(r.date, -1),
+        '내일부터 휴가! 🏖️',
+        `${who}${days}일 휴가가 시작돼요. 짐 챙기세요.`,
+        { hour: EVENING_HOUR }
+      );
+    }
+  }
+
   // 스트릭 위험 리마인더 — 항상 "내일 저녁" 딱 1건만 미래에 둔다.
   // 조건부 로컬 알림은 만들 수 없으므로, 앱을 열 때마다 취소·재예약해서
   // "안 열면 울리고, 열면 다음 날로 밀린다"를 만든다. 서버 없이 조건부 알림을
@@ -420,7 +468,8 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
   }
 
   // 매일 D-day 넛지 — 반복 트리거 1건 (기본 꺼짐)
-  if (prefs.daily) {
+  // 전역한 뒤에는 '전역까지 한 걸음' 넛지가 의미가 없다
+  if (prefs.daily && _todayStr() <= disc) {
     await scheduleDaily(prefs.dailyHour ?? 9, '오늘도 전역까지 한 걸음 🪖', `${who}앱에서 남은 일수를 확인해보세요.`);
   }
 

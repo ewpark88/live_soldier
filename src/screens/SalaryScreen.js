@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Card from '../components/Card';
 import SectionTitle from '../components/SectionTitle';
@@ -17,6 +17,8 @@ import {
   Divider,
   Txt,
   AnimatedNumber,
+  TextField,
+  ListGroup,
 } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import { loadMilitaryInfo, loadSalaryInfo, saveSalaryInfo, loadRankPromotions } from '../utils/storage';
@@ -172,9 +174,10 @@ export default function SalaryScreen({ navigation }) {
       <Section index={0}>
         <HeroCard>
           <View style={s.pillRow}>
-            <Chip label={currentRank} size="sm" tone="accent" />
-            {isCustom ? <Chip label="직접 입력" size="sm" /> : null}
-            {officerEstimate ? <Chip label="초임 기준 추정" size="sm" /> : null}
+            {/* 히어로 위 칩은 onHero — tone="accent" 의 accentSoft 바탕은 밝은 히어로에 묻혔다 */}
+            <Chip label={currentRank} size="sm" onHero />
+            {isCustom ? <Chip label="직접 입력" size="sm" onHero /> : null}
+            {officerEstimate ? <Chip label="초임 기준 추정" size="sm" onHero /> : null}
           </View>
 
           <Txt role="label" tone="heroMuted" style={{ marginTop: sp.md }}>
@@ -229,11 +232,12 @@ export default function SalaryScreen({ navigation }) {
           </View>
           <ProgressBar progress={earnedRatio} height={10} ticks={rankTicks} />
           {rankTicks ? (
-            <Txt role="micro" tone="light" style={{ marginTop: 6 }}>
+            <Txt role="micro" tone="light" style={{ marginTop: sp.xs }}>
               눈금은 계급이 바뀌는 지점이에요
             </Txt>
           ) : null}
 
+          {/* 금액 타일은 값이 길다(12,345,678) — StatTile 이 폭에 맞춰 글자를 줄인다 */}
           <View style={s.statRow}>
             <StatTile label="수령" value={formatMoney(earnedSalary)} unit="원" tone="primary" />
             <StatTile
@@ -280,26 +284,25 @@ export default function SalaryScreen({ navigation }) {
               </View>
             </View>
           ) : (
-            <View style={{ marginTop: sp.md }}>
-              <Txt role="label" tone="secondary" style={s.formLabel}>월 지급액 (원)</Txt>
-              <TextInput
-                style={s.input}
+            <View style={s.form}>
+              <TextField
+                label="월 지급액"
                 value={customSalary}
                 onChangeText={(t) => setCustomSalary(t.replace(/[^0-9]/g, ''))}
                 placeholder="예: 1000000"
-                placeholderTextColor={tc.textLight}
                 keyboardType="number-pad"
+                suffix="원"
+                hint={customSalary ? `${formatMoney(parseInt(customSalary, 10) || 0)}원` : undefined}
                 maxLength={9}   // 길이 제한이 없으면 22자리부터 formatMoney 가 '1e+21' 을 찍는다
               />
 
-              <Txt role="label" tone="secondary" style={s.formLabel}>총 복무 개월 수</Txt>
-              <TextInput
-                style={s.input}
+              <TextField
+                label="총 복무 개월 수"
                 value={totalMonths}
                 onChangeText={(t) => setTotalMonths(t.replace(/[^0-9]/g, ''))}
                 placeholder="예: 18"
-                placeholderTextColor={tc.textLight}
                 keyboardType="number-pad"
+                suffix="개월"
                 maxLength={3}
               />
 
@@ -319,52 +322,41 @@ export default function SalaryScreen({ navigation }) {
 
       {/* ④ 급여 관련 화면 — 지금까지 햄버거 메뉴에만 있어서 아무도 못 찾았다 */}
       <Section index={3}>
-        <Card pad="none" style={{ paddingHorizontal: 0 }}>
+        <ListGroup>
           {!officer ? (
-            <>
-              <ListRow
-                title="병사 월급 가이드"
-                subtitle="계급별 표준 월급 참고표"
-                icon="list-outline"
-                chevron
-                onPress={() => navigation.navigate('salaryGuide')}
-                style={s.navRow}
-              />
-              <Divider inset={sp.lg + 48} />
-            </>
+            <ListRow
+              title="병사 월급 가이드"
+              subtitle="계급별 표준 월급 참고표"
+              icon="list-outline"
+              chevron
+              onPress={() => navigation.navigate('salaryGuide')}
+            />
           ) : (
-            <>
-              <ListRow
-                title="간부 봉급 참고"
-                subtitle="초임(1호봉) 월 기본급"
-                icon="list-outline"
-                chevron
-                onPress={() => navigation.navigate('officerPay')}
-                style={s.navRow}
-              />
-              <Divider inset={sp.lg + 48} />
-            </>
+            <ListRow
+              title="간부 봉급 참고"
+              subtitle="초임(1호봉) 월 기본급"
+              icon="list-outline"
+              chevron
+              onPress={() => navigation.navigate('officerPay')}
+            />
           )}
           <ListRow
             title="장병내일적금 계산기"
             subtitle="전역 시 받을 목돈을 미리 계산"
             icon="calculator-outline"
-            iconTone="accent"
+            iconTone="success"
             chevron
             onPress={() => navigation.navigate('savings')}
-            style={s.navRow}
           />
-          <Divider inset={sp.lg + 48} />
           <ListRow
             title="군인 혜택 모음"
             subtitle="금융·교통·문화·자기계발 할인과 지원"
             icon="gift-outline"
-            iconTone="success"
+            iconTone="neutral"
             chevron
             onPress={() => navigation.navigate('benefits')}
-            style={s.navRow}
           />
-        </Card>
+        </ListGroup>
       </Section>
     </Screen>
   );
@@ -398,17 +390,5 @@ const makeStyles = (tc) =>
       marginBottom: sp.lg,
     },
     btnRow: { flexDirection: 'row', gap: sp.sm },
-    formLabel: { marginBottom: sp.sm, marginTop: sp.sm },
-    input: {
-      backgroundColor: tc.surfaceSunken,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: tc.surfaceSunkenBorder,
-      borderRadius: r.sm,
-      paddingHorizontal: sp.md,
-      paddingVertical: sp.md,
-      ...ty.bodyLg,
-      color: tc.text,
-      marginBottom: sp.sm,
-    },
-    navRow: { paddingHorizontal: sp.lg },
+    form: { marginTop: sp.md, gap: sp.lg },
   });

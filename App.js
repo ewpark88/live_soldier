@@ -1,9 +1,13 @@
 import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
+import { navigationRef } from './src/navigation/navigationRef';
+import ShareImportSheet from './src/components/share/ShareImportSheet';
+import { requestShareImport } from './src/state/appEvents';
+import { findShareCode } from './src/utils/shareCode';
 import { initStorage } from './src/utils/storage';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { PrefsProvider } from './src/theme/PrefsContext';
@@ -42,14 +46,32 @@ function ThemedApp() {
   };
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer theme={navTheme} ref={navigationRef}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <RootNavigator />
+      {/* 공유 코드 가져오기 — 딥링크·QR·프로필 바가 모두 이 시트 하나를 연다 */}
+      <ShareImportSheet />
     </NavigationContainer>
   );
 }
 
 export default function App() {
+  // 공유 코드 딥링크 (jeonryeokkami://add?c=JY1-…) — QR 을 폰 카메라로 찍으면 들어온다.
+  // NavigationContainer 의 linking 은 쓰지 않는다: 이동할 화면이 아니라 시트를 여는
+  // 것이라, 라우트 설정을 늘리면 '라우트 이름은 트리 전체에서 유일' 규칙만 무거워진다.
+  useEffect(() => {
+    // 바깥에서 들어오는 문자열이다 — 무엇이 와도 앱을 죽이지 않는다
+    const handle = (url) => {
+      try {
+        const code = findShareCode(url || '');
+        if (code) requestShareImport(code);
+      } catch (e) { /* 무시 */ }
+    };
+    Linking.getInitialURL().then(handle).catch(() => {});
+    const sub = Linking.addEventListener('url', (e) => handle(e.url));
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     initAds();
     // 저장소 초기화 + 레거시(단일 프로필) → 멀티 프로필 자동 마이그레이션

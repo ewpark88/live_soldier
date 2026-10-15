@@ -57,7 +57,9 @@ export default function SegmentBar({
   const tc = useThemeColors();
   const m = useMotion();
 
-  const cFill = fillColor ?? (onHero ? tc.accentLight : tc.progressFill);
+  // 히어로 위 채움은 D-Day 숫자와 같은 phase 강조색 — 대비 검사(contrastPairs)가 보는 색이다.
+  // accentLight 는 라이트(밝은) 히어로 위에서 묻혔다.
+  const cFill = fillColor ?? (onHero ? tc.phase.normal.accent : tc.progressFill);
   const cTrack = trackColor ?? (onHero ? tc.heroTrack : tc.progressBg);
 
   const count = Math.max(0, Math.floor(total));

@@ -54,7 +54,7 @@ export default function ProgressBar({
     primary: tc.progressFill,
     accent: tc.accent,
     success: tc.success,
-    hero: tc.accentLight,
+    hero: tc.phase.normal.accent,   // accentLight 는 밝은 히어로에서 묻힌다
   };
   const TONE_TRACK = {
     primary: tc.progressBg,

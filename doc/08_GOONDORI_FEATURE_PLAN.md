@@ -110,7 +110,7 @@
 - 온보딩/간부: 설치 첫 화면에서 **병사/부사관/장교** 선택(`OnboardingScreen`). 병사는 기존 로직 무변경, 간부는 계급 선택·복무개월 직접입력·**호봉 카운트다운**(`officerUtils`)·**2025 초임 봉급 참고표 + 직접입력 override**(`militaryRanks`) 적용. 신분은 `data.personnelType` 브리지로 보관(입대정보 입력 전 결정), 기존 사용자는 `militaryInfo.personnelType` 폴백으로 온보딩 미노출. 봉급표는 공개 정적 데이터 기반 **참고·추정치**로 명시(호봉/수당 미반영).
 - Sprint4: `react-native-android-widget`로 안드로이드 홈 위젯(`Discharge`). 진입점을 `index.js`로 변경(위젯 태스크 핸들러 등록). `src/widget/`(데이터/UI/핸들러/갱신). 입대정보 저장·프로필 전환 시 `updateDischargeWidget()` 호출. iOS 미지원(위젯), 안드로이드 전용. 실기기 표시는 `expo prebuild`+리빌드 필요(미링크 시 graceful 무시).
 
-신규 의존성(모두 무료 OSS): `expo-image-picker`, `expo-file-system`, `react-native-calendars`, `react-native-android-widget`.
+신규 의존성(모두 무료 OSS): `expo-image-picker`, `react-native-android-widget`. (계획 당시 적었던 `expo-file-system`·`react-native-calendars` 는 실제로 설치되지 않았다 — 달력은 무의존성 `EventCalendar`·`RangeCalendar` 로 구현. `expo-file-system` 은 v1.3 에서 백업·사진 보관용으로 추가됐다.)
 
 ---
 

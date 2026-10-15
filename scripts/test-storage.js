@@ -258,6 +258,99 @@ function reset() { store = {}; failReads = false; failWrites = false; }
   eq((await S.loadMilitaryInfo()).branch, 'army', '동시 쓰기: 입대정보 보존');
 
 
+  /* ── v1.3: 테마 설정 동시 쓰기 — 늦게 끝난 쓰기가 앞의 변경을 지우면 안 된다 ── */
+  reset();
+  store['@theme_v2'] = JSON.stringify({ themeId: 'forest', mode: 'light', unlocked: [], introSeen: false });
+  await Promise.all([
+    S.saveThemeSettings({ introSeen: true }),
+    S.unlockTheme('sunset'),
+    S.unlockTheme('aurora'),
+    S.saveThemeSettings({ themeId: 'sakura' }),
+  ]);
+  {
+    const t = JSON.parse(store['@theme_v2']);
+    eq(t.introSeen, true, '테마 동시 쓰기: introSeen 보존');
+    eq([...t.unlocked].sort(), ['aurora', 'sunset'], '테마 동시 쓰기: 해금 둘 다 남음');
+    eq(t.themeId, 'sakura', '테마 동시 쓰기: 마지막 테마 반영');
+  }
+  eq((await S.unlockTheme('sunset')).unlocked.length, 2, '테마: 이미 해금된 건 중복 추가 안 함');
+
+  /* ── v1.3: 공유 코드로 받은 프로필 ── */
+  reset();
+  await S.saveMilitaryInfo({ enlistDate: '2025-03-10', branch: 'army', months: 18, personnelType: 'soldier' });
+  const shared = {
+    name: '민준',
+    militaryInfo: { enlistDate: '2025-05-12', branch: 'navy', personnelType: 'soldier', officerRank: null, months: 20 },
+    promotions: null,
+  };
+  eq(await S.findProfileByShare(shared.militaryInfo), null, '공유: 처음엔 같은 사람 없음');
+  const sid = await S.addSharedProfile(shared);
+  ok(sid, '공유: 프로필 추가됨');
+  {
+    const { activeId, profiles } = await S.listProfiles();
+    eq(activeId, sid, '공유: 추가 후 자동 전환');
+    eq(profiles.length, 2, '공유: 기존 프로필 유지');
+    eq(profiles.find((p) => p.id === sid).name, '민준', '공유: 이름');
+  }
+  {
+    const mi2 = await S.loadMilitaryInfo();
+    eq([mi2.branch, mi2.dischargeDate], ['navy', '2027-01-11'], '공유: 전역일은 받는 쪽이 계산');
+    eq(await S.loadPersonnelType(), 'soldier', '공유: 신분 저장 (온보딩 건너뜀)');
+    eq(await S.loadCelebrated(), null, '공유: 축하 이력은 시딩 전 상태');
+  }
+  eq(await S.findProfileByShare(shared.militaryInfo), sid, '공유: 같은 코드 → 같은 프로필 찾음');
+  await S.addLeaveRecord({ date: '2025-09-01', days: 3, memo: '' });
+  const upd = await S.updateProfileFromShare(sid, {
+    ...shared,
+    name: '민준이',
+    promotions: { 일병: '2025-07-12', 상병: '2026-01-12', 병장: '2026-07-12' },
+  });
+  eq(upd, sid, '공유 갱신: 같은 id');
+  eq((await S.loadLeaveRecords()).length, 1, '공유 갱신: 받는 쪽이 적은 휴가는 보존');
+  eq((await S.loadRankPromotions('2025-05-12')).일병, '2025-07-12', '공유 갱신: 진급일 반영');
+  eq((await S.listProfiles()).profiles.find((p) => p.id === sid).name, '민준이', '공유 갱신: 이름 반영');
+  {
+    const src = await S.loadShareSource();
+    eq([src.name, src.militaryInfo.branch, !!src.promotions], ['민준이', 'navy', true], '공유: 내보낼 재료');
+  }
+
+  /* ── v1.3: 백업 → 복원 ── */
+  reset();
+  await S.saveMilitaryInfo({ enlistDate: '2025-01-02', branch: 'airforce', months: 21 });
+  await S.addTodo({ title: '유격', date: '2025-06-01' });
+  await S.updateProfile((await S.listProfiles()).activeId, { photo: 'file:///cache/x.jpg' });
+  store['@theme_v2'] = JSON.stringify({ themeId: 'sunset', mode: 'dark', unlocked: ['sunset'], introSeen: true });
+  store['@streak_v1'] = JSON.stringify({ current: 9, best: 12, total: 40 });
+  const backup = await S.exportAll();
+  eq([backup.app, backup.schema], ['jeonryeokkami', 1], '백업: 헤더');
+  eq(backup.data.profiles.profiles[0].photo, null, '백업: 사진 경로는 빼고 내보낸다');
+  const json = JSON.stringify(backup);
+
+  reset();   // 새 기기
+  await S.saveMilitaryInfo({ enlistDate: '2026-01-01', branch: 'army', months: 18 });
+  const summary = await S.importAll(json);
+  eq(summary.count, 1, '복원: 프로필 수 요약');
+  eq((await S.loadMilitaryInfo()).branch, 'airforce', '복원: 입대정보');
+  eq((await S.loadTodos())[0].title, '유격', '복원: 할 일');
+  eq(JSON.parse(store['@theme_v2']).themeId, 'sunset', '복원: 테마');
+  eq(JSON.parse(store['@streak_v1']).best, 12, '복원: 스트릭');
+  ok(store['@profiles_v1.preimport'] && JSON.parse(store['@profiles_v1.preimport']).profiles.length === 1,
+    '복원: 덮어쓰기 전 상태를 남긴다');
+
+  {
+    let reason = null;
+    try { await S.importAll('{"app":"other"}'); } catch (e) { reason = e.reason; }
+    eq(reason, 'app', '복원: 다른 앱 파일은 거부');
+    eq((await S.loadMilitaryInfo()).branch, 'airforce', '복원 거부: 기존 데이터 무사');
+  }
+  {
+    failWrites = true;
+    let threw = false;
+    try { await S.importAll(json); } catch (e) { threw = true; }
+    failWrites = false;
+    ok(threw, '복원: 쓰기 실패는 던진다 (guardSave 가 알 수 있게)');
+  }
+
   console.log('\n──────────── 저장소 테스트 ────────────');
   if (fail === 0) {
     console.log(`✓ 전체 통과: ${pass}건`);

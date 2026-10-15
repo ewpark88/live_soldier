@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -13,7 +13,7 @@ import JourneyRail from '../components/JourneyRail';
 import DatePickerField from '../components/DatePickerField';
 import {
   Screen, AppHeader, Section, HeroCard, Grid, Button, Chip,
-  ListRow, Txt, AnimatedNumber, PressScale,
+  ListRow, ListGroup, Txt, AnimatedNumber, PressScale, Stepper,
 } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import {
@@ -33,21 +33,15 @@ import {
 } from '../utils/dateUtils';
 import { buildRoadmap } from '../utils/roadmapUtils';
 import { BRANCHES, PERSONNEL_TYPES, isOfficer } from '../constants/serviceTerms';
+import { getPhase } from '../constants/phases';
 import { updateDischargeWidget } from '../widget/updateWidget';
 import { refreshScheduledNotifications } from '../utils/notifications';
 import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
 
 const PROMO_RANKS = ['일병', '상병', '병장'];
 
-/* ─── 복무 단계 (응원 메시지용) ─────────────────────────── */
-function getPhase(daysLeft) {
-  if (daysLeft <= 0) return 'done';
-  if (daysLeft <= 3) return 'd3';
-  if (daysLeft <= 7) return 'd7';
-  if (daysLeft <= 30) return 'd30';
-  if (daysLeft <= 100) return 'd100';
-  return 'normal';
-}
+/* 복무 단계는 constants/phases 의 getPhase 하나만 쓴다 — 예전엔 이 파일에
+   같은 함수가 한 벌 더 있었다 (경계가 갈라지면 화면마다 단계가 달라진다). */
 
 export default function DischargeScreen({ navigation }) {
   const tc = useThemeColors();
@@ -70,6 +64,9 @@ export default function DischargeScreen({ navigation }) {
   const [editPromo, setEditPromo] = useState(null);
 
   const [message, setMessage] = useState(() => getMessageForPhase('normal'));
+  // '다른 메시지 보기' — 오늘의 메시지에서 몇 칸 옮겼나. 메시지가 날짜에 고정된 뒤로
+  // 같은 함수를 다시 불러도 같은 문구만 나와서, 버튼이 진동만 하고 아무 일도 안 했다.
+  const [msgOffset, setMsgOffset] = useState(0);
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -95,6 +92,7 @@ export default function DischargeScreen({ navigation }) {
       setMonthsInput(String(mi.months ?? ''));
       setEditing(false);
       setPromotions(await loadRankPromotions(mi.enlistDate));
+      setMsgOffset(0);
       setMessage(getMessageForPhase(getPhase(calcDaysLeft(mi.dischargeDate))));
     } else {
       const pt = await loadPersonnelType();
@@ -227,7 +225,12 @@ export default function DischargeScreen({ navigation }) {
               return;
             }
             if ((await guardSave(() => resetRankPromotions())) === SAVE_FAILED) return;
+            // 저장소는 이미 기본값이다 — 화면 상태도 맞춘다. 예전엔 편집 값만 바꿔서,
+            // 여기서 '취소'를 누르면 레일·로드맵은 옛 날짜를, 위젯·알림은 기본값을 봤다.
             setEditPromo(defaults);
+            setPromotions(defaults);
+            updateDischargeWidget();
+            refreshScheduledNotifications().catch(() => {});
           },
         },
       ]
@@ -277,8 +280,8 @@ export default function DischargeScreen({ navigation }) {
               <SectionTitle icon="create-outline">입대 정보 입력</SectionTitle>
 
               <View style={{ marginTop: sp.lg }}>
-                <Txt role="label" tone="secondary" style={s.label}>입대일</Txt>
                 <DatePickerField
+                  label="입대일"
                   value={enlistDate}
                   onChange={setEnlistDate}
                   maximumDate={new Date()}
@@ -330,33 +333,14 @@ export default function DischargeScreen({ navigation }) {
                   </View>
 
                   <Txt role="label" tone="secondary" style={s.label}>총 복무 개월 수</Txt>
-                  <View style={s.stepperRow}>
-                    <PressScale
-                      onPress={() => setMonthsInput(String(Math.max(1, (parseInt(monthsInput, 10) || 0) - 1)))}
-                      haptic="select"
-                      style={s.stepBtn}
-                    >
-                      <Ionicons name="remove" size={18} color={tc.primary} />
-                    </PressScale>
-
-                    <TextInput
-                      style={s.stepInput}
-                      value={monthsInput}
-                      onChangeText={(t) => setMonthsInput(t.replace(/[^0-9]/g, ''))}
-                      keyboardType="number-pad"
-                      placeholder="예: 36"
-                      placeholderTextColor={tc.textLight}
-                      maxLength={3}
-                    />
-
-                    <PressScale
-                      onPress={() => setMonthsInput(String(Math.min(240, (parseInt(monthsInput, 10) || 0) + 1)))}
-                      haptic="select"
-                      style={s.stepBtn}
-                    >
-                      <Ionicons name="add" size={18} color={tc.primary} />
-                    </PressScale>
-                  </View>
+                  <Stepper
+                    value={monthsInput}
+                    onChange={(v) => setMonthsInput(String(v))}
+                    min={1}
+                    max={240}
+                    label="총 복무 개월 수"
+                    editable
+                  />
 
                   <View style={s.chipWrap}>
                     {[24, 36, 48].map((v) => (
@@ -397,26 +381,30 @@ export default function DischargeScreen({ navigation }) {
             <HeroCard>
               <View style={s.heroTop}>
                 <View style={s.chipRow}>
-                  <Chip label={`${branchLabel} · ${typeLabel}`} size="sm" tone="accent" />
-                  <Chip label={`${info.months}개월`} size="sm" style={s.heroChip} textStyle={{ color: tc.heroText }} />
+                  <Chip label={`${branchLabel} · ${typeLabel}`} size="sm" onHero />
+                  <Chip label={`${info.months}개월`} size="sm" onHero />
                 </View>
 
                 <Chip
                   label="수정"
                   icon="create-outline"
                   size="sm"
+                  onHero
                   onPress={() => setEditing(true)}
-                  style={s.heroChip}
-                  textStyle={{ color: tc.heroText }}
+                  accessibilityLabel="입대 정보 수정"
                 />
               </View>
 
+              {/* 전역 후엔 홈처럼 '전역 완료' — 예전엔 Math.max(0, …) 로 'D- 0' 이 영원히 남았다 */}
               <View style={s.heroAmount}>
-                <Txt role="subtitle" tone="heroMuted">D-</Txt>
-                <AnimatedNumber
-                  value={Math.max(0, daysLeft)}
-                  style={[ty.hero, { color: tc.heroText }]}
-                />
+                {daysLeft > 0 ? (
+                  <>
+                    <Txt role="subtitle" tone="heroMuted">D-</Txt>
+                    <AnimatedNumber value={daysLeft} style={[ty.hero, { color: tc.heroText }]} />
+                  </>
+                ) : (
+                  <Txt role="hero" tone="hero">{daysLeft === 0 ? 'D-Day!' : '전역 완료!'}</Txt>
+                )}
               </View>
 
               {/* 여정 레일 — 입대·진급·반환점·전역이 날짜 비례로 놓이고
@@ -427,7 +415,7 @@ export default function DischargeScreen({ navigation }) {
                   milestones={journey}
                   progress={progress}
                   onHero
-                  fillColor={tc.accentLight}
+                  fillColor={tc.heroText}
                   compact
                   delay={320}
                 />
@@ -474,8 +462,8 @@ export default function DischargeScreen({ navigation }) {
                     <View style={{ marginTop: sp.md }}>
                       {PROMO_RANKS.map((rk) => (
                         <View key={rk} style={{ marginBottom: sp.md }}>
-                          <Txt role="label" tone="secondary" style={s.label}>{rk} 진급일</Txt>
                           <DatePickerField
+                            label={`${rk} 진급일`}
                             value={activePromo?.[rk] ?? ''}
                             onChange={(d) => setEditPromo((p) => ({ ...p, [rk]: d }))}
                             disabled={!editingPromo}
@@ -522,55 +510,57 @@ export default function DischargeScreen({ navigation }) {
           </Section>
         ) : null}
 
-        {/* ── 전역 로드맵 ── */}
+        {/* ── 이어지는 화면들 — 카드 두 장 대신 한 묶음 ── */}
         {info ? (
           <Section index={2}>
-            <Card pad="none" style={{ paddingHorizontal: 0 }}>
+            <ListGroup>
               <ListRow
                 title="전역 로드맵"
                 subtitle="다음 진급·호봉과 주요 순간을 한눈에"
-                icon="map"
+                icon="map-outline"
                 chevron
                 onPress={() => navigation.navigate('roadmap')}
-                style={s.navRow}
               />
-            </Card>
-          </Section>
-        ) : null}
-
-        {/* ── 장병내일적금 계산기 ── */}
-        {info ? (
-          <Section index={3}>
-            <Card pad="none" style={{ paddingHorizontal: 0 }}>
               <ListRow
                 title="장병내일적금 계산기"
                 subtitle="전역 시 받을 목돈을 미리 계산"
-                icon="calculator"
-                iconTone="accent"
+                icon="calculator-outline"
+                iconTone="success"
                 chevron
                 onPress={() => navigation.navigate('savings')}
-                style={s.navRow}
               />
-            </Card>
+              <ListRow
+                title="가족·곰신에게 공유"
+                subtitle="공유 코드·QR 로 전역일 함께 세기"
+                icon="people-outline"
+                chevron
+                onPress={() => navigation.navigate('shareProfile')}
+              />
+            </ListGroup>
           </Section>
         ) : null}
 
         {/* ── 응원 메시지 ── */}
         {info ? (
-          <Section index={4}>
+          <Section index={3}>
             <Card>
               <View style={s.msgRow}>
-                <Ionicons name="chatbubble-ellipses" size={20} color={tc.primaryLight} />
+                <Ionicons name="chatbubble-ellipses" size={20} color={tc.primary} />
                 <Txt role="body" style={{ flex: 1 }} numberOfLines={3}>
                   {message}
                 </Txt>
                 <PressScale
-                  onPress={() => setMessage(getMessageForPhase(getPhase(daysLeft)))}
+                  onPress={() => {
+                    const next = msgOffset + 1;
+                    setMsgOffset(next);
+                    setMessage(getMessageForPhase(getPhase(daysLeft), undefined, next));
+                  }}
                   haptic="select"
                   style={s.refresh}
+                  accessibilityRole="button"
                   accessibilityLabel="다른 메시지 보기"
                 >
-                  <Ionicons name="refresh" size={16} color={tc.primaryLight} />
+                  <Ionicons name="refresh" size={18} color={tc.primary} />
                 </PressScale>
               </View>
             </Card>
@@ -593,7 +583,9 @@ function SelectTile({ icon, label, sub, selected, onPress }) {
       onPress={onPress}
       haptic="select"
       style={[s.tile, selected && { backgroundColor: tc.primary, borderColor: tc.primary }]}
+      accessibilityRole="radio"
       accessibilityState={{ selected }}
+      accessibilityLabel={sub ? `${label}, ${sub}` : label}
     >
       <Ionicons name={icon} size={20} color={selected ? tc.onPrimary : tc.textSecondary} />
       <Txt
@@ -633,28 +625,6 @@ const makeStyles = (tc) =>
     },
 
     chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: sp.sm, marginTop: sp.sm },
-    stepperRow: { flexDirection: 'row', alignItems: 'center', gap: sp.sm },
-    stepBtn: {
-      width: 44,
-      height: 48,
-      borderRadius: r.sm,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: tc.primarySoft,
-    },
-    stepInput: {
-      flex: 1,
-      height: 48,
-      borderRadius: r.sm,
-      backgroundColor: tc.surfaceSunken,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: tc.surfaceSunkenBorder,
-      textAlign: 'center',
-      ...ty.bodyLg,
-      fontWeight: '700',
-      color: tc.text,
-      padding: 0,
-    },
 
     btnRow: { flexDirection: 'row', gap: sp.sm, marginTop: sp.xl },
     resetBtn: { alignSelf: 'center', marginTop: sp.md, borderWidth: 0 },
@@ -666,7 +636,6 @@ const makeStyles = (tc) =>
       gap: sp.sm,
     },
     chipRow: { flexDirection: 'row', gap: sp.sm, flexShrink: 1 },
-    heroChip: { backgroundColor: tc.heroSheen },
     heroAmount: {
       flexDirection: 'row',
       alignItems: 'baseline',
@@ -683,7 +652,6 @@ const makeStyles = (tc) =>
       marginTop: sp.sm,
     },
 
-    navRow: { paddingHorizontal: sp.lg },
     msgRow: { flexDirection: 'row', alignItems: 'center', gap: sp.md },
-    refresh: { padding: sp.xs },
+    refresh: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   });

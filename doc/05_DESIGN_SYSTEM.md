@@ -98,9 +98,29 @@ const makeStyles = (tc) => {
 | `Chip` `StatTile` `ListRow` `EmptyState` `Divider` `Txt` | — |
 | `AdFooter` | `Screen` 이 알아서 그린다 (`ad` prop). 본문 인라인 광고는 `AdBanner` 를 직접 |
 | `Screen` 추가 prop (v1.1) | `standalone` — 루트 스택 화면(탭바 없음)의 하단 safe area / `overlay` — 루트 위 오버레이(`box-none`) |
-| `AppHeader` 변경 (v1.1) | `menu`/`current` 제거(햄버거 삭제), `back` 추가 |
+| `AppHeader` 변경 (v1.1) | `menu`/`current` 제거(햄버거 삭제), `back` 추가. v1.3: 뒤로 버튼 44×44 |
+| `TextField` (v1.3) | 라벨 + 입력 + 단위(`suffix`) + `error`(테두리+문구) / `hint`. 높이 48(`FIELD_HEIGHT`). `DatePickerField` 도 같은 높이·반경 |
+| `Stepper` (v1.3) | − [값] + . 버튼 44, 스크린리더 "1 줄이기/늘리기". `onHero`, `editable` |
+| `FormSheet` (v1.3) | `BottomSheet` + 스크롤 + 제목 + 필드(gap 16) + [취소 \| 저장]. 필드는 마진을 갖지 않는다 |
+| `ListGroup` (v1.3) | (라벨) + 카드 + 행 + 자동 구분선 + (각주). 행 좌우 패딩·구분선 inset(`GROUP_INSET`)을 소유 |
+| `SegmentedControl` (v1.3) | 같은 화면 안의 보기 전환. 칩을 탭처럼 쓰지 않는다 (칩은 필터로 읽힌다) |
+| `Checkbox` (v1.3) | 할 일 완료. 보이는 24 / 누르는 44, `accessibilityRole="checkbox"` |
+| `Chip` 변경 (v1.3) | `sm` 28 → 32, `onHero` prop (히어로 위 칩은 반드시 이것) |
 
 모션: `src/components/motion/` — `AnimatedNumber`(카운트업), `BottomSheet`.
+
+### 홈 구성 (v1.3)
+
+히어로 아래 **4섹션**: ① 다가오는 일정(`home/Upcoming` — 다음 휴가·월급날·다음
+마일스톤·적금 만기) ② 이번 주(`home/ThisWeek` — 주간 스트립 + 오늘 할 일)
+③ 오늘의 한마디 ④ 바로가기. 스트릭은 히어로 배지 → `home/StreakSheet`.
+섹션을 늘리기 전에 기존 카드의 행으로 넣을 수 있는지 먼저 본다.
+
+### 접근성 하한 (v1.3)
+
+- 누르는 것은 44×44 이상 (아이콘이 작으면 감싸는 `PressScale` 을 키운다)
+- 아이콘만 있는 버튼·스위치·날짜 셀에는 `accessibilityLabel`. 상태가 색뿐이면 라벨에 글로
+- 고정 높이 요소(칩·탭바·링 안 숫자)는 `maxFontSizeMultiplier` 로 상한을 둔다
 
 ---
 
@@ -110,7 +130,7 @@ const makeStyles = (tc) => {
 NavigationContainer
 └─ RootStack (native-stack, headerShown:false)
    ├─ tabs → 홈 / 캘린더 / 급여 / 내 정보
-   └─ discharge · roadmap · savings · benefits · salaryGuide · officerPay · theme
+   └─ discharge · roadmap · savings · benefits · salaryGuide · officerPay · theme · shareProfile
 ```
 
 - **라우트 이름은 트리 전체에서 유일해야 한다.** 크로스 네비게이터 `navigate` 가

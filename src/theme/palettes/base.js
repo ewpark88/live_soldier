@@ -153,6 +153,11 @@ export const baseLight = {
   sat: '#3B72C4',
   sun: '#D8483E',
 
+  // QR 코드 — 테마와 무관하게 '흰 바탕 + 검은 칸'. 다크 테마 색을 그대로 쓰면
+  // 밝은 칸·어두운 바탕(반전 QR)이 되어 폰 기본 카메라 상당수가 읽지 못한다.
+  qrFg: '#000000',
+  qrBg: '#FFFFFF',
+
   // 모달 딤 — 기존 overlay 와 같은 값. 신규 코드는 scrim 을 쓴다.
   scrim: 'rgba(12,22,18,0.5)',
   scrimStrong: 'rgba(12,22,18,0.7)',
@@ -225,6 +230,9 @@ export const baseDark = {
 
   sat: '#7FA8E8',
   sun: '#E8776D',
+
+  qrFg: '#000000',
+  qrBg: '#FFFFFF',
 
   scrim: 'rgba(0,0,0,0.6)',
   scrimStrong: 'rgba(0,0,0,0.78)',

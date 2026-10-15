@@ -2,16 +2,20 @@
 > 개별 화면의 state·계산식은 아직 참고할 만하지만, 화면 목록과 배치는 아래 v1.1
 > 구조를 따른다. 최신 규칙은 `doc/05_DESIGN_SYSTEM.md`.
 >
-> **v1.1 정보 구조**
+> **v1.3 정보 구조**
 > ```
 > RootStack (native-stack)
 > ├─ tabs
-> │   ├─ home      홈      D-Day 히어로(첫 화면 독점) → 오늘의 한마디 → 이번 주
-> │   │                    → 오늘 할 일 → 다음 마일스톤 → 출석 스트릭 → 바로가기
-> │   ├─ calendar  캘린더  [달력 | 휴가 | 일정] 세그먼트
+> │   ├─ home      홈      D-Day 히어로(첫 화면 독점) → 다가오는 일정(휴가·월급날·
+> │   │                    마일스톤·적금) → 이번 주(+오늘 할 일) → 오늘의 한마디 → 바로가기
+> │   │                    스트릭은 히어로 배지 → 시트, 자랑하기 → 공유 시트(이미지·텍스트)
+> │   ├─ calendar  캘린더  [달력 | 휴가 | 일정] 세그먼트 컨트롤
 > │   ├─ salary    급여    급여 허브 (봉급표·적금·혜택 진입점)
-> │   └─ settings  내 정보 프로필 + 바로가기 + 외형/알림/모션/데이터
-> └─ discharge · roadmap · savings · benefits · salaryGuide · officerPay · theme
+> │   └─ settings  내 정보 프로필 + 바로가기 + 외형/알림/모션/데이터(백업·복원·삭제)
+> ├─ discharge · roadmap · savings · benefits · salaryGuide · officerPay · theme
+> └─ shareProfile  가족·곰신 공유 (공유 코드 · QR · 메시지)  ← v1.3
+>
+> 루트에 떠 있는 것: CelebrationOverlay(축하 + 공유 시트), ShareImportSheet(공유 코드 가져오기)
 > ```
 > - 햄버거 메뉴(`AppMenu`/`MenuButton`)는 삭제됐다. 진입점은 급여 허브 · 내 정보 ·
 >   홈 바로가기로 이설됐다.

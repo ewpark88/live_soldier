@@ -40,6 +40,12 @@ export const AD_UNITS = {
     // 전용 광고 단위 발급 전까지 미사용 단위(홈 상단) 재활용
     realId: 'ca-app-pub-8353634332299342/1949989068',
   },
+  SHARE_BOTTOM: {
+    id: 'share_bottom_banner',
+    label: '가족 공유 · 하단',
+    // 전용 광고 단위 발급 전까지 미사용 단위(홈 상단) 재활용 — ROADMAP_BOTTOM 과 같은 방식
+    realId: 'ca-app-pub-8353634332299342/1949989068',
+  },
   DISCHARGE_MIDDLE: {
     id: 'discharge_middle_banner',
     label: '전역 · 입력폼/결과 사이',

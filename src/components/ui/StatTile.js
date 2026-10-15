@@ -65,7 +65,14 @@ export default function StatTile({
             style={[ty.statValue, { color: valueColor }]}
           />
         ) : (
-          <Text style={[ty.statValue, tabular, { color: valueColor }]} numberOfLines={1}>
+          // 금액("1,234,567")처럼 긴 값은 타일 폭에 맞춰 줄인다 — 잘려서 "1,234,5…" 가 되지 않게
+          <Text
+            style={[ty.statValue, tabular, { color: valueColor }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+            maxFontSizeMultiplier={1.3}
+          >
             {value}
           </Text>
         )}

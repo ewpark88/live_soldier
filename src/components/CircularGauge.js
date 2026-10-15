@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
@@ -71,9 +71,21 @@ export default function CircularGauge({
   const p = useSharedValue(0);
   const pulse = useSharedValue(0);
 
+  /* 라이브 게이지(홈)는 진행률이 매초 아주 조금씩 바뀐다. 그때마다 '지연 200ms +
+     900ms 채움'을 새로 걸면 인트로가 1초 만에 끊겨 ~89% 지점에서 멈춰 보였고,
+     홈에 있는 내내 UI 스레드 애니메이션이 쉬지 않았다.
+     처음(과 큰 변화)만 애니메이션하고, 미세한 갱신은 값만 옮긴다. */
+  const shown = useRef(null);
   useEffect(() => {
+    const prev = shown.current;
+    shown.current = clamped;
+    if (prev !== null && Math.abs(clamped - prev) < 0.01) {
+      // 진행 중인 인트로가 있으면 목표만 살짝 바뀐 것 — 끝까지 두고 마지막에 맞춘다
+      if (Math.abs(p.value - prev) < 0.001) p.value = clamped;
+      return;
+    }
     p.value = withDelay(
-      m.dur(delay),
+      m.dur(prev === null ? delay : 0),
       withTiming(clamped, {
         duration: m.dur(motion.duration.fill),
         easing: Easing.bezier(...motion.bezier.emphasis),

@@ -47,19 +47,25 @@ export function ThemeProvider({ children }) {
     Appearance.getColorScheme() || 'light'
   );
 
+  const apply = (s) => {
+    setThemeIdState(s.themeId);
+    setModeState(s.mode);
+    setUnlocked(s.unlocked);
+    setIntroSeen(s.introSeen);
+    setReady(true);
+  };
+
   // 저장된 설정 복원 (기존 사용자는 포레스트로 남는다 — storage 마이그레이션 참고)
   useEffect(() => {
     let alive = true;
-    loadThemeSettings().then((s) => {
-      if (!alive) return;
-      setThemeIdState(s.themeId);
-      setModeState(s.mode);
-      setUnlocked(s.unlocked);
-      setIntroSeen(s.introSeen);
-      setReady(true);
-    });
+    loadThemeSettings().then((s) => { if (alive) apply(s); });
     return () => { alive = false; };
   }, []);
+
+  /** 저장소에서 다시 읽는다 — 백업 복원 직후 */
+  const reload = async () => {
+    try { apply(await loadThemeSettings()); } catch (e) {}
+  };
 
   // 시스템 테마 변화 구독
   useEffect(() => {
@@ -98,7 +104,7 @@ export function ThemeProvider({ children }) {
       themeId, mode, scheme, schemeForced, colors,
       themes: THEME_LIST, unlocked, introSeen, ready,
       theme: getTheme(themeId),
-      setMode, setThemeId, markThemeIntroSeen, setUnlocked,
+      setMode, setThemeId, markThemeIntroSeen, setUnlocked, reload,
     }),
     [themeId, mode, scheme, schemeForced, colors, unlocked, introSeen, ready]
   );

@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
-  Alert, ScrollView, StyleSheet, TextInput, View,
+  Alert, ScrollView, StyleSheet, View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +17,7 @@ import SetupRequired from '../components/SetupRequired';
 import {
   Screen, AppHeader, Section, Grid, Button, Chip, StatTile,
   Divider, EmptyState, Txt, BottomSheet, PressScale,
+  Checkbox, TextField, FormSheet,
 } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import { TRAINING_PRESETS, presetTone } from '../constants/trainingPresets';
@@ -24,18 +25,15 @@ import {
   loadTodos, addTodo, toggleTodo, deleteTodo, loadMilitaryInfo,
 } from '../utils/storage';
 import {
-  formatDate, formatDateKo, endDateFromSpan, daysBetweenInclusive,
+  formatDateKo, endDateFromSpan, daysBetweenInclusive,
 } from '../utils/dateUtils';
+import useToday from '../hooks/useToday';
 import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
 import { guardSave, guardDelete, SAVE_FAILED } from '../utils/saveGuard';
 import { refreshScheduledNotifications } from '../utils/notifications';
 import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
-
-function getToday() {
-  return formatDate(new Date());
-}
 
 /** 시작~종료 포함 일수 (단일이면 1) */
 function calcDuration(startDate, endDate) {
@@ -82,13 +80,17 @@ function TodoItem({ item, onToggle, onDelete, last }) {
       layout={m.layout(LinearTransition.springify().damping(20).stiffness(200))}
     >
       <View style={s.row}>
-        <PressScale onPress={handleToggle} haptic={null} style={s.checkTap}>
-          <Animated.View style={[s.checkbox, item.done && s.checkboxDone, boxStyle]}>
-            {item.done ? <Ionicons name="checkmark" size={16} color={tc.onPrimary} /> : null}
-          </Animated.View>
-        </PressScale>
+        {/* 홈의 '오늘 할 일'과 같은 체크박스 (예전엔 여기는 네모, 홈은 원이었다) */}
+        <Animated.View style={boxStyle}>
+          <Checkbox
+            checked={!!item.done}
+            onPress={handleToggle}
+            haptic={null}
+            label={`${item.title} ${item.done ? '완료 해제' : '완료'}`}
+          />
+        </Animated.View>
 
-        <PressScale onPress={handleToggle} haptic={null} style={s.body}>
+        <PressScale onPress={handleToggle} haptic={null} style={s.body} accessibilityRole="checkbox" accessibilityState={{ checked: !!item.done }}>
           <Txt
             role="bodyLg"
             style={[
@@ -118,13 +120,14 @@ function TodoItem({ item, onToggle, onDelete, last }) {
           onPress={() => onDelete(item.id, item.title)}
           haptic="light"
           style={s.trash}
-          accessibilityLabel="삭제"
+          accessibilityRole="button"
+          accessibilityLabel={`${item.title} 삭제`}
         >
-          <Ionicons name="trash-outline" size={17} color={tc.textLight} />
+          <Ionicons name="trash-outline" size={18} color={tc.textLight} />
         </PressScale>
       </View>
 
-      {!last ? <Divider inset={40} /> : null}
+      {!last ? <Divider inset={44} /> : null}
     </Animated.View>
   );
 }
@@ -136,7 +139,8 @@ export default function TodoScreen({ navigation, embedded = false }) {
   const tc = useThemeColors();
   const m = useMotion();
   const s = useMemo(() => makeStyles(tc), [tc]);
-  const today = getToday();
+  // 캘린더 탭은 언마운트되지 않는다 — 자정을 넘기면 '오늘' 그룹도 넘어가야 한다
+  const today = useToday();
 
   const [militaryInfo, setMilitaryInfo] = useState(undefined);
   const [todos, setTodos] = useState([]);
@@ -149,6 +153,10 @@ export default function TodoScreen({ navigation, embedded = false }) {
   const [formDate, setFormDate] = useState(today);
   const [formEndDate, setFormEndDate] = useState('');
   const [formNote, setFormNote] = useState('');
+  // 연타 차단 — 예전엔 '추가'를 두 번 누르면 같은 일정·알림이 두 개 생겼다
+  // (휴가·급여 저장과 같은 방식: ref 는 같은 프레임의 두 번째 탭, state 는 로딩 표시)
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -168,15 +176,24 @@ export default function TodoScreen({ navigation, embedded = false }) {
   };
 
   const handleAdd = async () => {
+    if (savingRef.current) return;
     if (!formTitle.trim()) { haptic.warning(); Alert.alert('오류', '할 일 내용을 입력해주세요.'); return; }
     if (!formDate) { haptic.warning(); Alert.alert('오류', '날짜를 선택해주세요.'); return; }
     const endDate = formEndDate && formEndDate > formDate ? formEndDate : '';
-    const next = await guardSave(() => addTodo({
-      title: formTitle.trim(),
-      date: formDate,
-      endDate,
-      note: formNote.trim(),
-    }));
+    savingRef.current = true;
+    setSaving(true);
+    let next;
+    try {
+      next = await guardSave(() => addTodo({
+        title: formTitle.trim(),
+        date: formDate,
+        endDate,
+        note: formNote.trim(),
+      }));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
     if (next === SAVE_FAILED) return;   // 시트를 닫지 않는다 — 입력을 날리지 않기 위해
     setTodos(next);
     haptic.success();
@@ -217,6 +234,7 @@ export default function TodoScreen({ navigation, embedded = false }) {
   };
 
   const closeSheet = () => {
+    if (savingRef.current) return;
     setSheet(null);
     setFormTitle('');
     setFormDate(today);
@@ -249,7 +267,8 @@ export default function TodoScreen({ navigation, embedded = false }) {
       <Screen
         /* 임베디드면 광고는 CalendarScreen 이 세그먼트 밖에 하나만 그린다 */
         ad={embedded ? undefined : AD_UNITS.TODO_BOTTOM}
-        contentContainerStyle={{ paddingBottom: 96, ...(embedded ? { paddingTop: sp.xs } : null) }}
+        /* 마지막 카드가 FAB 에 가리지 않도록 FAB 높이 + 여백만큼 비운다 */
+        contentContainerStyle={{ paddingBottom: FAB_SIZE + FAB_GAP * 2, ...(embedded ? { paddingTop: sp.xs } : null) }}
         header={
           embedded ? undefined : (
             <AppHeader
@@ -266,15 +285,20 @@ export default function TodoScreen({ navigation, embedded = false }) {
           )
         }
       >
-        {/* 헤더가 없는 임베드 모드에선 훈련 추가 버튼이 갈 곳이 없다 */}
-        {embedded ? (
-          <View style={{ alignItems: 'flex-end', marginBottom: sp.sm }}>
-            <Chip label="훈련 추가" icon="flash" size="sm" onPress={() => setSheet('presets')} />
-          </View>
-        ) : null}
-        {/* 요약 + 날짜 필터 */}
+        {/* 요약 + 날짜 필터
+            임베드 모드엔 헤더가 없어 '훈련 추가'가 갈 곳이 없었다 — 예전엔 카드 위에
+            자기 마진을 가진 칩이 떠 있었다(세로 간격 규칙 위반). 카드 제목 줄로 옮긴다. */}
         <Section index={0}>
           <Card>
+            {embedded ? (
+              <SectionTitle
+                icon="checkbox-outline"
+                right={<Chip label="훈련 추가" icon="flash" size="sm" onPress={() => setSheet('presets')} />}
+                style={s.summaryTitle}
+              >
+                일정 요약
+              </SectionTitle>
+            ) : null}
             <View style={s.statRow}>
               <StatTile label="전체" value={totalCount} tone="primary" countUp />
               <StatTile label="완료" value={doneCount} tone="success" countUp />
@@ -362,7 +386,7 @@ export default function TodoScreen({ navigation, embedded = false }) {
           높이(~76)를 뺀 만큼만 띄운다. */}
       <Animated.View
         entering={m.enter(ZoomIn, 0, motion.duration.slow)}
-        style={[s.fabWrap, embedded && { bottom: sp.xl }]}
+        style={[s.fabWrap, { bottom: embedded ? FAB_GAP : FAB_BOTTOM }]}
         pointerEvents="box-none"
       >
         <PressScale onPress={openAdd} haptic="medium" style={s.fab} accessibilityLabel="일정 추가">
@@ -402,20 +426,24 @@ export default function TodoScreen({ navigation, embedded = false }) {
       </BottomSheet>
 
       {/* 추가 시트 */}
-      <BottomSheet visible={sheet === 'add'} onClose={closeSheet}>
-        <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <Txt role="subtitle" style={{ marginBottom: sp.lg }}>일정 추가</Txt>
+      <FormSheet
+        visible={sheet === 'add'}
+        onClose={closeSheet}
+        title="일정 추가"
+        submitLabel="추가"
+        onSubmit={handleAdd}
+        saving={saving}
+      >
+        <TextField
+          label="할 일 내용 *"
+          value={formTitle}
+          onChangeText={setFormTitle}
+          placeholder="예) 혹한기 훈련, 면회 신청..."
+          maxLength={40}
+        />
 
-          <Txt role="label" tone="secondary" style={s.formLabel}>할 일 내용 *</Txt>
-          <TextInput
-            style={s.input}
-            value={formTitle}
-            onChangeText={setFormTitle}
-            placeholder="예) 혹한기 훈련, 면회 신청..."
-            placeholderTextColor={tc.textLight}
-          />
-
-          <Txt role="label" tone="secondary" style={s.formLabel}>날짜 · 기간</Txt>
+        <View style={{ gap: sp.sm }}>
+          <Txt role="label" tone="secondary">날짜 · 기간</Txt>
           <View style={s.calendarBox}>
             <RangeCalendar
               startDate={formDate}
@@ -423,57 +451,47 @@ export default function TodoScreen({ navigation, embedded = false }) {
               onChange={(start, end) => { setFormDate(start); setFormEndDate(end); }}
             />
           </View>
+        </View>
 
-          <Txt role="label" tone="secondary" style={s.formLabel}>메모 (선택)</Txt>
-          <TextInput
-            style={[s.input, s.textarea]}
-            value={formNote}
-            onChangeText={setFormNote}
-            placeholder="추가 메모..."
-            placeholderTextColor={tc.textLight}
-            multiline
-            numberOfLines={2}
-          />
-
-          <View style={s.sheetBtns}>
-            <Button title="취소" variant="ghost" onPress={closeSheet} style={{ flex: 1 }} />
-            <Button title="추가" onPress={handleAdd} style={{ flex: 1 }} />
-          </View>
-        </ScrollView>
-      </BottomSheet>
+        <TextField
+          label="메모 (선택)"
+          value={formNote}
+          onChangeText={setFormNote}
+          placeholder="추가 메모..."
+          multiline
+          numberOfLines={2}
+          maxLength={80}
+        />
+      </FormSheet>
     </>
   );
 }
 
+/* FAB 자리 — 독립 화면에선 광고 푸터(~76) 위로, 임베드면 부모가 푸터를 갖는다 */
+const FAB_SIZE = 56;
+const FAB_GAP = sp.xl;
+const FAB_BOTTOM = 76 + FAB_GAP;
+
 const makeItemStyles = (tc) =>
   StyleSheet.create({
-    row: { flexDirection: 'row', alignItems: 'center', gap: sp.md, paddingVertical: sp.md },
-    checkTap: { padding: sp.xxs },
-    checkbox: {
-      width: 24,
-      height: 24,
-      borderRadius: r.xs,
-      borderWidth: 2,
-      borderColor: tc.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    checkboxDone: { backgroundColor: tc.primary, borderColor: tc.primary },
-    body: { flex: 1, gap: 2 },
+    // 체크박스(44)·휴지통(40) 누름 영역이 행 높이를 정한다 — 세로 패딩은 최소로
+    row: { flexDirection: 'row', alignItems: 'center', gap: sp.xs, paddingVertical: sp.xs },
+    body: { flex: 1, gap: sp.xxs, paddingVertical: sp.sm },
     metaRow: { gap: 1 },
-    trash: { padding: sp.xs },
+    trash: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   });
 
 const makeStyles = (tc) =>
   StyleSheet.create({
+    summaryTitle: { marginBottom: sp.md },
     statRow: { flexDirection: 'row', gap: sp.sm },
     filterRow: { flexDirection: 'row', alignItems: 'center', gap: sp.sm, marginTop: sp.lg },
 
-    fabWrap: { position: 'absolute', right: sp.lg, bottom: 96 },
+    fabWrap: { position: 'absolute', right: sp.lg },
     fab: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
+      width: FAB_SIZE,
+      height: FAB_SIZE,
+      borderRadius: r.pill,
       backgroundColor: tc.primary,
       alignItems: 'center',
       justifyContent: 'center',
@@ -495,23 +513,10 @@ const makeStyles = (tc) =>
     presetIcon: {
       width: 44,
       height: 44,
-      borderRadius: 22,
+      borderRadius: r.pill,
       alignItems: 'center',
       justifyContent: 'center',
     },
 
-    formLabel: { marginTop: sp.md, marginBottom: sp.sm },
-    input: {
-      backgroundColor: tc.surfaceSunken,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: tc.surfaceSunkenBorder,
-      borderRadius: r.sm,
-      paddingHorizontal: sp.md,
-      paddingVertical: sp.md,
-      ...ty.bodyLg,
-      color: tc.text,
-    },
-    textarea: { minHeight: 64, textAlignVertical: 'top' },
     calendarBox: { backgroundColor: tc.surfaceSunken, borderRadius: r.md, padding: sp.sm },
-    sheetBtns: { flexDirection: 'row', gap: sp.sm, marginTop: sp.xl },
   });
