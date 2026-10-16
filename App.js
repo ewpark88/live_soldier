@@ -5,6 +5,7 @@ import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
+import { useDoubleBackExit } from './src/navigation/useDoubleBackExit';
 import ShareImportSheet from './src/components/share/ShareImportSheet';
 import { requestShareImport } from './src/state/appEvents';
 import { findShareCode } from './src/utils/shareCode';
@@ -32,6 +33,7 @@ try {
 /** 테마가 적용되는 내부 루트 (ThemeProvider 하위에서 useTheme 사용 가능) */
 function ThemedApp() {
   const { scheme, colors } = useTheme();
+  useDoubleBackExit();
 
   const navTheme = {
     ...(scheme === 'dark' ? DarkTheme : DefaultTheme),
