@@ -8,6 +8,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "icon": "node generate-icon.js",
+    "store-assets": "node scripts/generate-store-assets.js",
     "ranks": "node scripts/generate-officer-ranks.js",
     "test": "node scripts/test-calc.js && node scripts/test-clock.js && node scripts/test-storage.js && node scripts/test-notifications.js && node scripts/test-ads.js && node scripts/test-share.js && node scripts/test-tz.js",
     "theme:check": "node scripts/check-contrast.js",

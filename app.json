@@ -3,14 +3,14 @@
     "name": "전역까지",
     "slug": "jeonryeokkami",
     "scheme": "jeonryeokkami",
-    "version": "1.3.1",
+    "version": "1.3.2",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#2E5B4F"
+      "backgroundColor": "#0B1E3A"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -19,7 +19,7 @@
       "package": "com.jeonryeokkami.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#2E5B4F"
+        "backgroundColor": "#0B1E3A"
       },
       "googleMobileAdsAppId": "ca-app-pub-8353634332299342~7516567553",
       "permissions": [
