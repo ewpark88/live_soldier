@@ -30,12 +30,14 @@ global.Date = class extends RealDate {
 /* ─── 목 ────────────────────────────────────────────────────────────── */
 let scheduled = [];
 let cancels = 0;
+let channels = {};
 const NotifMock = {
   getAllScheduledNotificationsAsync: async () => scheduled.slice(),
   cancelAllScheduledNotificationsAsync: async () => { scheduled = []; cancels += 1; },
-  scheduleNotificationAsync: async (o) => { scheduled.push({ title: o.content.title, trigger: o.trigger }); },
+  scheduleNotificationAsync: async (o) => { scheduled.push({ title: o.content.title, trigger: o.trigger, data: o.content.data }); },
   setNotificationHandler: () => {},
-  setNotificationChannelAsync: async () => {},
+  setNotificationChannelAsync: async (id, o) => { channels[id] = o; },
+  deleteNotificationChannelAsync: async (id) => { delete channels[id]; },
   getPermissionsAsync: async () => ({ status: 'granted' }),
   requestPermissionsAsync: async () => ({ status: 'granted' }),
   AndroidImportance: { DEFAULT: 3, HIGH: 4 },
@@ -181,6 +183,93 @@ async function setup(prefs) {
   NOW = new RealDate(2026, 8, 20, 10, 0, 0);
   await setup({ daily: true });
   ok(scheduled.some((x) => !x.trigger.date), '전역 전: 매일 넛지 있음 (대조군)');
+
+  /* ─── v1.4: 이벤트별 알림 ──────────────────────────────────────────── */
+
+  /* 설정 승격: v1.3 의 '전역·진급' 스위치 값이 새 진급일 스위치로 넘어간다 */
+  eq(N.normalizeNotifPrefs({ master: true, discharge: false }).promotion, false, '승격: discharge 꺼져 있던 사람은 진급일도 꺼진 채로');
+  eq(N.normalizeNotifPrefs({ master: true, discharge: true }).promotion, true, '승격: discharge 켜져 있던 사람은 진급일 켜짐');
+  eq(N.normalizeNotifPrefs({ master: true }).todo, true, '승격: 일정 알림은 켜진 채로 시작 (예전엔 끌 수 없었다)');
+  eq(N.normalizeNotifPrefs({ todoTiming: 'xx' }).todoTiming, 'morning', '승격: 이상한 일정 시각 값은 기본값으로');
+  eq(N.normalizeNotifPrefs({ dailyHour: 99 }).dailyHour, 9, '승격: 범위 밖 시각은 기본값으로');
+  eq(N.normalizeNotifPrefs({ promotion: true, discharge: false }).promotion, true, '승격: 이미 저장된 진급일 값은 존중');
+
+  /* 진급일은 전역 D-day 와 따로 끄고 켠다 */
+  NOW = new RealDate(2025, 4, 1, 10, 0, 0);
+  await setup({ discharge: false, milestone: false, promotion: true });
+  ok(scheduled.some((x) => x.title.includes('일병 진급')), '진급일만 켬: 진급 알림 있음');
+  ok(!scheduled.some((x) => x.title.startsWith('전역')), '진급일만 켬: 전역 D-day 없음');
+  await setup({ discharge: true, milestone: false, promotion: false });
+  ok(!scheduled.some((x) => x.title.includes('진급')), '진급일 끔: 진급 알림 없음');
+  ok(scheduled.some((x) => x.title.startsWith('전역 D-100')), '진급일 끔: 전역 D-day 는 그대로');
+
+  /* 입대 100일 당일은 마일스톤 스위치 소관 */
+  await setup({ discharge: true, milestone: false });
+  ok(!scheduled.some((x) => x.title.startsWith('입대 100일')), '마일스톤 끔: 입대 100일 당일 없음');
+  await setup({ discharge: false, milestone: true });
+  ok(scheduled.some((x) => x.title.startsWith('입대 100일')), '마일스톤 켬: 입대 100일 당일 있음');
+
+  /* 일정: 끌 수 있고, 시각을 고를 수 있고, 가까운 것부터 잡는다 */
+  NOW = new RealDate(2026, 8, 20, 10, 0, 0);
+  await setup({ discharge: false, milestone: false, payday: false });
+  await S.addTodo({ title: '먼 일정', date: '2026-09-28' });
+  await S.addTodo({ title: '가까운 일정', date: '2026-09-22' });
+  await S.addTodo({ title: '지난 일정', date: '2026-09-01' });
+  await N.refreshScheduledNotifications({ force: true });
+  {
+    const t = scheduled.filter((x) => x.data && x.data.event === 'todo');
+    eq(t.length, 2, '일정(당일 아침): 지난 일정 빼고 2건');
+    eq(t.map((x) => ymd(x.trigger.date)), ['2026-09-22', '2026-09-28'], '일정: 가까운 날짜부터 예약');
+    eq(t[0] && t[0].trigger.date.getHours(), 9, '일정(당일 아침): 09시');
+    eq(t[0] && t[0].data.route, 'calendar', '일정: 누르면 캘린더로');
+  }
+  await N.saveNotifPrefs({ todoTiming: 'eve' });
+  await N.refreshScheduledNotifications({ force: true });
+  {
+    const t = scheduled.filter((x) => x.data && x.data.event === 'todo');
+    eq(t.map((x) => `${ymd(x.trigger.date)} ${x.trigger.date.getHours()}`), ['2026-09-21 21', '2026-09-27 21'], '일정(전날 저녁): 하루 전 21시');
+  }
+  await N.saveNotifPrefs({ todoTiming: 'both' });
+  await N.refreshScheduledNotifications({ force: true });
+  eq(scheduled.filter((x) => x.data && x.data.event === 'todo').length, 4, '일정(둘 다): 일정당 2건');
+  await N.saveNotifPrefs({ todo: false });
+  await N.refreshScheduledNotifications({ force: true });
+  eq(scheduled.filter((x) => x.data && x.data.event === 'todo').length, 0, '일정 끔: 예약 안 함');
+
+  /* 월급날: 다가오는 3회, 전역 뒤로는 안 잡는다, 주말이면 금요일 */
+  NOW = new RealDate(2026, 0, 5, 10, 0, 0);   // 2026-01-05
+  await setup({ discharge: false, milestone: false, payday: true });
+  {
+    const p = scheduled.filter((x) => x.data && x.data.event === 'payday').map((x) => ymd(x.trigger.date));
+    // 2026-01-10 은 토요일 → 01-09(금). 02-10 화, 03-10 화
+    eq(p, ['2026-01-09', '2026-02-10', '2026-03-10'], '월급날: 다가오는 3회 (주말이면 직전 금요일)');
+  }
+  NOW = new RealDate(2026, 8, 20, 10, 0, 0);  // 전역 2026-09-30 직전
+  await setup({ discharge: false, milestone: false, payday: true });
+  {
+    const p = scheduled.filter((x) => x.data && x.data.event === 'payday').map((x) => ymd(x.trigger.date));
+    eq(p, [], '월급날: 전역일 뒤 월급은 예약 안 함 (9/10 지남, 10/10 은 전역 후)');
+  }
+  await setup({ payday: false });
+  eq(scheduled.filter((x) => x.data && x.data.event === 'payday').length, 0, '월급날 끔: 예약 안 함');
+
+  /* 채널: 전역·생활은 HIGH(팝업), 옛 채널은 지운다 */
+  channels = { 'discharge-reminders': {}, 'daily-nudge': {} };
+  await setup();
+  eq(channels['service-alerts'] && channels['service-alerts'].importance, 4, '채널: 전역·진급은 HIGH');
+  eq(channels['life-alerts'] && channels['life-alerts'].importance, 4, '채널: 휴가·일정·월급은 HIGH');
+  ok(!channels['discharge-reminders'] && !channels['daily-nudge'], '채널: 옛 채널 삭제');
+  ok(scheduled.filter((x) => x.data && x.data.event === 'discharge').every((x) => x.trigger.channelId === 'service-alerts'), '채널: 전역 알림은 service-alerts 로');
+
+  /* 예약 목록(설정 화면 '다음 알림')이 실제 예약과 같다 */
+  {
+    const plan = await N.loadNotifPlan();
+    eq(plan.length, scheduled.length, '예약 목록: 실제 예약 건수와 같음');
+    ok(plan.every((x, i) => i === 0 || (x.at ?? Infinity) >= (plan[i - 1].at ?? Infinity)), '예약 목록: 시각순');
+  }
+  await N.disableNotifications();
+  eq((await N.loadNotifPlan()).length, 0, '알림 끔: 예약 목록도 비움');
+  eq(scheduled.length, 0, '알림 끔: 예약 전부 취소');
 
   console.log('\n──────────── 알림 예약 테스트 ────────────');
   if (fail === 0) { console.log(`✓ 전체 통과: ${pass}건`); process.exit(0); }

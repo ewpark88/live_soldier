@@ -64,7 +64,7 @@ eas build --platform android --profile production
   - `test-clock.js` (60) **시계를 특정 날짜로 고정**해야만 드러나는 것
     (윤일 임관자 호봉, DST 전환, 월말 입대자 복무개월, 다음 휴가·월급날)
   - `test-storage.js` (84) AsyncStorage 목 위에서 실제 저장소 로직 (공유 프로필·백업 복원 포함)
-  - `test-notifications.js` (21) expo-notifications 목 위에서 예약 로직
+  - `test-notifications.js` (51) expo-notifications 목 위에서 예약 로직 (이벤트별 스위치·채널·일정 시각·월급날)
   - `test-ads.js` (28) 전면광고 지연 로드·빈도 제한·만료·무장 상태 (노출률 회귀 방지)
   - `test-share.js` (53) 공유 코드 왕복·변조 검출, 백업 파일 검증
   - `test-tz.js` 계산·시계 스위트를 **10개 시간대**에서 반복

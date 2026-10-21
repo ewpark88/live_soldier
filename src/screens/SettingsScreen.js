@@ -13,8 +13,7 @@ import { removeProfilePhoto } from '../utils/imagePicker';
 import { haptic } from '../utils/haptics';
 import { guardDelete, guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import {
-  enableNotifications, disableNotifications, isNotifAvailable,
-  loadNotifPrefs, saveNotifPrefs, refreshScheduledNotifications, DEFAULT_NOTIF_PREFS,
+  loadNotifPrefs, refreshScheduledNotifications, getNotifPermission, NOTIF_EVENTS,
 } from '../utils/notifications';
 import {
   calcDaysLeft, calcRankByEnlistDate, calcRankFromPromotions, formatDateKo,
@@ -27,29 +26,13 @@ import { updateDischargeWidget } from '../widget/updateWidget';
 import { expo as appInfo } from '../../app.json';
 import { space as sp } from '../theme/tokens';
 
-const NOTIF_SUB = [
-  { key: 'discharge', title: '전역·진급 알림', desc: 'D-100·D-30·D-7·D-1·진급일', icon: 'flag-outline' },
-  { key: 'leave', title: '휴가 전날 알림', desc: '기록한 휴가 시작 전날 저녁 9시', icon: 'airplane-outline' },
-  { key: 'milestone', title: '마일스톤 전날 알림', desc: '진급·반환점 하루 전 저녁 9시', icon: 'trophy-outline' },
-  { key: 'streak', title: '출석 스트릭 알림', desc: '그날 앱을 안 열었으면 저녁 9시에', icon: 'flame-outline' },
-  { key: 'daily', title: '매일 D-day 알림', desc: '남은 일수를 매일 알려드려요', icon: 'today-outline' },
-];
-
-const DAILY_HOURS = [
-  { value: 8, label: '아침 8시' },
-  { value: 12, label: '점심 12시' },
-  { value: 21, label: '저녁 9시' },
-];
-
 export default function SettingsScreen({ navigation }) {
   const tc = useThemeColors();
   const { theme: currentTheme, introSeen, reload: reloadTheme } = useTheme();
   const { haptics, reduceMotion, setHaptics, setReduceMotion, reload: reloadPrefs } = usePrefs();
   const { refresh: refreshStreak } = useStreak();
 
-  const [notifOn, setNotifOn] = useState(false);
-  const [notifBusy, setNotifBusy] = useState(false);
-  const [notifPrefs, setNotifPrefs] = useState(DEFAULT_NOTIF_PREFS);
+  const [notifSummary, setNotifSummary] = useState(null);
   const [info, setInfo] = useState(null);
   const [promotions, setPromotions] = useState(null);
   const backupBusy = useRef(false);
@@ -63,10 +46,14 @@ export default function SettingsScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      loadNotifPrefs().then((p) => {
+      Promise.all([loadNotifPrefs(), getNotifPermission()]).then(([p, pm]) => {
         if (!alive) return;
-        setNotifPrefs(p);
-        setNotifOn(p.master);
+        const on = NOTIF_EVENTS.filter((e) => p[e.key]).length;
+        setNotifSummary({
+          master: p.master,
+          blocked: p.master && pm.status !== 'granted' && pm.status !== 'unavailable',
+          text: p.master ? `${on}개 이벤트 켜짐` : '꺼짐',
+        });
       });
       loadProfile();
       return () => { alive = false; };
@@ -109,50 +96,6 @@ export default function SettingsScreen({ navigation }) {
     accessibilityLabel: label,
     accessibilityRole: 'switch',
   });
-
-  const handleToggleNotif = async (next) => {
-    if (notifBusy) return;
-    setNotifBusy(true);
-    try {
-      if (next) {
-        if (!isNotifAvailable()) {
-          haptic.warning();
-          Alert.alert('알림 사용 불가', 'Expo Go에서는 알림을 사용할 수 없어요. 빌드된 앱에서 이용해주세요.');
-          return;
-        }
-        const ok = await enableNotifications();
-        if (ok) {
-          setNotifOn(true);
-          setNotifPrefs(await loadNotifPrefs());
-          haptic.success();
-          Alert.alert('알림 켜짐', '전역 D-day·진급·휴가·일정 리마인더를 보내드릴게요.');
-        } else {
-          setNotifOn(false);
-          haptic.warning();
-          Alert.alert('권한 필요', '기기 설정에서 알림 권한을 허용해주세요.');
-        }
-      } else {
-        await disableNotifications();
-        setNotifOn(false);
-        setNotifPrefs(await loadNotifPrefs());
-      }
-    } finally {
-      setNotifBusy(false);
-    }
-  };
-
-  const handleSubToggle = async (key, value) => {
-    // 낙관적 반영 → 실패하면 되돌린다. 예전엔 쓰기 실패를 삼켜서 저장 안 된
-    // 스위치가 화면에서는 바뀐 것처럼 보였다.
-    const prev = notifPrefs;
-    setNotifPrefs({ ...prev, [key]: value });
-    haptic.select();
-    const next = await guardSave(() => saveNotifPrefs({ [key]: value }));
-    if (next === SAVE_FAILED) { setNotifPrefs(prev); return; }
-    setNotifPrefs(next);
-    // 예약 구성이 바뀌었으므로 시그니처 게이트를 건너뛰고 다시 잡는다
-    refreshScheduledNotifications({ force: true }).catch(() => {});
-  };
 
   /* 데이터가 통째로 바뀐 뒤(삭제·복원) — 화면 밖에 남아 있는 것들까지 맞춘다.
      예전엔 전체 삭제 후 홈 위젯이 지운 프로필의 D-day 를 계속 보여주고,
@@ -304,55 +247,20 @@ export default function SettingsScreen({ navigation }) {
       </Section>
 
       {/* ── 알림 ──
-          마스터 + 하위 토글. 매일 알림은 기본 꺼짐이다 — 원치 않는 데일리
-          알림은 앱 삭제 유발 1위다. */}
+          여기엔 한 줄만 둔다. 이벤트별 스위치·시각·예약 현황은 알림 화면(2단계)에서. */}
       <Section index={3} gap={sp.xl}>
-        <ListGroup label="알림" footnote="* 알림은 이 기기에서만 예약되며, 현재 선택된 프로필 기준으로 발송됩니다.">
+        <ListGroup label="알림">
           <ListRow
-            title="알림 받기"
-            subtitle="전역·진급·휴가·일정·출석 리마인더"
-            icon="notifications-outline"
-            iconTone={notifOn ? 'primary' : 'neutral'}
-            right={
-              <Switch
-                value={notifOn}
-                onValueChange={handleToggleNotif}
-                disabled={notifBusy}
-                {...switchProps(notifOn, '알림 받기')}
-              />
-            }
+            title="알림"
+            subtitle={notifSummary?.blocked
+              ? '휴대폰 알림 권한이 꺼져 있어요'
+              : '전역·진급·휴가·일정·월급날 등 이벤트별 설정'}
+            icon={notifSummary?.blocked ? 'alert-circle-outline' : 'notifications-outline'}
+            iconTone={notifSummary?.blocked ? 'danger' : notifSummary?.master ? 'primary' : 'neutral'}
+            value={notifSummary?.text}
+            chevron
+            onPress={() => navigation.navigate('notifications')}
           />
-          {notifOn
-            ? NOTIF_SUB.map((opt) => (
-              <ListRow
-                key={opt.key}
-                title={opt.title}
-                subtitle={opt.desc}
-                icon={opt.icon}
-                iconTone={notifPrefs[opt.key] ? 'primary' : 'neutral'}
-                right={
-                  <Switch
-                    value={!!notifPrefs[opt.key]}
-                    onValueChange={(v) => handleSubToggle(opt.key, v)}
-                    {...switchProps(!!notifPrefs[opt.key], opt.title)}
-                  />
-                }
-              />
-            ))
-            : null}
-          {notifOn && notifPrefs.daily ? (
-            <View style={styles.hourRow} accessibilityRole="radiogroup" accessibilityLabel="매일 알림 시각">
-              {DAILY_HOURS.map((h) => (
-                <Chip
-                  key={h.value}
-                  label={h.label}
-                  size="sm"
-                  selected={notifPrefs.dailyHour === h.value}
-                  onPress={() => handleSubToggle('dailyHour', h.value)}
-                />
-              ))}
-            </View>
-          ) : null}
         </ListGroup>
       </Section>
 
@@ -447,6 +355,5 @@ export default function SettingsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  hourRow: { flexDirection: 'row', gap: sp.sm, paddingBottom: sp.md },
   summary: { marginTop: sp.md, gap: sp.xxs },
 });
