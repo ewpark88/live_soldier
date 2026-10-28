@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
+import { Alert, Linking, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useThemeColors } from '../theme/ThemeContext';
@@ -11,6 +11,7 @@ import DailyCard from '../components/home/DailyCard';
 import ThisWeek from '../components/home/ThisWeek';
 import Upcoming, { won } from '../components/home/Upcoming';
 import StreakSheet from '../components/home/StreakSheet';
+import NotifPromptSheet from '../components/home/NotifPromptSheet';
 import QuickActions from '../components/home/QuickActions';
 import ShareSheet from '../components/share/ShareSheet';
 import { Screen, Section, EmptyState } from '../components/ui';
@@ -23,7 +24,11 @@ import {
   loadSavingsPlan, loadSalaryInfo,
 } from '../utils/storage';
 import { shareDischarge, shareStreak } from '../utils/shareUtils';
-import { refreshScheduledNotifications } from '../utils/notifications';
+import {
+  refreshScheduledNotifications, shouldOfferNotifPrompt, markNotifPromptDone,
+  enableNotifications, getNotifPermission,
+} from '../utils/notifications';
+import { isInterstitialShowing } from '../utils/adManager';
 import { getNextLeave, getNextPayday, getSavingsMaturity } from '../utils/upcoming';
 import { getSalaryByRank } from '../constants/salaryGuide';
 import { useProfilesChanged } from '../state/appEvents';
@@ -70,12 +75,18 @@ export default function HomeScreen({ navigation }) {
   const [replay, setReplay] = useState(0);
   const [streakOpen, setStreakOpen] = useState(false);
   const [shareCard, setShareCard] = useState(null);   // { title, kind, data, onText, family } | null
+  const [notifPrompt, setNotifPrompt] = useState(false);
+  const [notifBusy, setNotifBusy] = useState(false);
+  const promptTimer = useRef(null);
 
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
 
   useFocusEffect(
-    useCallback(() => { loadData(); }, [])
+    useCallback(() => {
+      loadData();
+      return () => clearTimeout(promptTimer.current);   // 떠난 화면에서 시트를 띄우지 않는다
+    }, [])
   );
   // 공유 코드로 프로필을 받거나 백업을 복원하면 탭 포커스는 그대로라 위 effect 가
   // 다시 돌지 않는다 — 신호로 다시 읽는다.
@@ -115,6 +126,53 @@ export default function HomeScreen({ navigation }) {
     setPromotions(await loadRankPromotions(mi?.enlistDate));
     setSavingsPlan(await loadSavingsPlan());
     setSalaryInfo(await loadSalaryInfo());
+
+    if (mi) maybeOfferNotif();
+  };
+
+  /* 입대일 입력 뒤 첫 홈 — 알림 안내를 한 번 띄운다 (기본 꺼짐이라 안 물으면 아무도 못 켠다).
+     전역 정보 저장 직후엔 전면광고가 뜰 수 있다. 광고가 덮고 있으면 이번엔 건너뛰고
+     다음 포커스에 다시 본다. 지연은 히어로 진입 애니메이션이 끝날 때까지. */
+  const maybeOfferNotif = async () => {
+    if (!(await shouldOfferNotifPrompt())) return;
+    clearTimeout(promptTimer.current);
+    promptTimer.current = setTimeout(() => {
+      if (isInterstitialShowing()) return;
+      setNotifPrompt(true);
+    }, 900);
+  };
+
+  const acceptNotif = async () => {
+    if (notifBusy) return;
+    setNotifBusy(true);
+    try {
+      const ok = await enableNotifications();
+      await markNotifPromptDone();
+      setNotifPrompt(false);
+      if (ok) { haptic.success(); return; }
+      const pm = await getNotifPermission();
+      if (pm.status === 'granted') {
+        // 권한은 받았는데 플래그 저장이 실패한 경우
+        haptic.warning();
+        Alert.alert('알림을 켜지 못했어요', '설정 → 알림에서 다시 켜 주세요.');
+      } else if (pm.status === 'denied' && !pm.canAskAgain) {
+        haptic.warning();
+        Alert.alert(
+          '알림 권한이 꺼져 있어요',
+          '휴대폰 설정 → 앱 → 전역까지 → 알림에서 허용해 주세요.',
+          [{ text: '취소', style: 'cancel' }, { text: '설정 열기', onPress: () => Linking.openSettings().catch(() => {}) }]
+        );
+      }
+      // OS 팝업에서 '허용 안 함'을 고른 건 사용자의 답이다 — 또 묻지 않는다
+    } finally {
+      setNotifBusy(false);
+    }
+  };
+
+  const declineNotif = () => {
+    if (notifBusy) return;
+    markNotifPromptDone();
+    setNotifPrompt(false);
   };
 
   const handleSelectType = async (type) => {
@@ -400,6 +458,14 @@ export default function HomeScreen({ navigation }) {
         tier={tier}
         usedFreeze={usedFreeze}
         onShare={openStreakShare}
+      />
+
+      <NotifPromptSheet
+        visible={notifPrompt}
+        onAccept={acceptNotif}
+        onDecline={declineNotif}
+        soldier={!officer}
+        busy={notifBusy}
       />
 
       <ShareSheet

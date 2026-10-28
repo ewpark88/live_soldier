@@ -67,6 +67,7 @@ export default function LiveServiceGauge({
   size = 240,
   stroke = 14,
   glow = false,
+  pulse = true,
   children,
 }) {
   const tc = useThemeColors();
@@ -131,6 +132,7 @@ export default function LiveServiceGauge({
         fillColor={cFill}
         glow={glow}
         live={!done}
+        pulse={pulse}
       >
         {children}
 

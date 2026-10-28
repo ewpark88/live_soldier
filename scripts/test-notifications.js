@@ -271,6 +271,24 @@ async function setup(prefs) {
   eq((await N.loadNotifPlan()).length, 0, '알림 끔: 예약 목록도 비움');
   eq(scheduled.length, 0, '알림 끔: 예약 전부 취소');
 
+  /* 입대일 입력 후 알림 안내 — 한 번만, 켜져 있거나 OS 가 막았으면 묻지 않는다 */
+  store = {};
+  ok(await N.shouldOfferNotifPrompt(), '알림 안내: 처음엔 띄운다');
+  await N.markNotifPromptDone();
+  ok(!(await N.shouldOfferNotifPrompt()), '알림 안내: 한 번 본 뒤엔 다시 안 띄움');
+  store = {};
+  await N.saveNotifPrefs({ master: true });
+  ok(!(await N.shouldOfferNotifPrompt()), '알림 안내: 이미 켜져 있으면 안 띄움');
+  store = {};
+  {
+    const orig = NotifMock.getPermissionsAsync;
+    NotifMock.getPermissionsAsync = async () => ({ status: 'denied', canAskAgain: false });
+    ok(!(await N.shouldOfferNotifPrompt()), '알림 안내: OS 가 막아 둔 권한이면 안 띄움');
+    NotifMock.getPermissionsAsync = async () => ({ status: 'denied', canAskAgain: true });
+    ok(await N.shouldOfferNotifPrompt(), '알림 안내: 다시 물을 수 있으면 띄움');
+    NotifMock.getPermissionsAsync = orig;
+  }
+
   console.log('\n──────────── 알림 예약 테스트 ────────────');
   if (fail === 0) { console.log(`✓ 전체 통과: ${pass}건`); process.exit(0); }
   console.log(`통과 ${pass} / 실패 ${fail}\n`);

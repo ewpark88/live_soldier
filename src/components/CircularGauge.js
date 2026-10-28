@@ -46,6 +46,7 @@ import { motion } from '../theme/tokens';
  * @param size       바깥 지름
  * @param stroke     링 두께
  * @param live       선단 점 + 맥박 (실시간 게이지용)
+ * @param pulse      false 면 선단 점은 두되 맥박 루프는 끈다 (홈: StickRunner 가 그 예산을 쓴다)
  * @param children   링 가운데에 얹을 내용
  */
 export default function CircularGauge({
@@ -56,6 +57,7 @@ export default function CircularGauge({
   fillColor,
   glow = false,
   live = false,
+  pulse = true,
   delay = 200,
   children,
   style,
@@ -69,7 +71,7 @@ export default function CircularGauge({
   const clamped = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0));
 
   const p = useSharedValue(0);
-  const pulse = useSharedValue(0);
+  const beat = useSharedValue(0);
 
   /* 라이브 게이지(홈)는 진행률이 매초 아주 조금씩 바뀐다. 그때마다 '지연 200ms +
      900ms 채움'을 새로 걸면 인트로가 1초 만에 끊겨 ~89% 지점에서 멈춰 보였고,
@@ -94,12 +96,12 @@ export default function CircularGauge({
   }, [clamped, delay, m, p]);
 
   useEffect(() => {
-    if (!live || m.reduced) {
-      cancelAnimation(pulse);
-      pulse.value = 0;
+    if (!live || !pulse || m.reduced) {
+      cancelAnimation(beat);
+      beat.value = 0;
       return undefined;
     }
-    pulse.value = withRepeat(
+    beat.value = withRepeat(
       withSequence(
         withTiming(1, { duration: 720, easing: Easing.out(Easing.quad) }),
         withTiming(0, { duration: 720, easing: Easing.in(Easing.quad) })
@@ -108,10 +110,10 @@ export default function CircularGauge({
       false
     );
     return () => {
-      cancelAnimation(pulse);
-      pulse.value = 0;
+      cancelAnimation(beat);
+      beat.value = 0;
     };
-  }, [live, m.reduced, pulse]);
+  }, [live, pulse, m.reduced, beat]);
 
   /* 0~50% 는 오른쪽 반원, 50~100% 는 왼쪽이 이어받는다.
      둘 다 -180°(창 밖) → 0°(반원 가득) 로 움직인다. */
@@ -125,8 +127,8 @@ export default function CircularGauge({
     transform: [{ rotate: `${p.value * 360}deg` }],
   }));
   const dotInner = useAnimatedStyle(() => ({
-    opacity: 0.55 + pulse.value * 0.45,
-    transform: [{ scale: 1 + pulse.value * 0.35 }],
+    opacity: 0.55 + beat.value * 0.45,
+    transform: [{ scale: 1 + beat.value * 0.35 }],
   }));
 
   const s = useMemo(() => makeStyles(size, stroke), [size, stroke]);

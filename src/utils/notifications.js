@@ -20,6 +20,7 @@ import { isOfficer } from '../constants/serviceTerms';
 
 const NOTIF_KEY = '@notif_enabled';      // 레거시 마스터 플래그 (write-through 유지)
 const PREFS_KEY = '@notif_prefs_v1';
+const PROMPT_KEY = '@notif_prompt_v1';   // 입대일 입력 후 알림 안내를 한 번 보여줬나
 const SIG_KEY = '@notif_sig';            // 마지막으로 예약을 잡았을 때의 입력 해시
 const PLAN_KEY = '@notif_plan_v1';       // 마지막으로 잡은 예약 목록 (설정 화면 '다음 알림' 표시용)
 
@@ -251,6 +252,29 @@ export async function enableNotifications() {
   if (!(await setNotifEnabledFlag(true))) return false;
   await refreshScheduledNotifications({ force: true });
   return true;
+}
+
+/**
+ * 입대일 입력 뒤 홈에서 '알림 받을래요?' 안내를 띄울지.
+ * 기본이 꺼짐이라 설정 → 알림을 찾아 들어가지 않으면 알림을 한 번도 못 받았다.
+ * **한 번만** 묻는다 — 거절·닫기도 기록한다 (재촉은 삭제 사유다).
+ * 이미 켜져 있거나, OS 가 다시 묻지 못하게 막아 둔 상태(denied + !canAskAgain)면 묻지 않는다.
+ */
+export async function shouldOfferNotifPrompt() {
+  if (!Notifications) return false;
+  try {
+    if (await AsyncStorage.getItem(PROMPT_KEY)) return false;
+  } catch (e) {
+    return false;   // 읽기 실패 시 묻지 않는 쪽으로 — 매 실행마다 뜨는 것보다 낫다
+  }
+  if ((await loadNotifPrefs()).master) return false;
+  const pm = await getNotifPermission();
+  return !(pm.status === 'denied' && !pm.canAskAgain);
+}
+
+/** 안내를 봤다고 기록. 실패해도 조용히 — 최악은 다음 실행에 한 번 더 뜨는 것 */
+export async function markNotifPromptDone() {
+  try { await AsyncStorage.setItem(PROMPT_KEY, '1'); } catch (e) {}
 }
 
 /** 알림 끄기: 모든 예약 취소 + 플래그 저장 */

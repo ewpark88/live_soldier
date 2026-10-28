@@ -178,7 +178,9 @@ NavigationContainer
 "히어로 안에서만, 최대 2개" 규칙이 v1.0 에서는 실제로 최대 22개까지 어겨지고
 있었다 (sheen 1 + Ember 18 + 게이지 3). 지금 히어로의 루프는 **정확히 2개**다:
 
-1. `CircularGauge` 의 선단 맥박 — 항상 (전역했거나 포커스를 잃으면 정지)
+1. 홈 링 안 `StickRunner`(달리는 졸라맨) — 항상 (전역 당일·완료면 만세 정지, 포커스를 잃으면 정지).
+   홈 게이지는 `pulse={false}` 라 선단 점은 남되 맥박 루프는 돌지 않는다.
+   다른 화면의 `CircularGauge live` 는 여전히 선단 맥박 1개.
 2. `AuroraWash` 광원 · `EmberField` 불티 · `HeroCard` sheen 중 **딱 하나**
 
 - 불티가 뜨는 단계(done/d3)에선 `sheen={false}` 이고 `AuroraWash color={null}` 이다.

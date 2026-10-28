@@ -3,11 +3,13 @@ import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useIsFocused } from '@react-navigation/native';
 import LiveServiceGauge from '../LiveServiceGauge';
 import ProfileBar from '../ProfileBar';
 import StreakBadge from '../StreakBadge';
 import EmberField from '../motion/EmberField';
 import AuroraWash from '../motion/AuroraWash';
+import StickRunner from '../motion/StickRunner';
 import { HeroCard, Chip, StatTile, Txt, AnimatedNumber, PressScale } from '../ui';
 import { useThemeColors } from '../../theme/ThemeContext';
 import { useMotion } from '../../hooks/useMotion';
@@ -26,7 +28,7 @@ import { motion, radius as r, space as sp, type as ty } from '../../theme/tokens
  * 바뀌고, 복무가 쌓일수록 광원이 또렷해진다.
  *
  * ⚠️ 무한 루프 예산(§4, 히어로 안 최대 2개):
- *      링 선단 맥박 1 + (AuroraWash 광원 1 | EmberField 1 | HeroCard sheen 1)
+ *      링 안 StickRunner 1 + (AuroraWash 광원 1 | EmberField 1 | HeroCard sheen 1)
  *    불티가 뜨는 단계(done/d3)에서는 sheen 을 끄고, AuroraWash 의 광원도
  *    불티에 자리를 내준다. 세 개가 한 화면에서 겹치면 그냥 지저분하다.
  *
@@ -60,6 +62,7 @@ export default function HomeHero({
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const daypart = useDaypart();
+  const isFocused = useIsFocused();
   const s = useMemo(() => makeStyles(tc), [tc]);
 
   const ddayText = daysLeft > 0 ? null : daysLeft === 0 ? 'D-Day!' : '전역 완료!';
@@ -70,6 +73,7 @@ export default function HomeHero({
      실제 경로가 됐다 (AndroidManifest 의 screenOrientation 제거 참고). */
   const shortSide = Math.min(width, height);
   const ring = Math.max(204, Math.min(272, Math.round(shortSide * 0.64)));
+  const runner = Math.max(24, Math.round(ring * 0.12));
 
   /* 링 안쪽 폭에 맞춰 D-Day 글자 크기를 정한다.
      ty.display(52) 를 고정으로 쓰면 작은 기기 + 네 자리(D-1000)에서 잘린다.
@@ -152,7 +156,15 @@ export default function HomeHero({
           size={ring}
           stroke={14}
           glow={cfg.glow}
+          /* 선단 맥박 대신 졸라맨이 루프 예산을 쓴다 (§4) — 점은 그대로 남는다 */
+          pulse={false}
         >
+          <StickRunner
+            size={runner}
+            color={cfg.accent}
+            celebrate={daysLeft <= 0}
+            active={isFocused}
+          />
           <Txt role="label" tone="heroMuted" style={s.eyebrow}>전역까지</Txt>
 
           <PressScale onPress={onTapDday} haptic={null} style={s.ddayTap}>
