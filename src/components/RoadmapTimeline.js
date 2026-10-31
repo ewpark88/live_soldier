@@ -96,7 +96,9 @@ export default function RoadmapTimeline({ roadmap }) {
         const isNext = item.key === nextKey;
         const last = i === roadmap.length - 1;
 
-        const nodeBg = item.done ? tc.primary : isNext ? tc.accent : tc.surfaceSunken;
+        // 다음 목표는 goldFrom 바탕 — onGold 는 골드 위 전용 글자색이다. tc.accent 는
+        // 테마마다 보라·초록 등으로 바뀌어 onGold 아이콘이 2.4:1 까지 묻혔다.
+        const nodeBg = item.done ? tc.primary : isNext ? tc.goldFrom : tc.surfaceSunken;
         const nodeFg = item.done ? tc.onPrimary : isNext ? tc.onGold : tc.textLight;
         const lineColor = item.done ? tc.primary : tc.border;
 

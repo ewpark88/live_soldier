@@ -52,7 +52,7 @@ eas build --platform android --profile production
   placeholder 는 `textSecondary` — `textLight` 는 가라앉은 표면 위에서 3:1 미만이다.
 - 히어로 위 강조색(D-N·레일·막대 채움)은 `tc.phase.normal.accent` — `accentLight` 금지
   (밝은 히어로에서 묻힌다. `contrastPairs` 가 phase accent 만 검사한다).
-- 팔레트를 건드렸으면 **`npm run theme:check`** 가 통과해야 한다 (2,092개 대비 페어).
+- 팔레트를 건드렸으면 **`npm run theme:check`** 가 통과해야 한다 (2,212개 대비 페어).
   그라데이션은 양 끝이 아니라 **모든 스톱**을 검사한다 — aurora 만 3스톱이라
   중간 색이 한 번도 검사되지 않아 D-Day 숫자 대비가 2.4:1 까지 떨어져 있었다.
   v1.2 부터는 **시간대 워시(`DAYPART_WASH`)를 합성한 뒤의** 스톱까지 검사한다.

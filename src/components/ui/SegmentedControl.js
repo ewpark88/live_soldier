@@ -40,7 +40,14 @@ export default function SegmentedControl({ options, value, onChange, style }) {
       onLayout={(e) => setW(e.nativeEvent.layout.width)}
       accessibilityRole="tablist"
     >
-      {segW > 0 ? <Animated.View style={[styles.thumb, { width: segW }, thumbStyle]} /> : null}
+      {/* 손잡이는 elevation 없는 레이어 안에 둔다. 안드로이드는 elevation 이 그리기
+          순서를 이겨서, 형제로 두면 손잡이(카드색)가 선택된 라벨 '위에' 그려져
+          선택 칸 글자가 통째로 가려졌다. 레이어 자체는 Z=0 이라 라벨보다 먼저 그려진다. */}
+      {segW > 0 ? (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Animated.View style={[styles.thumb, { width: segW }, thumbStyle]} />
+        </View>
+      ) : null}
       {options.map((o) => {
         const on = o.key === value;
         const fg = on ? tc.text : tc.textSecondary;

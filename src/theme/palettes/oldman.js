@@ -26,7 +26,7 @@ export default {
     surfaceSunkenBorder: '#34332E',
     border: '#393732',
     text: '#FAF5E8',
-    textSecondary: '#9C988F',
+    textSecondary: '#A39F97',
     textLight: '#6F6C65',
     tabActive: '#D9B45A',
     tabInactive: '#6F6C65',

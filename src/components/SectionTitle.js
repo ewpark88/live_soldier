@@ -15,7 +15,7 @@ import { radius as r, space as sp, type as ty } from '../theme/tokens';
  */
 const TONES = {
   primary: { fg: 'primary', bg: 'primarySoft' },
-  accent: { fg: 'accent', bg: 'accentSoft' },
+  accent: { fg: 'accentText', bg: 'accentSoft' },   // tc.accent 는 라이트 테마에서 accentSoft 위 2:1 대
   danger: { fg: 'danger', bg: 'dangerSoft' },
   success: { fg: 'success', bg: 'successSoft' },
 };

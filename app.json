@@ -3,7 +3,7 @@
     "name": "전역까지",
     "slug": "jeonryeokkami",
     "scheme": "jeonryeokkami",
-    "version": "1.4.1",
+    "version": "1.4.2",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
