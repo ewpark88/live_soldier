@@ -21,6 +21,8 @@ try {
 // SDK 를 못 불러와도 개발 중에는 절대 실제 ID 로 떨어지지 않게 상수로 대비
 const TEST_BANNER       = (TestIds && TestIds.BANNER)       || 'ca-app-pub-3940256099942544/6300978111';
 const TEST_INTERSTITIAL  = (TestIds && TestIds.INTERSTITIAL) || 'ca-app-pub-3940256099942544/1033173712';
+const TEST_REWARDED_INTERSTITIAL =
+  (TestIds && TestIds.REWARDED_INTERSTITIAL) || 'ca-app-pub-3940256099942544/5354046379';
 
 export const AD_UNITS = {
   // ── 배너 광고 (Banner) ──────────────────────────────────────────
@@ -81,6 +83,12 @@ export const AD_UNITS = {
     label: '일정 · 그룹 사이',
     realId: 'ca-app-pub-8353634332299342/8378011059',
   },
+  DEX_BOTTOM: {
+    id: 'dex_bottom_banner',
+    label: '막대병 도감 · 하단',
+    // 전용 광고 단위 발급 전까지 미사용 단위(홈 상단) 재활용 — ROADMAP_BOTTOM 과 같은 방식
+    realId: 'ca-app-pub-8353634332299342/1949989068',
+  },
   TODO_BOTTOM: {
     id: 'todo_bottom_banner',
     label: '일정 · 하단',
@@ -92,6 +100,14 @@ export const AD_UNITS = {
     id: 'interstitial_tab_switch',
     label: '전면 · 탭 전환',
     realId: 'ca-app-pub-8353634332299342/1046315947',
+  },
+
+  // ── 보상형 전면 광고 (Rewarded Interstitial) ───────────────────
+  // 막대병 도감에서 사용자가 [광고 보고 받기]를 눌렀을 때만 뜬다 (utils/rewardedManager.js)
+  REWARDED_SKIN: {
+    id: 'rewarded_skin_unlock',
+    label: '보상형 전면 · 막대병 해금',
+    realId: 'ca-app-pub-8353634332299342/1414955683',
   },
 };
 
@@ -105,5 +121,7 @@ export const APP_ID = 'ca-app-pub-8353634332299342~7516567553';
 export function getAdUnitId(unit, kind = 'banner') {
   if (!unit || !unit.realId) return null;
   if (!__DEV__) return unit.realId;
-  return kind === 'interstitial' ? TEST_INTERSTITIAL : TEST_BANNER;
+  if (kind === 'interstitial') return TEST_INTERSTITIAL;
+  if (kind === 'rewardedInterstitial') return TEST_REWARDED_INTERSTITIAL;
+  return TEST_BANNER;
 }

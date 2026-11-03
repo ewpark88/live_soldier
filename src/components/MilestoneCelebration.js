@@ -99,7 +99,9 @@ export default function MilestoneCelebration({
                 fillColor={ph.accent}
                 delay={220}
               >
-                <Animated.View style={[s.iconWrap, { backgroundColor: ph.accent }, iconStyle]}>
+                {/* 아이콘 원은 goldFrom — ph.accent 는 라이트 히어로에서 짙은 색이라
+                    onGold(짙은 갈색) 아이콘이 그 위에서 보이지 않았다 */}
+                <Animated.View style={[s.iconWrap, { backgroundColor: tc.goldFrom }, iconStyle]}>
                   <Ionicons name={milestone.icon ?? 'trophy'} size={30} color={tc.onGold} />
                 </Animated.View>
               </CircularGauge>

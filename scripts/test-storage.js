@@ -321,14 +321,22 @@ function reset() { store = {}; failReads = false; failWrites = false; }
   await S.updateProfile((await S.listProfiles()).activeId, { photo: 'file:///cache/x.jpg' });
   store['@theme_v2'] = JSON.stringify({ themeId: 'sunset', mode: 'dark', unlocked: ['sunset'], introSeen: true });
   store['@streak_v1'] = JSON.stringify({ current: 9, best: 12, total: 40 });
+  await S.saveSkins({ selected: 'march', unlocked: ['run', 'march'] });
   const backup = await S.exportAll();
+  eq(backup.data.skins.unlocked, ['run', 'march'], '백업: 막대병 보유 목록');
   eq([backup.app, backup.schema], ['jeonryeokkami', 1], '백업: 헤더');
   eq(backup.data.profiles.profiles[0].photo, null, '백업: 사진 경로는 빼고 내보낸다');
   const json = JSON.stringify(backup);
 
   reset();   // 새 기기
   await S.saveMilitaryInfo({ enlistDate: '2026-01-01', branch: 'army', months: 18 });
+  await S.saveSkins({ selected: 'shoot', unlocked: ['run', 'shoot'] });   // 새 기기에서 이미 얻은 것
   const summary = await S.importAll(json);
+  {
+    const sk = await S.loadSkins();
+    eq(sk.unlocked, ['run', 'march', 'shoot'], '복원: 막대병은 합친다 (이 기기 것 유지)');
+    eq(sk.selected, 'march', '복원: 막대병 장착은 백업 쪽');
+  }
   eq(summary.count, 1, '복원: 프로필 수 요약');
   eq((await S.loadMilitaryInfo()).branch, 'airforce', '복원: 입대정보');
   eq((await S.loadTodos())[0].title, '유격', '복원: 할 일');
@@ -349,6 +357,23 @@ function reset() { store = {}; failReads = false; failWrites = false; }
     try { await S.importAll(json); } catch (e) { threw = true; }
     failWrites = false;
     ok(threw, '복원: 쓰기 실패는 던진다 (guardSave 가 알 수 있게)');
+  }
+
+  /* ── v1.5: 막대병 저장 ── */
+  reset();
+  eq(await S.loadSkins(), { selected: 'run', unlocked: ['run'], dexSeen: false }, '막대병: 기본값');
+  store['@soldier_skins_v1'] = '{broken';
+  eq((await S.loadSkins()).selected, 'run', '막대병: 손상값 → 기본값');
+  await S.saveSkins({ selected: 'dig', unlocked: ['dig', 'nope'] });
+  eq(await S.loadSkins(), { selected: 'dig', unlocked: ['run', 'dig'], dexSeen: false }, '막대병: 모르는 id 정리 · 무료 포함');
+  await S.clearAllData();
+  eq((await S.loadSkins()).unlocked, ['run', 'dig'], '막대병: 모든 데이터 삭제에도 유지');
+  {
+    failWrites = true;
+    let threw = false;
+    try { await S.saveSkins({ selected: 'run', unlocked: ['run'] }); } catch (e) { threw = true; }
+    failWrites = false;
+    ok(threw, '막대병: 쓰기 실패는 던진다');
   }
 
   console.log('\n──────────── 저장소 테스트 ────────────');

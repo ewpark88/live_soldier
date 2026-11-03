@@ -63,6 +63,15 @@ export const CONTRAST_PAIRS = [
   // v1.3 — 체크박스 완료(success 바탕 위 체크 아이콘), 세그먼트 컨트롤 선택 칸
   { fg: 'onPrimary', bg: 'success', min: 3.0, label: '체크박스 완료 아이콘' },
   { fg: 'text', bg: 'surfaceSunken', min: 7.0, label: '세그먼트·입력칸 글자' },
+  // v1.4.2 — 테마 전수 점검에서 4.5 문턱 아래(3.8~4.47)로 나온 실사용 조합.
+  // 섹션 캡션은 카드 밖 화면 배경 위에, 보조 문구는 *Soft 안내 상자 안에 얹힌다.
+  { fg: 'textSecondary', bg: 'background', min: 4.5, label: '보조 텍스트 / 화면 배경' },
+  { fg: 'textSecondary', bg: 'primarySoft', min: 4.5, label: '보조 텍스트 / primarySoft 상자' },
+  { fg: 'textSecondary', bg: 'accentSoft', min: 4.5, label: '보조 텍스트 / accentSoft 상자' },
+  // 달력 — 선택일 숫자(primary / highlightBg), 주말 숫자(sat·sun / card)
+  { fg: 'primary', bg: 'highlightBg', min: 4.5, label: '달력 선택일 숫자' },
+  { fg: 'sat', bg: 'card', min: 4.5, label: '달력 토요일 숫자' },
+  { fg: 'sun', bg: 'card', min: 4.5, label: '달력 일요일 숫자' },
   // 입력칸 placeholder 는 textSecondary 를 쓴다 ('Chip neutral / 가라앉은 표면' 페어가 검사).
   // textLight 는 라이트 테마 6종에서 2.7~2.95:1 이라 v1.3 에서 바꿨다.
 ];

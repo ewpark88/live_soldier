@@ -92,7 +92,7 @@ export const baseLight = {
   background: '#F5F7F6',
   card: '#FFFFFF',
   text: '#15231E',
-  textSecondary: '#5C726C',
+  textSecondary: '#5A706A',
   textLight: '#879792',
   border: '#E6ECEA',
   success: '#177D54',
@@ -151,7 +151,7 @@ export const baseLight = {
 
   // 달력 주말
   sat: '#3B72C4',
-  sun: '#D8483E',
+  sun: '#CD443B',
 
   // QR 코드 — 테마와 무관하게 '흰 바탕 + 검은 칸'. 다크 테마 색을 그대로 쓰면
   // 밝은 칸·어두운 바탕(반전 QR)이 되어 폰 기본 카메라 상당수가 읽지 못한다.

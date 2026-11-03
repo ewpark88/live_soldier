@@ -186,6 +186,11 @@ export async function preloadInterstitial() {
   }
 }
 
+/** 전면광고가 지금 화면을 덮고 있나 — 그 위에 시트·팝업을 띄우지 않기 위해 */
+export function isInterstitialShowing() {
+  return isShowing;
+}
+
 export function isInterstitialReady() {
   return isLoaded && !isShowing && !_expired();
 }

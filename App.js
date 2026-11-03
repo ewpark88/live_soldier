@@ -4,7 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
-import { navigationRef } from './src/navigation/navigationRef';
+import { navigationRef, openNotificationRoute, flushPendingRoute } from './src/navigation/navigationRef';
+import { useDoubleBackExit } from './src/navigation/useDoubleBackExit';
 import ShareImportSheet from './src/components/share/ShareImportSheet';
 import { requestShareImport } from './src/state/appEvents';
 import { findShareCode } from './src/utils/shareCode';
@@ -13,8 +14,12 @@ import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { PrefsProvider } from './src/theme/PrefsContext';
 import { StreakProvider } from './src/state/StreakContext';
 import { CelebrationProvider } from './src/state/CelebrationContext';
-import { configureNotificationHandler, refreshScheduledNotifications } from './src/utils/notifications';
+import { SkinProvider } from './src/state/SkinContext';
+import {
+  configureNotificationHandler, refreshScheduledNotifications, subscribeNotificationTaps,
+} from './src/utils/notifications';
 import { markAdsReady } from './src/utils/adManager';
+import { recordAppOpen } from './src/utils/reviewPrompt';
 
 // Expo Go 호환 처리
 let requestTrackingPermissionsAsync = null;
@@ -32,6 +37,7 @@ try {
 /** 테마가 적용되는 내부 루트 (ThemeProvider 하위에서 useTheme 사용 가능) */
 function ThemedApp() {
   const { scheme, colors } = useTheme();
+  useDoubleBackExit();
 
   const navTheme = {
     ...(scheme === 'dark' ? DarkTheme : DefaultTheme),
@@ -46,7 +52,7 @@ function ThemedApp() {
   };
 
   return (
-    <NavigationContainer theme={navTheme} ref={navigationRef}>
+    <NavigationContainer theme={navTheme} ref={navigationRef} onReady={flushPendingRoute}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <RootNavigator />
       {/* 공유 코드 가져오기 — 딥링크·QR·프로필 바가 모두 이 시트 하나를 연다 */}
@@ -72,15 +78,19 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
+  // 알림을 누르면 그 이벤트의 화면(로드맵·캘린더·급여·홈)으로 간다.
+  // 핸들러는 저장소 초기화를 기다리지 않는다 — 앱을 켜자마자 오는 알림도 앱 안에서 보여야 한다.
+  useEffect(() => {
+    configureNotificationHandler();
+    return subscribeNotificationTaps(openNotificationRoute);
+  }, []);
+
   useEffect(() => {
     initAds();
     // 저장소 초기화 + 레거시(단일 프로필) → 멀티 프로필 자동 마이그레이션
+    recordAppOpen();   // 리뷰 요청 조건(설치 일수·실행한 날) — 실패해도 조용히
     initStorage()
-      .then(() => {
-        // 알림이 켜져 있으면 최신 데이터로 리마인더 재예약
-        configureNotificationHandler();
-        return refreshScheduledNotifications();
-      })
+      .then(() => refreshScheduledNotifications())   // 알림이 켜져 있으면 최신 데이터로 재예약
       .catch(() => {});
   }, []);
 
@@ -115,7 +125,9 @@ export default function App() {
               예전처럼 홈 포커스마다 재예약하지 않는다. */}
           <StreakProvider onCheckIn={() => refreshScheduledNotifications()}>
             <CelebrationProvider>
-              <ThemedApp />
+              <SkinProvider>
+                <ThemedApp />
+              </SkinProvider>
             </CelebrationProvider>
           </StreakProvider>
         </PrefsProvider>

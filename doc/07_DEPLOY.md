@@ -185,16 +185,29 @@ web-build/
 
 ---
 
-## 8. 앱 아이콘 재생성
+## 8. 앱 아이콘 · 스토어 이미지 재생성
 
 ```bash
 npm run icon
-# → generate-icon.js 실행
-# → assets/icon.png (1024×1024) 생성
-# → assets/adaptive-icon.png (1024×1024, 배경 없음) 생성
+# → generate-icon.js (병장 계급장 + 전역 진행 링, 네이비 #0B1E3A)
+# → assets/icon.png · adaptive-icon.png · splash-icon.png · favicon.png
+# → android/app/src/main/res/mipmap-*/ic_launcher{,_round,_foreground,_background,_monochrome}.webp
 ```
 
-아이콘 디자인 변경 시 `generate-icon.js`의 SVG 코드 수정 후 재실행.
+- bare 워크플로라 **런처 아이콘은 mipmap webp 가 실제로 쓰인다.** 스크립트가 assets 와 mipmap 을 함께 갱신한다.
+- 적응형 배경색을 바꾸면 `values/colors.xml` 의 `iconBackground`·`splashscreen_background` 와 `app.json` 도 맞춘다.
+
+```bash
+npm run store-assets
+# → scripts/generate-store-assets.js (+ scripts/store/screens.js 목업)
+# → store-assets/icon-512.png               플레이 앱 아이콘 512×512
+# → store-assets/feature-graphic-1024x500.png 그래픽 이미지
+# → store-assets/screenshots/01~06.png       휴대전화 스크린샷 1080×1920
+```
+
+- 스토어 이미지는 `assets/` 밖에 둔다 — `assetBundlePatterns: **/*` 때문에 assets 아래는 APK 에 실린다.
+- 피처 그래픽·스크린샷은 HTML 을 Edge 헤드리스로 캡처한다 (`BROWSER` 환경변수로 다른 크로미움 지정 가능).
+- 스크린샷은 실제 화면을 재현한 목업이다. 화면 라벨·구성이 바뀌면 `scripts/store/screens.js` 도 고친다.
 
 ---
 

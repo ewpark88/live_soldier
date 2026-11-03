@@ -52,21 +52,23 @@ eas build --platform android --profile production
   placeholder 는 `textSecondary` — `textLight` 는 가라앉은 표면 위에서 3:1 미만이다.
 - 히어로 위 강조색(D-N·레일·막대 채움)은 `tc.phase.normal.accent` — `accentLight` 금지
   (밝은 히어로에서 묻힌다. `contrastPairs` 가 phase accent 만 검사한다).
-- 팔레트를 건드렸으면 **`npm run theme:check`** 가 통과해야 한다 (2,092개 대비 페어).
+- 팔레트를 건드렸으면 **`npm run theme:check`** 가 통과해야 한다 (2,212개 대비 페어).
   그라데이션은 양 끝이 아니라 **모든 스톱**을 검사한다 — aurora 만 3스톱이라
   중간 색이 한 번도 검사되지 않아 D-Day 숫자 대비가 2.4:1 까지 떨어져 있었다.
   v1.2 부터는 **시간대 워시(`DAYPART_WASH`)를 합성한 뒤의** 스톱까지 검사한다.
   원본만 통과하고 밤 워시에서 무너지는 조합이 실제로 8건 있었다.
 - 네비게이션은 루트 native-stack + 4탭이다. **라우트 이름은 트리 전체에서 유일**해야
   하고, `navigate` 버블링은 위로만 간다 — 여러 곳에서 진입하는 화면은 루트 스택에 둔다.
-- `npm test` 는 7개 스위트를 돌린다. 순수 로직을 고쳤으면 반드시 돌린다.
+- `npm test` 는 9개 스위트를 돌린다. 순수 로직을 고쳤으면 반드시 돌린다.
   - `test-calc.js` (251) 날짜·계급·로드맵·적금·스트릭·축하
   - `test-clock.js` (60) **시계를 특정 날짜로 고정**해야만 드러나는 것
     (윤일 임관자 호봉, DST 전환, 월말 입대자 복무개월, 다음 휴가·월급날)
-  - `test-storage.js` (84) AsyncStorage 목 위에서 실제 저장소 로직 (공유 프로필·백업 복원 포함)
-  - `test-notifications.js` (21) expo-notifications 목 위에서 예약 로직
+  - `test-storage.js` (92) AsyncStorage 목 위에서 실제 저장소 로직 (공유 프로필·백업 복원 포함)
+  - `test-notifications.js` (56) expo-notifications 목 위에서 예약 로직 (이벤트별 스위치·채널·일정 시각·월급날·첫 알림 안내)
   - `test-ads.js` (28) 전면광고 지연 로드·빈도 제한·만료·무장 상태 (노출률 회귀 방지)
-  - `test-share.js` (53) 공유 코드 왕복·변조 검출, 백업 파일 검증
+  - `test-share.js` (59) 공유 코드 왕복·변조 검출, 백업 파일 검증
+  - `test-review.js` (39) 인앱 리뷰 요청 조건 (사용 기간·광고 겹침 방지·90일 간격·누적 한도)
+  - `test-skins.js` (74) 막대병 도감 — 보유·장착 상태, 리그 포즈('worklet' 정적 검사 포함), 보상형 광고 흐름
   - `test-tz.js` 계산·시계 스위트를 **10개 시간대**에서 반복
 - **테스트가 통과한다고 끝이 아니다.** 화면 파일은 계산 테스트가 로드하지 않으므로
   `npx expo export --platform android` 로 번들까지 확인한다. 실제로 문자열 파손이
@@ -87,6 +89,21 @@ eas build --platform android --profile production
 - 전면광고의 **내부 자동 재로드**(만료·미로드·실패 재시도)는 `useShowInterstitial(armed)`
   로 폼이 열려 있을 때만 돈다 (`adManager.setInterstitialArmed`). 저장 직후엔 폼이 이미
   닫혀 있으므로 그 자리에서 다시 받지 않는다.
+
+- **보상형 전면광고**(v1.5, 막대병 도감)는 사용자가 안내 시트에서 [광고 보고 받기]를
+  눌렀을 때만 뜬다 — 정책상 사전 안내·건너뛰기 필수. 보상은 `EARNED_REWARD` 에서만.
+  도감이 포커스일 때만 로드한다. 자세한 건 `doc/06_ADS.md`.
+
+## 막대병 도감 (v1.5)
+
+- 홈 링 안 캐릭터 = `StickSoldier`(`components/motion`). '졸라맨'은 상표 문제로 쓰지 않고
+  **막대병**이라 부른다. 카탈로그 `constants/soldierSkins.js`(id 는 저장·백업에 남으니
+  바꾸거나 지우지 않는다 — 새 모습은 끝에 추가), 포즈·장비는 `motion/soldierRig.js`(순수 모듈).
+- 포즈를 고쳤으면 **`npm run soldiers:preview`** 로 PNG 를 보고 확인한다. 미리보기는
+  StickSoldier 의 View 중첩을 SVG 로 똑같이 따라 그린다 — 구조를 바꾸면 둘 다 바꾼다.
+  포즈 함수는 전부 `'worklet'` (test-skins 가 정적 검사).
+- 보유·장착은 `@soldier_skins_v1`(기기 범위, `SkinContext`). '모든 데이터 삭제'로 지우지
+  않고, 백업에는 싣고, 복원 때는 **합친다**(광고로 얻은 것을 잃지 않게).
 
 ## 서버 없는 공유 (v1.3)
 

@@ -168,6 +168,14 @@ eq(B.parseBackup({ ...bk, data: { profiles: { profiles: [{ id: 'a', name: 1 }] }
   const r = B.parseBackup({ ...bk, data: { profiles: { activeId: 'zz', profiles: [{ id: 'a', name: 'x', photo: 'file:///y' }] } } });
   eq([r.value.store.activeId, r.value.store.profiles[0].photo], ['a', null], '백업 파싱: 없는 activeId·사진 경로 보정');
 }
+{
+  // v1.5 막대병 — 선택 필드. 옛 백업(필드 없음)도 그대로 읽는다.
+  const withSkins = B.buildBackup({ store, skins: { selected: 'march', unlocked: ['run', 'march'] } });
+  eq(B.parseBackup(JSON.stringify(withSkins)).value.skins, { selected: 'march', unlocked: ['run', 'march'] }, '백업 파싱: 막대병 왕복');
+  eq(B.parseBackup(JSON.stringify(bk)).value.skins, null, '백업 파싱: 막대병 없는 백업은 null');
+  const old = JSON.parse(JSON.stringify(bk)); delete old.data.skins;
+  eq(B.parseBackup(old).ok, true, '백업 파싱: v1.4 백업(skins 키 없음) 호환');
+}
 eq(B.backupFileName(new Date(2026, 0, 5)), 'jeonryeokkami_backup_20260105.json', '백업: 파일명');
 
 console.log('\n──────────── 공유 코드 · 백업 테스트 ────────────');
