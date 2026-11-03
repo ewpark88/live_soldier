@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { showInterstitial, preloadInterstitial, setInterstitialArmed } from '../utils/adManager';
+import { noteMajorSave } from '../utils/reviewPrompt';
 
 /**
  * 전면광고 훅.
@@ -29,7 +30,11 @@ export default function useShowInterstitial(armed = false) {
     if (inFlight.current) return false;   // 중복 호출 방지
     inFlight.current = true;
     try {
-      return await showInterstitial();
+      const adShown = await showInterstitial();
+      // 주요 저장이 끝난 지점 = 리뷰 요청 후보. 광고가 뜬 저장에는 요청하지 않는다.
+      // 기다리지 않는다 — 리뷰 판단이 저장 흐름을 늦추면 안 된다.
+      noteMajorSave({ adShown }).catch(() => {});
+      return adShown;
     } finally {
       inFlight.current = false;
     }

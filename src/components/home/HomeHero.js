@@ -9,7 +9,8 @@ import ProfileBar from '../ProfileBar';
 import StreakBadge from '../StreakBadge';
 import EmberField from '../motion/EmberField';
 import AuroraWash from '../motion/AuroraWash';
-import StickRunner from '../motion/StickRunner';
+import StickSoldier from '../motion/StickSoldier';
+import { useSkins } from '../../state/SkinContext';
 import { HeroCard, Chip, StatTile, Txt, AnimatedNumber, PressScale } from '../ui';
 import { useThemeColors } from '../../theme/ThemeContext';
 import { useMotion } from '../../hooks/useMotion';
@@ -56,8 +57,10 @@ export default function HomeHero({
   onPressStreak,
   onPressPromo,
   onPressLeave,
+  onPressDex,
 }) {
   const tc = useThemeColors();
+  const { selected: skin, dexSeen } = useSkins();
   const m = useMotion();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
@@ -159,12 +162,23 @@ export default function HomeHero({
           /* 선단 맥박 대신 졸라맨이 루프 예산을 쓴다 (§4) — 점은 그대로 남는다 */
           pulse={false}
         >
-          <StickRunner
-            size={runner}
-            color={cfg.accent}
-            celebrate={daysLeft <= 0}
-            active={isFocused}
-          />
+          {/* 막대병 — 눌러도 도감으로 간다. 모습은 도감에서 고른다 (skin 이 바뀌면 리마운트). */}
+          <PressScale
+            onPress={onPressDex}
+            haptic="light"
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="막대병 도감 — 링 안 캐릭터 바꾸기"
+          >
+            <StickSoldier
+              key={skin}
+              skin={skin}
+              size={runner}
+              color={cfg.accent}
+              celebrate={daysLeft <= 0}
+              active={isFocused}
+            />
+          </PressScale>
           <Txt role="label" tone="heroMuted" style={s.eyebrow}>전역까지</Txt>
 
           <PressScale onPress={onTapDday} haptic={null} style={s.ddayTap}>
@@ -209,6 +223,18 @@ export default function HomeHero({
         >
           <Ionicons name="share-social" size={15} color={tc.heroText} />
           <Txt role="label" tone="hero" maxFontSizeMultiplier={1.3}>자랑하기</Txt>
+        </PressScale>
+        {/* 막대병 도감 — 첫 화면에서 바로 보이는 자리. 도감을 한 번도 안 열었으면 NEW 점 */}
+        <PressScale
+          onPress={onPressDex}
+          haptic="light"
+          style={[s.shareBtn, { borderColor: tc.heroBorder }]}
+          accessibilityRole="button"
+          accessibilityLabel={`막대병 도감 — 링 안 캐릭터 바꾸기${dexSeen ? '' : ', 새 기능'}`}
+        >
+          <Ionicons name="body" size={15} color={tc.heroText} />
+          <Txt role="label" tone="hero" maxFontSizeMultiplier={1.3}>막대병</Txt>
+          {!dexSeen ? <View style={[s.newDot, { backgroundColor: cfg.accent }]} /> : null}
         </PressScale>
       </View>
 
@@ -261,9 +287,10 @@ const makeStyles = (tc) =>
 
     dateRow: {
       flexDirection: 'row',
+      flexWrap: 'wrap',   // 좁은 기기 + 큰 글씨에서 알약 두 개가 넘치면 아래 줄로
       alignItems: 'center',
       justifyContent: 'center',
-      gap: sp.md,
+      gap: sp.sm,
       marginTop: sp.lg,
     },
     shareBtn: {
@@ -276,6 +303,8 @@ const makeStyles = (tc) =>
       borderWidth: StyleSheet.hairlineWidth,
       backgroundColor: tc.heroSheen,
     },
+
+    newDot: { position: 'absolute', top: 4, right: 6, width: 7, height: 7, borderRadius: r.pill },
 
     statRow: { flexDirection: 'row', gap: sp.sm, marginTop: sp.lg },
   });

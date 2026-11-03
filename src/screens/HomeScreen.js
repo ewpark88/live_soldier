@@ -414,6 +414,7 @@ export default function HomeScreen({ navigation }) {
           onPressStreak={() => setStreakOpen(true)}
           onPressPromo={() => navigation.navigate('roadmap')}
           onPressLeave={() => goCalendar('leave')}
+          onPressDex={() => navigation.navigate('soldierDex')}
         />
 
         <View style={s.body}>

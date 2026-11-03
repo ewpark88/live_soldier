@@ -8,6 +8,7 @@ import { AD_UNITS } from '../constants/adUnits';
 import { useTheme, useThemeColors } from '../theme/ThemeContext';
 import { usePrefs } from '../theme/PrefsContext';
 import { useStreak } from '../state/StreakContext';
+import { useSkins } from '../state/SkinContext';
 import { clearAllData, importAll, listProfiles, loadMilitaryInfo, loadRankPromotions } from '../utils/storage';
 import { removeProfilePhoto } from '../utils/imagePicker';
 import { haptic } from '../utils/haptics';
@@ -24,6 +25,7 @@ import { backupErrorMessage } from '../utils/backup';
 import { emitProfilesChanged } from '../state/appEvents';
 import { updateDischargeWidget } from '../widget/updateWidget';
 import { expo as appInfo } from '../../app.json';
+import { CONTACT_EMAIL, openContactEmail, openStoreReview } from '../utils/feedback';
 import { space as sp } from '../theme/tokens';
 
 export default function SettingsScreen({ navigation }) {
@@ -31,6 +33,7 @@ export default function SettingsScreen({ navigation }) {
   const { theme: currentTheme, introSeen, reload: reloadTheme } = useTheme();
   const { haptics, reduceMotion, setHaptics, setReduceMotion, reload: reloadPrefs } = usePrefs();
   const { refresh: refreshStreak } = useStreak();
+  const { reload: reloadSkins } = useSkins();
 
   const [notifSummary, setNotifSummary] = useState(null);
   const [info, setInfo] = useState(null);
@@ -88,6 +91,7 @@ export default function SettingsScreen({ navigation }) {
     // 홈·급여 탭과 같은 아이콘 — 같은 기능이 화면마다 다른 아이콘이면 다른 기능처럼 보인다
     { title: '장병내일적금', subtitle: '전역 시 받을 목돈 계산', icon: 'calculator-outline', route: 'savings' },
     { title: '군인 혜택 모음', subtitle: '금융·교통·문화 할인', icon: 'gift-outline', route: 'benefits' },
+    { title: '막대병 도감', subtitle: '홈 링 안 막대병 모습 바꾸기', icon: 'body-outline', route: 'soldierDex' },
   ];
 
   const switchProps = (on, label) => ({
@@ -178,7 +182,7 @@ export default function SettingsScreen({ navigation }) {
             const res = await guardSave(() => importAll(picked.text), '백업을 복원하지 못했습니다.\n기기 저장공간을 확인한 뒤 다시 시도해주세요.', '복원 실패');
             if (res === SAVE_FAILED) return;
             oldPhotos.forEach((u) => removeProfilePhoto(u));
-            await Promise.all([reloadTheme?.(), reloadPrefs?.(), refreshStreak?.()]).catch(() => {});
+            await Promise.all([reloadTheme?.(), reloadPrefs?.(), refreshStreak?.(), reloadSkins?.()]).catch(() => {});
             await afterDataReplaced();
             haptic.success();
             Alert.alert(
@@ -333,8 +337,28 @@ export default function SettingsScreen({ navigation }) {
         </ListGroup>
       </Section>
 
+      {/* ── 의견·문의 ── 리뷰 버튼은 스토어 링크다 (In-App Review API 는 저장 흐름에서만) */}
+      <Section index={6} gap={sp.xl}>
+        <ListGroup label="의견·문의">
+          <ListRow
+            title="스토어에 리뷰 남기기"
+            subtitle="의견·칭찬은 Play 스토어 리뷰로 남겨주세요"
+            icon="star-outline"
+            chevron
+            onPress={openStoreReview}
+          />
+          <ListRow
+            title="문의·버그 신고"
+            subtitle={`${CONTACT_EMAIL} 로 메일을 보내요`}
+            icon="mail-outline"
+            chevron
+            onPress={openContactEmail}
+          />
+        </ListGroup>
+      </Section>
+
       {/* ── 앱 정보 ── */}
-      <Section index={6} gap={sp.lg}>
+      <Section index={7} gap={sp.lg}>
         <ListGroup label="앱 정보">
           <ListRow
             title="앱 이름"

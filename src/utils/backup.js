@@ -10,6 +10,7 @@
  *       theme:    @theme_v2 값 | null,
  *       streak:   @streak_v1 값 | null,
  *       uiPrefs:  @ui_prefs_v1 값 | null,
+ *       skins:    @soldier_skins_v1 값 | null   (v1.5~, 없는 옛 백업도 그대로 읽는다)
  *     }
  *   }
  *
@@ -23,7 +24,7 @@ export const BACKUP_APP = 'jeonryeokkami';
 export const BACKUP_SCHEMA = 1;
 
 /** 저장소 원본 → 백업 객체 */
-export function buildBackup({ store, theme = null, streak = null, uiPrefs = null }, now = new Date()) {
+export function buildBackup({ store, theme = null, streak = null, uiPrefs = null, skins = null }, now = new Date()) {
   const profiles = store && Array.isArray(store.profiles)
     ? {
       activeId: store.activeId,
@@ -34,7 +35,7 @@ export function buildBackup({ store, theme = null, streak = null, uiPrefs = null
     app: BACKUP_APP,
     schema: BACKUP_SCHEMA,
     exportedAt: now.toISOString(),
-    data: { profiles, theme, streak, uiPrefs },
+    data: { profiles, theme, streak, uiPrefs, skins },
   };
 }
 
@@ -82,6 +83,7 @@ export function parseBackup(input) {
       theme: _isObj(d.theme) ? d.theme : null,
       streak: _isObj(d.streak) ? d.streak : null,
       uiPrefs: _isObj(d.uiPrefs) ? d.uiPrefs : null,
+      skins: _isObj(d.skins) ? d.skins : null,
     },
     summary: {
       count: store.profiles.length,

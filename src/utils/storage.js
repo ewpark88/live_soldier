@@ -3,6 +3,7 @@ import { calcDischargeDate, calcPromotionDate, formatDate } from './dateUtils';
 import { resolveLeaveDays } from '../constants/serviceTerms';
 import { buildBackup, parseBackup } from './backup';
 import { shareIdentity } from './shareCode';
+import { mergeSkins, normalizeSkins } from './skins';
 
 /**
  * 멀티 프로필 저장소
@@ -29,6 +30,7 @@ const THEME_KEY = '@theme_mode';      // 레거시 — @theme_v2 로 흡수됨 (
 const THEME_V2_KEY = '@theme_v2';
 const STREAK_KEY = '@streak_v1';
 const PREFS_KEY = '@ui_prefs_v1';
+const SKINS_KEY = '@soldier_skins_v1';
 export const MAX_PROFILES = 12;
 
 /* 구버전(단일 프로필) 키 — 최초 1회 마이그레이션 시에만 읽음 */
@@ -682,6 +684,24 @@ export async function saveUIPrefs(prefs) {
   try { await AsyncStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
 }
 
+// ─── 막대병 도감 (보유·장착) ─────────────────────────────────────────
+// 기기 범위다(테마와 같음). '모든 데이터 삭제'에서도 지우지 않는다 — 광고를 보고
+// 얻은 것을 회수하면 징벌적이다. 형식·정규화는 utils/skins.js.
+export async function loadSkins() {
+  try {
+    return normalizeSkins(_safeParse(await AsyncStorage.getItem(SKINS_KEY), null));
+  } catch {
+    return normalizeSkins(null);
+  }
+}
+
+/** 실패하면 던진다 — 호출부는 guardSave 로 감싼다 (광고 보상이 조용히 사라지면 안 된다). */
+export async function saveSkins(state) {
+  const next = normalizeSkins(state);
+  await AsyncStorage.setItem(SKINS_KEY, JSON.stringify(next));
+  return next;
+}
+
 // ─── 전체 데이터 삭제 (모든 프로필/군생활 데이터 초기화) ────────────────
 // 테마·해금(@theme_v2)·알림·모션 설정은 유지하고, 사용자가 입력한 데이터만
 // 모두 지운다. 해금은 복무의 결과이지 데이터가 아니라, 회수하면 징벌적이다.
@@ -795,16 +815,17 @@ const PREIMPORT_KEY = '@profiles_v1.preimport';   // 복원 직전 상태 (되�
 
 /** 전체 백업 객체 (JSON 직렬화 전) */
 export async function exportAll() {
-  const [store, theme, streak, uiPrefs] = await Promise.all([
+  const [store, theme, streak, uiPrefs, skins] = await Promise.all([
     _loadStore(),
     AsyncStorage.getItem(THEME_V2_KEY).then((r) => _safeParse(r, null)).catch(() => null),
     loadStreak(),
     AsyncStorage.getItem(PREFS_KEY).then((r) => _safeParse(r, null)).catch(() => null),
+    loadSkins(),
   ]);
   if (store && store.__degraded) {
     throw new StorageUnavailableError('저장소를 읽을 수 없어 백업하지 못했습니다');
   }
-  return buildBackup({ store, theme, streak, uiPrefs });
+  return buildBackup({ store, theme, streak, uiPrefs, skins });
 }
 
 /**
@@ -820,7 +841,7 @@ export function importAll(input) {
       err.reason = parsed.reason;
       throw err;
     }
-    const { store, theme, streak, uiPrefs } = parsed.value;
+    const { store, theme, streak, uiPrefs, skins } = parsed.value;
     try {
       const cur = await AsyncStorage.getItem(STORE_KEY);
       if (cur) await AsyncStorage.setItem(PREIMPORT_KEY, cur);
@@ -831,6 +852,8 @@ export function importAll(input) {
     if (theme) await _themeSerial(() => AsyncStorage.setItem(THEME_V2_KEY, JSON.stringify(theme)));
     if (streak) await saveStreak(streak);
     if (uiPrefs) await saveUIPrefs(uiPrefs);
+    // 막대병은 덮어쓰지 않고 합친다 — 이 기기에서 광고로 얻은 것을 잃지 않게
+    if (skins) await saveSkins(mergeSkins(await loadSkins(), skins));
     return parsed.summary;
   });
 }

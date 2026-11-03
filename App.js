@@ -14,10 +14,12 @@ import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { PrefsProvider } from './src/theme/PrefsContext';
 import { StreakProvider } from './src/state/StreakContext';
 import { CelebrationProvider } from './src/state/CelebrationContext';
+import { SkinProvider } from './src/state/SkinContext';
 import {
   configureNotificationHandler, refreshScheduledNotifications, subscribeNotificationTaps,
 } from './src/utils/notifications';
 import { markAdsReady } from './src/utils/adManager';
+import { recordAppOpen } from './src/utils/reviewPrompt';
 
 // Expo Go 호환 처리
 let requestTrackingPermissionsAsync = null;
@@ -86,6 +88,7 @@ export default function App() {
   useEffect(() => {
     initAds();
     // 저장소 초기화 + 레거시(단일 프로필) → 멀티 프로필 자동 마이그레이션
+    recordAppOpen();   // 리뷰 요청 조건(설치 일수·실행한 날) — 실패해도 조용히
     initStorage()
       .then(() => refreshScheduledNotifications())   // 알림이 켜져 있으면 최신 데이터로 재예약
       .catch(() => {});
@@ -122,7 +125,9 @@ export default function App() {
               예전처럼 홈 포커스마다 재예약하지 않는다. */}
           <StreakProvider onCheckIn={() => refreshScheduledNotifications()}>
             <CelebrationProvider>
-              <ThemedApp />
+              <SkinProvider>
+                <ThemedApp />
+              </SkinProvider>
             </CelebrationProvider>
           </StreakProvider>
         </PrefsProvider>
