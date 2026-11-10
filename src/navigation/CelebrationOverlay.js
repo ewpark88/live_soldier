@@ -4,10 +4,9 @@ import ShareSheet from '../components/share/ShareSheet';
 import { useCelebration } from '../state/CelebrationContext';
 import { loadMilitaryInfo, loadRankPromotions, listProfiles } from '../utils/storage';
 import { shareMilestone } from '../utils/shareUtils';
-import {
-  calcDaysLeft, calcProgress, calcRankByEnlistDate, calcRankFromPromotions,
-} from '../utils/dateUtils';
-import { BRANCHES, isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { calcDaysLeft, calcProgress } from '../utils/dateUtils';
+import { currentRankLabel } from '../utils/roadmapUtils';
+import { BRANCHES } from '../constants/serviceTerms';
 
 /**
  * 축하 오버레이 어댑터.
@@ -31,9 +30,7 @@ export default function CelebrationOverlay() {
       const info = await loadMilitaryInfo();
       if (!info) return;
       const promos = await loadRankPromotions(info.enlistDate);
-      const rank = isOfficer(info.personnelType)
-        ? (info.officerRank ?? personnelLabel(info.personnelType))
-        : (calcRankFromPromotions(promos) ?? calcRankByEnlistDate(info.enlistDate));
+      const rank = currentRankLabel(info, promos);
 
       let name = '';
       try {

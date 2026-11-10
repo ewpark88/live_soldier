@@ -15,6 +15,7 @@ import {
 } from './storage';
 import { buildRoadmap } from './roadmapUtils';
 import { parseDate, formatDate } from './dateUtils';
+import { hash32, todayStr } from './daily';
 import { getNextPayday, paydayOf } from './upcoming';
 import { isOfficer } from '../constants/serviceTerms';
 
@@ -129,14 +130,6 @@ export function saveNotifPrefs(patch) {
 }
 
 /** FNV-1a 32bit — 시그니처 게이트용 (utils/daily.js 와 동일 알고리즘) */
-function _hash(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i += 1) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return String(h >>> 0);
-}
 
 let Notifications = null;
 try {
@@ -430,12 +423,6 @@ async function scheduleDaily(hour, title, body) {
 }
 
 /** 로컬 달력 기준 오늘. toISOString 은 UTC 라 KST 에선 하루 어긋난다. */
-function _todayStr() {
-  const d = new Date();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${dd}`;
-}
 
 function addDaysStr(dateStr, n) {
   const d = parseDate(dateStr);
@@ -525,7 +512,7 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
   let leavesForSig = [];
   try { leavesForSig = await loadLeaveRecords(); } catch (e) {}
 
-  const sig = _hash(JSON.stringify({
+  const sig = String(hash32(JSON.stringify({
     schema: SCHEMA,
     // 스트릭 알림이 켜져 있으면 '오늘'을 서명에 넣어 하루 한 번은 반드시
     // 다시 잡히게 한다. 예전에는 서명에 날짜가 없어서, 이틀째부터는 서명이
@@ -536,7 +523,7 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
     //
     // 스트릭 설정과 무관하게 날짜를 넣는다. 스트릭을 꺼 두면 서명이 영원히 같아져서
     // 처음 열 때 180일 밖이던 마일스톤 전야(반환점 등)가 끝내 예약되지 않았다.
-    day: _todayStr(),
+    day: todayStr(),
     streak: streakForSig ? streakForSig.current : null,
     lastCheck: streakForSig ? streakForSig.last ?? null : null,
     disc: info.dischargeDate,
@@ -550,7 +537,7 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
       .map((t) => `${t.id}|${t.date}|${t.title ?? ''}`)
       .sort(),
     leaves: (leavesForSig || []).map((r) => `${r.id}|${r.date}|${r.days}`).sort(),
-  }));
+  })));
 
   if (!force) {
     try {
@@ -570,7 +557,7 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
   _scheduled = 0;
   _plan = [];
 
-  const today = _todayStr();
+  const today = todayStr();
   const disc = info.dischargeDate;
   // 전역 하루 전 09시 알림이 실제로 잡혔는지 — 전야(21시) 억제 여부를 여기에 건다
   let dischargeEveScheduled = false;

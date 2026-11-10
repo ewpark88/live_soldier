@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, Linking, Platform, StyleSheet, Switch, View } from 'react-native';
+import { Alert, AppState, Linking, StyleSheet, Switch, View } from 'react-native';
+import { switchProps } from '../components/ui/switchProps';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   Screen, AppHeader, Section, ListRow, ListGroup, Chip, SegmentedControl, Txt,
@@ -15,6 +16,7 @@ import {
   loadNotifPrefs, saveNotifPrefs, loadNotifPlan, refreshScheduledNotifications,
 } from '../utils/notifications';
 import { isOfficer } from '../constants/serviceTerms';
+import { WEEKDAYS_KO } from '../utils/dateUtils';
 import { space as sp } from '../theme/tokens';
 
 const GROUPS = [
@@ -36,7 +38,6 @@ const TODO_TIMING_OPTIONS = [
   { key: 'both', label: '둘 다' },
 ];
 
-const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
 
 /** 1735689600000 → '12월 3일 (수) 오전 9시' */
 function fmtWhen(ms) {
@@ -44,7 +45,7 @@ function fmtWhen(ms) {
   const h = d.getHours();
   const ampm = h < 12 ? '오전' : '오후';
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEK[d.getDay()]}) ${ampm} ${h12}시`;
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEKDAYS_KO[d.getDay()]}) ${ampm} ${h12}시`;
 }
 
 function fmtHour(h) {
@@ -123,13 +124,6 @@ export default function NotificationSettingsScreen() {
 
   const upcoming = useMemo(() => plan.filter((x) => x.at != null).slice(0, 5), [plan]);
 
-  const switchProps = (on, label, disabled) => ({
-    trackColor: { false: tc.border, true: tc.primaryLight },
-    thumbColor: Platform.OS === 'android' ? (on ? tc.primary : tc.card) : undefined,
-    accessibilityLabel: label,
-    accessibilityRole: 'switch',
-    disabled,
-  });
 
   const handleMaster = async (next) => {
     if (busy) return;
@@ -231,7 +225,7 @@ export default function NotificationSettingsScreen() {
           <Switch
             value={on}
             onValueChange={(v) => savePatch({ [ev.key]: v })}
-            {...switchProps(on, ev.title, !master)}
+            {...switchProps(tc, on, ev.title, !master)}
           />
         }
       />
@@ -258,7 +252,7 @@ export default function NotificationSettingsScreen() {
               <Switch
                 value={master}
                 onValueChange={handleMaster}
-                {...switchProps(master, '알림 받기', busy)}
+                {...switchProps(tc, master, '알림 받기', busy)}
               />
             }
           />

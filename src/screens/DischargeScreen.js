@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +23,7 @@ import {
 } from '../utils/storage';
 import { ranksFor } from '../constants/militaryRanks';
 import useShowInterstitial from '../hooks/useShowInterstitial';
+import { useSaving } from '../hooks/useSaving';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
 import { guardSave, SAVE_FAILED } from '../utils/saveGuard';
@@ -112,12 +113,8 @@ export default function DischargeScreen({ navigation }) {
   const officer = isOfficer(personnelType);
 
   /* 연타 방지 — 저장 사이에 두 번째 탭이 들어오면 전면광고·햅틱이 두 번 돈다 */
-  const savingRef = useRef(false);
-  const handleSave = async () => {
-    if (savingRef.current) return;
-    savingRef.current = true;
-    try { await _handleSave(); } finally { savingRef.current = false; }
-  };
+  const { saving, run: runSave } = useSaving();
+  const handleSave = () => runSave(_handleSave);
 
   const _handleSave = async () => {
     if (!enlistDate) { haptic.warning(); Alert.alert('오류', '입대일을 선택해주세요.'); return; }
@@ -382,7 +379,7 @@ export default function DischargeScreen({ navigation }) {
                     style={{ flex: 1 }}
                   />
                 ) : null}
-                <Button title="저장" icon="checkmark" onPress={handleSave} style={{ flex: 1 }} />
+                <Button title="저장" icon="checkmark" onPress={handleSave} loading={saving} style={{ flex: 1 }} />
               </View>
             </Card>
           </Section>

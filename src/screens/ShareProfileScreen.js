@@ -30,7 +30,7 @@ try { Clipboard = require('expo-clipboard'); } catch (e) {}
  *   2) 코드만 복사
  *   3) 마주 앉아 있으면 QR — 폰 기본 카메라로 찍으면 앱이 열린다
  */
-export default function ShareProfileScreen() {
+export default function ShareProfileScreen({ navigation }) {
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
 
@@ -76,7 +76,7 @@ export default function ShareProfileScreen() {
     }
   };
 
-  const header = <AppHeader title="가족에게 공유" subtitle="곰신·부모님과 전역일 함께 세기" back />;
+  const header = <AppHeader title="가족·곰신에게 공유" subtitle="공유 코드·QR 로 전역일 함께 세기" back />;
 
   if (src === undefined) return <Screen standalone scroll={false} header={header} />;
 
@@ -87,6 +87,11 @@ export default function ShareProfileScreen() {
           icon="people-outline"
           title="먼저 입대 정보를 입력해 주세요"
           desc="입대일과 군별이 있어야 공유 코드를 만들 수 있어요."
+          action={{
+            label: '입대 정보 입력하기',
+            icon: 'create-outline',
+            onPress: () => navigation.navigate('discharge'),
+          }}
         />
       </Screen>
     );

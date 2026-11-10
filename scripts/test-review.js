@@ -63,6 +63,11 @@ function loadModule(rel) {
   m.require = (id) => {
     if (id.includes('async-storage')) return { __esModule: true, default: AsyncStorageMock };
     if (id === 'expo-store-review') return StoreReviewMock;
+    // 상대 경로(./daily 등)는 우리 소스 — 같은 babel 변환을 거쳐 로드한다
+    if (id.startsWith('.')) {
+      const dep = path.resolve(path.dirname(abs), id.endsWith('.js') ? id : `${id}.js`);
+      return loadModule(path.relative(ROOT, dep));
+    }
     return realRequire(id);
   };
   m._compile(out, abs);

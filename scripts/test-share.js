@@ -16,8 +16,10 @@ const vm = require('vm');
 
 const SRC = path.join(__dirname, '..', 'src', 'utils');
 
-function load(file) {
-  const code = fs.readFileSync(path.join(SRC, file), 'utf8')
+/* import 를 지우고 한 스코프로 합친다 — 의존 파일(daily.js 등)은 앞에 같이 넘긴다 */
+function load(...files) {
+  const code = files.map((file) => fs.readFileSync(path.join(SRC, file), 'utf8'))
+    .join('\n')
     .replace(/^\s*import[^\n]*\n/gm, '')
     .replace(/^export\s+/gm, '');
   const names = new Set();
@@ -32,7 +34,7 @@ function load(file) {
   return sandbox.__api;
 }
 
-const C = load('shareCode.js');
+const C = load('daily.js', 'shareCode.js');   // shareCode 는 daily.hash32 를 쓴다
 const B = load('backup.js');
 
 let pass = 0, fail = 0;

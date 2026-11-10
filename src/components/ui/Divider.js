@@ -1,7 +1,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useThemeColors } from '../../theme/ThemeContext';
-import { space as sp } from '../../theme/tokens';
 
 /**
  * 헤어라인 구분선.

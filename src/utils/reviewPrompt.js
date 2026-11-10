@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { todayStr } from './daily';
 
 /**
  * 인앱 리뷰 요청 (Google Play In-App Review API · expo-store-review).
@@ -33,13 +34,6 @@ let StoreReview = null;
 try { StoreReview = require('expo-store-review'); } catch (e) { /* Expo Go 등 */ }
 
 const log = (...a) => { if (typeof __DEV__ !== 'undefined' && __DEV__) console.log('[Review]', ...a); };
-
-function dayKey(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-}
 
 const EMPTY = { firstOpenAt: null, openDays: [], saves: 0, lastAskedAt: null, askCount: 0 };
 
@@ -82,7 +76,7 @@ export async function recordAppOpen() {
     const now = new Date();
     const s = await load();
     if (!s.firstOpenAt) s.firstOpenAt = now.getTime();
-    const k = dayKey(now);
+    const k = todayStr(now);
     if (!s.openDays.includes(k)) {
       s.openDays = [...s.openDays, k].slice(-MAX_OPEN_DAYS_KEPT);
     }

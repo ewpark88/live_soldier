@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback, useRef } from 'react';
-import { Alert, Platform, StyleSheet, Switch, View } from 'react-native';
+import { Alert, StyleSheet, Switch, View } from 'react-native';
+import { switchProps } from '../components/ui/switchProps';
 import { useFocusEffect } from '@react-navigation/native';
 import Card from '../components/Card';
 import ProfileBar from '../components/ProfileBar';
@@ -16,10 +17,9 @@ import { guardDelete, guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import {
   loadNotifPrefs, refreshScheduledNotifications, getNotifPermission, NOTIF_EVENTS,
 } from '../utils/notifications';
-import {
-  calcDaysLeft, calcRankByEnlistDate, calcRankFromPromotions, formatDateKo,
-} from '../utils/dateUtils';
-import { BRANCHES, isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { calcDaysLeft, formatDateKo } from '../utils/dateUtils';
+import { currentRankLabel } from '../utils/roadmapUtils';
+import { BRANCHES, isOfficer } from '../constants/serviceTerms';
 import { backupAvailable, exportBackupFile, pickBackupFile } from '../utils/backupFile';
 import { backupErrorMessage } from '../utils/backup';
 import { emitProfilesChanged } from '../state/appEvents';
@@ -68,10 +68,7 @@ export default function SettingsScreen({ navigation }) {
   /* 요약 한 줄 — 계급 · 군별 · 전역일 */
   const summary = useMemo(() => {
     if (!info) return null;
-    const officer = isOfficer(info.personnelType);
-    const rank = officer
-      ? (info.officerRank ?? personnelLabel(info.personnelType))
-      : (calcRankFromPromotions(promotions) ?? calcRankByEnlistDate(info.enlistDate));
+    const rank = currentRankLabel(info, promotions);
     const branch = BRANCHES.find((b) => b.key === info.branch)?.label ?? '';
     const left = calcDaysLeft(info.dischargeDate);
     return {
@@ -96,12 +93,6 @@ export default function SettingsScreen({ navigation }) {
     { title: '막대병 도감', subtitle: '홈 링 안 막대병 모습 바꾸기', icon: 'body-outline', route: 'soldierDex' },
   ];
 
-  const switchProps = (on, label) => ({
-    trackColor: { false: tc.border, true: tc.primaryLight },
-    thumbColor: Platform.OS === 'android' ? (on ? tc.primary : tc.card) : undefined,
-    accessibilityLabel: label,
-    accessibilityRole: 'switch',
-  });
 
   /* 데이터가 통째로 바뀐 뒤(삭제·복원) — 화면 밖에 남아 있는 것들까지 맞춘다.
      예전엔 전체 삭제 후 홈 위젯이 지운 프로필의 D-day 를 계속 보여주고,
@@ -286,7 +277,7 @@ export default function SettingsScreen({ navigation }) {
               <Switch
                 value={haptics}
                 onValueChange={(v) => { setHaptics(v); if (v) haptic.light(); }}
-                {...switchProps(haptics, '햅틱 반응')}
+                {...switchProps(tc, haptics, '햅틱 반응')}
               />
             }
           />
@@ -299,7 +290,7 @@ export default function SettingsScreen({ navigation }) {
               <Switch
                 value={reduceMotion}
                 onValueChange={setReduceMotion}
-                {...switchProps(reduceMotion, '애니메이션 줄이기')}
+                {...switchProps(tc, reduceMotion, '애니메이션 줄이기')}
               />
             }
           />

@@ -7,7 +7,7 @@ import { useThemeColors } from '../theme/ThemeContext';
 import { radius as r, space as sp, type as ty } from '../theme/tokens';
 import { useMotion } from '../hooks/useMotion';
 import useToday from '../hooks/useToday';
-import { formatDate, formatDateKo, daysBetweenInclusive, parseDate } from '../utils/dateUtils';
+import { formatDate, formatDateKo, daysBetweenInclusive, parseDate, WEEKDAYS_KO } from '../utils/dateUtils';
 
 /**
  * 기간(from~to) 선택 인라인 캘린더.
@@ -23,7 +23,6 @@ import { formatDate, formatDateKo, daysBetweenInclusive, parseDate } from '../ut
  * @param {Date}     minimumDate 이 날짜 이전은 선택 불가
  * @param {Date}     maximumDate 이 날짜 이후는 선택 불가
  */
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 function toDateStr(y, m /*0~11*/, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -114,7 +113,7 @@ export default function RangeCalendar({
 
       {/* 요일 */}
       <View style={s.weekRow}>
-        {WEEKDAYS.map((w, i) => (
+        {WEEKDAYS_KO.map((w, i) => (
           <Text key={w} style={[s.weekday, i === 0 && s.sun, i === 6 && s.sat]} maxFontSizeMultiplier={1.2}>{w}</Text>
         ))}
       </View>

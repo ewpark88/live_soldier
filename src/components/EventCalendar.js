@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import PressScale from './ui/PressScale';
 import { useThemeColors } from '../theme/ThemeContext';
 import { radius as r, space as sp, type as ty } from '../theme/tokens';
-import { formatDateKo, parseDate, spanDates, daysBetweenInclusive } from '../utils/dateUtils';
+import { formatDateKo, parseDate, spanDates, daysBetweenInclusive, WEEKDAYS_KO } from '../utils/dateUtils';
 import useToday from '../hooks/useToday';
 
 /**
@@ -14,7 +14,6 @@ import useToday from '../hooks/useToday';
  * - 일정(할 일): 해당 기간 각 날짜 하단에 점
  * 날짜를 탭하면 그 날의 휴가·일정 상세가 아래에 표시된다.
  */
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 export default function EventCalendar({ records = [], bonusRecords = [], todos = [], fill = false }) {
   const tc = useThemeColors();
@@ -126,7 +125,7 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
 
       {/* 요일 */}
       <View style={s.weekRow}>
-        {WEEKDAYS.map((w, i) => (
+        {WEEKDAYS_KO.map((w, i) => (
           <Text key={w} style={[s.weekday, i === 0 && s.sun, i === 6 && s.sat]} maxFontSizeMultiplier={1.2}>{w}</Text>
         ))}
       </View>

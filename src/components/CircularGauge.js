@@ -46,7 +46,7 @@ import { motion } from '../theme/tokens';
  * @param size       바깥 지름
  * @param stroke     링 두께
  * @param live       선단 점 + 맥박 (실시간 게이지용)
- * @param pulse      false 면 선단 점은 두되 맥박 루프는 끈다 (홈: StickRunner 가 그 예산을 쓴다)
+ * @param pulse      false 면 선단 점은 두되 맥박 루프는 끈다 (홈: StickSoldier 가 그 예산을 쓴다)
  * @param children   링 가운데에 얹을 내용
  */
 export default function CircularGauge({

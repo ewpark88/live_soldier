@@ -14,6 +14,7 @@
  * ⚠️ 이 파일은 import 가 없다. 맨 Node 테스트(test-share.js)가 로드하고,
  *    Hermes 의 TextEncoder/atob 유무와 상관없이 같은 결과를 내야 한다.
  */
+import { hash32 } from './daily';   // 체크섬 = FNV-1a (daily·알림 시그니처와 같은 구현)
 
 export const SHARE_PREFIX = 'JY1-';
 export const SHARE_SCHEME = 'jeonryeokkami';
@@ -95,17 +96,9 @@ function _b64urlDecode(str) {
 }
 
 /* ─── 체크섬 — 오타·잘린 붙여넣기를 잡는다 (보안 장치가 아니다) ─────────── */
-function _fnv(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h >>> 0;
-}
 const CK = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ';   // 헷갈리는 I·O 제외 (34자)
 function _check(body) {
-  const h = _fnv(body) % (CK.length * CK.length);
+  const h = hash32(body) % (CK.length * CK.length);
   return CK[Math.floor(h / CK.length)] + CK[h % CK.length];
 }
 

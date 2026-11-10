@@ -194,6 +194,9 @@ export function formatDate(date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/** 요일 한 글자 — Date.getDay() 인덱스 (0 = 일요일) */
+export const WEEKDAYS_KO = ['일', '월', '화', '수', '목', '금', '토'];
+
 /**
  * Date → 'YYYY년 MM월 DD일'
  */

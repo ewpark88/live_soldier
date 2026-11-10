@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Grid, PressScale, Txt } from '../ui';
 import { useThemeColors } from '../../theme/ThemeContext';
+import { homeTones } from './tones';
 import { radius as r, space as sp } from '../../theme/tokens';
 
 /**
@@ -20,12 +21,7 @@ export default function QuickActions({ items = [] }) {
 
   if (!items.length) return null;
 
-  const TONE = {
-    primary: { fg: tc.primary, bg: tc.primarySoft },
-    accent: { fg: tc.accentText, bg: tc.accentSoft },
-    success: { fg: tc.success, bg: tc.successSoft },
-    neutral: { fg: tc.textSecondary, bg: tc.surfaceSunken },
-  };
+  const TONE = homeTones(tc);
 
   return (
     <Grid columns={2} gap={sp.sm}>

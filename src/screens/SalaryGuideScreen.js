@@ -8,10 +8,11 @@ import { AD_UNITS } from '../constants/adUnits';
 import { SALARY_GUIDE, SALARY_YEAR } from '../constants/salaryGuide';
 import { SOLDIER_RANK_IMAGES } from '../constants/rankImages';
 import { loadMilitaryInfo, loadRankPromotions } from '../utils/storage';
-import { calcRankFromPromotions } from '../utils/dateUtils';
+import { currentRankLabel } from '../utils/roadmapUtils';
 import { space as sp } from '../theme/tokens';
 
 export default function SalaryGuideScreen({ navigation }) {
+  const [info, setInfo] = useState(null);
   const [promotions, setPromotions] = useState(null);
 
   useFocusEffect(
@@ -22,6 +23,7 @@ export default function SalaryGuideScreen({ navigation }) {
           const mi = await loadMilitaryInfo();
           if (!alive || !mi) return;
           const promo = await loadRankPromotions(mi.enlistDate);
+          if (alive) setInfo(mi);
           if (alive) setPromotions(promo);
         } catch (e) {
           if (__DEV__) console.warn('[SalaryGuideScreen] 로드 실패:', e && e.message);
@@ -31,7 +33,7 @@ export default function SalaryGuideScreen({ navigation }) {
     }, [])
   );
 
-  const currentRank = calcRankFromPromotions(promotions);
+  const currentRank = currentRankLabel(info, promotions);
 
   const rows = SALARY_GUIDE.map((g) => ({
     key: g.rank,

@@ -15,13 +15,11 @@ import {
 import { AD_UNITS } from '../constants/adUnits';
 import { loadMilitaryInfo, loadSavingsPlan, saveSavingsPlan } from '../utils/storage';
 import { calcServedMonths } from '../utils/dateUtils';
+import { formatMoney } from '../constants/salaryGuide';
 import { calcSavings, recommendedSavingMonths, SAVINGS } from '../utils/savingsUtils';
 import { useThemeColors } from '../theme/ThemeContext';
-import { radius as r, space as sp, type as ty } from '../theme/tokens';
+import { space as sp, type as ty } from '../theme/tokens';
 
-function formatMoney(n) {
-  return String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
 
 /** 상세 내역 한 줄 */
 function BreakdownRow({ label, sub, value, tone = 'default', strong = false }) {

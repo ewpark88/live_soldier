@@ -68,18 +68,12 @@ export function getNextLeave(records, today = todayStr()) {
  */
 export const PAYDAY_DOM = 10;
 
-function _ymd(y, m /* 0-based */, d) {
-  const dt = new Date(y, m, d);
-  const mm = String(dt.getMonth() + 1).padStart(2, '0');
-  const dd = String(dt.getDate()).padStart(2, '0');
-  return `${dt.getFullYear()}-${mm}-${dd}`;
-}
 
 /** 해당 연·월(0-based)의 실제 지급일 'YYYY-MM-DD' (주말이면 직전 금요일) */
 export function paydayOf(year, monthIndex, dom = PAYDAY_DOM) {
   const dow = new Date(year, monthIndex, dom).getDay();
   const back = dow === 6 ? 1 : dow === 0 ? 2 : 0;
-  return _ymd(year, monthIndex, dom - back);
+  return todayStr(new Date(year, monthIndex, dom - back));   // 로컬 YYYY-MM-DD
 }
 
 /**

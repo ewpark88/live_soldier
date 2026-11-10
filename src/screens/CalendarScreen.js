@@ -34,15 +34,14 @@ const SECTIONS = [
  * 홈이 "오늘"을 맡고 여기가 "이번 달"을 맡는다. v1.0.8 에서 홈에 있던 월간
  * 달력이 이리로 왔고, 덕분에 홈의 첫 화면 전체를 D-Day 히어로가 쓴다.
  *
- * 휴가/일정 본문 로직은 손대지 않았다. 각자 `embedded` 모드로 자기 <Screen>
- * (스크롤·광고 푸터·바텀시트·FAB)을 그대로 유지하고, 껍데기(헤더·세그먼트)만
- * 여기서 소유한다. 520줄 + 490줄을 잘라 붙이는 것보다 회귀 위험이 훨씬 낮다.
+ * 휴가/일정은 각자 자기 <Screen>(스크롤·바텀시트·FAB)을 갖는 세그먼트 콘텐츠다.
+ * 껍데기(헤더·세그먼트·광고 푸터)는 여기서 소유한다.
  *
  * 진입 파라미터:
  *   navigation.navigate('calendar', { section: 'month' | 'leave' | 'todo' })
  * 같은 탭에 다시 들어와도 params 가 갱신되므로 key 가 아니라 effect 로 받는다.
  */
-export default function CalendarScreen({ navigation, route }) {
+export default function CalendarScreen({ route }) {
   const tc = useThemeColors();
   const insets = useSafeAreaInsets();
   const s = useMemo(() => makeStyles(tc), [tc]);
@@ -135,9 +134,9 @@ export default function CalendarScreen({ navigation, route }) {
             </>
           )
         ) : section === 'leave' ? (
-          <LeaveScreen navigation={navigation} embedded />
+          <LeaveScreen />
         ) : (
-          <TodoScreen navigation={navigation} embedded />
+          <TodoScreen />
         )}
       </View>
 

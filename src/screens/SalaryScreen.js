@@ -14,7 +14,6 @@ import {
   Chip,
   StatTile,
   ListRow,
-  Divider,
   Txt,
   AnimatedNumber,
   TextField,
@@ -22,16 +21,18 @@ import {
 } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import { loadMilitaryInfo, loadSalaryInfo, saveSalaryInfo, loadRankPromotions } from '../utils/storage';
-import { calcServedMonths, calcRankFromPromotions, rankFromServedMonths } from '../utils/dateUtils';
-import { isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { calcServedMonths } from '../utils/dateUtils';
+import { currentRankLabel } from '../utils/roadmapUtils';
+import { isOfficer } from '../constants/serviceTerms';
 import { getOfficerBasePay } from '../constants/militaryRanks';
 import { calcHobong } from '../utils/officerUtils';
 import { SALARY_GUIDE, getSalaryByRank, formatMoney, calcStandardTotal } from '../constants/salaryGuide';
 import { haptic } from '../utils/haptics';
 import { guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import useShowInterstitial from '../hooks/useShowInterstitial';
+import { useSaving } from '../hooks/useSaving';
 import { useThemeColors } from '../theme/ThemeContext';
-import { radius as r, space as sp, type as ty } from '../theme/tokens';
+import { space as sp, type as ty } from '../theme/tokens';
 
 export default function SalaryScreen({ navigation }) {
   const tc = useThemeColors();
@@ -43,8 +44,7 @@ export default function SalaryScreen({ navigation }) {
   const [customMode, setCustomMode] = useState(false);
   const [customSalary, setCustomSalary] = useState('');
   const [totalMonths, setTotalMonths] = useState('');
-  const [saving, setSaving] = useState(false);
-  const savingRef = useRef(false);   // 연타 방지 — 같은 프레임의 두 번째 탭까지 막는다
+  const { saving, savingRef, run: runSave } = useSaving();
 
   /* 급여 정보 저장은 '주요 저장' 이라 전면 광고 지점이다 (하루 2회·30분 간격은
      adManager 가 강제한다). 직접 입력 폼이 열려 있을 때만 프리로드한다. */
@@ -98,16 +98,8 @@ export default function SalaryScreen({ navigation }) {
       return;
     }
     const si = { monthlyAmount: salary, totalMonths: months };
-    savingRef.current = true;
-    setSaving(true);
-    let res;
-    try {
-      res = await guardSave(() => saveSalaryInfo(si));
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
-    if (res === SAVE_FAILED) return;
+    const res = await runSave(() => guardSave(() => saveSalaryInfo(si)));
+    if (res === undefined || res === SAVE_FAILED) return;
     setSalaryInfo(si);
     setCustomMode(false);
     haptic.success();
@@ -146,9 +138,7 @@ export default function SalaryScreen({ navigation }) {
   const officerBase = officer ? getOfficerBasePay(officerRank) : null;
   const hobong = officer ? calcHobong(militaryInfo.enlistDate) : null;
 
-  const currentRank = officer
-    ? (officerRank ?? personnelLabel(militaryInfo.personnelType))
-    : (calcRankFromPromotions(promotions) ?? rankFromServedMonths(servedMonths));
+  const currentRank = currentRankLabel(militaryInfo, promotions);
 
   // 우선순위: 직접입력 > (간부)초임 참고값 > (병사)봉급표
   const currentMonthly = salaryInfo

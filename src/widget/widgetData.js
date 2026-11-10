@@ -6,10 +6,10 @@ import { listProfiles, loadRankPromotions, loadThemeSettings, loadLeaveRecords }
 import { getNextLeave } from '../utils/upcoming';
 import { resolvePalette } from '../theme/palettes';
 import {
-  calcDaysLeft, calcProgress,
-  calcRankByEnlistDate, calcRankFromPromotions, formatDateKo,
+  calcDaysLeft, calcProgress, formatDateKo,
 } from '../utils/dateUtils';
-import { isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { currentRankLabel } from '../utils/roadmapUtils';
+import { isOfficer } from '../constants/serviceTerms';
 
 /**
  * 위젯에 넘길 색 — 팔레트 전체가 아니라 5키 서브셋만.
@@ -56,13 +56,8 @@ export async function getWidgetData() {
     }
     const officer  = isOfficer(mi.personnelType);
 
-    let rank;
-    if (officer) {
-      rank = mi.officerRank ?? personnelLabel(mi.personnelType);
-    } else {
-      const promotions = await loadRankPromotions(mi.enlistDate);
-      rank = calcRankFromPromotions(promotions) ?? calcRankByEnlistDate(mi.enlistDate);
-    }
+    // 간부는 진급일 기록을 쓰지 않는다 — 읽지 않고 넘어간다
+    const rank = currentRankLabel(mi, officer ? null : await loadRankPromotions(mi.enlistDate));
 
     const ddayText = daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-DAY' : '전역';
 

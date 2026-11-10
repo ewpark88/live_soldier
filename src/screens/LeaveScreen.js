@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Alert, StyleSheet, View,
 } from 'react-native';
@@ -13,11 +13,10 @@ import DatePickerField from '../components/DatePickerField';
 import RangeCalendar from '../components/RangeCalendar';
 import SetupRequired from '../components/SetupRequired';
 import {
-  Screen, AppHeader, Section, HeroCard, Button, Chip, StatTile,
+  Screen, Section, HeroCard, Button, Chip, StatTile,
   ListRow, Divider, EmptyState, Txt, AnimatedNumber, PressScale,
   Stepper, TextField, FormSheet, GROUP_INSET,
 } from '../components/ui';
-import { AD_UNITS } from '../constants/adUnits';
 import {
   loadLeaveRecords, addLeaveRecord, deleteLeaveRecord,
   loadLeaveTotal, saveLeaveTotal,
@@ -26,6 +25,7 @@ import {
 } from '../utils/storage';
 import { formatDateKo, daysBetweenInclusive, overlappingDates } from '../utils/dateUtils';
 import useShowInterstitial from '../hooks/useShowInterstitial';
+import { useSaving } from '../hooks/useSaving';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
 import { guardSave, guardDelete, SAVE_FAILED } from '../utils/saveGuard';
@@ -38,11 +38,11 @@ const MODAL_USE = 'use';
 const MODAL_BONUS = 'bonus';
 
 /**
- * 휴가 관리.
+ * 휴가 관리 — 캘린더 탭(CalendarScreen)의 '휴가' 세그먼트 콘텐츠.
  *
- * `embedded` 면 캘린더 탭 안에서 세그먼트 콘텐츠로 렌더된다 — 자기 헤더를
- * 그리지 않고, 상단 inset 도 부모(CalendarScreen)가 이미 소비했으므로 다시
- * 먹이지 않는다. 본문 로직은 두 모드가 완전히 동일하다.
+ * 라우트가 아니다. 헤더·세그먼트·광고 푸터는 부모가 그리고, 상단 inset 도 부모가
+ * 이미 소비했으므로 다시 먹이지 않는다. (예전엔 단독 화면 모드도 있었지만 v1.0.8
+ * 이후 어디서도 단독으로 쓰지 않아 걷어냈다.)
  */
 /**
  * 기록 한 줄 — 카드 하나씩 띄우지 않고 한 카드 안에 헤어라인으로 나눈다.
@@ -91,7 +91,7 @@ function RecordRow({ item, bonus, onDelete, last }) {
   );
 }
 
-export default function LeaveScreen({ navigation, embedded = false }) {
+export default function LeaveScreen() {
   const tc = useThemeColors();
   const m = useMotion();
   const s = useMemo(() => makeStyles(tc), [tc]);
@@ -112,14 +112,7 @@ export default function LeaveScreen({ navigation, embedded = false }) {
   const [formMemo, setFormMemo] = useState('');
   // 저장 중 재진입 차단 — 연타하면 같은 기록이 두 건 들어가 남은 휴가가 틀어졌다.
   // ref 는 같은 프레임의 두 번째 탭을 막고, state 는 버튼 로딩 표시용이다.
-  const savingRef = useRef(false);
-  const [saving, setSaving] = useState(false);
-  const runSave = async (fn) => {
-    if (savingRef.current) return;
-    savingRef.current = true;
-    setSaving(true);
-    try { await fn(); } finally { savingRef.current = false; setSaving(false); }
-  };
+  const { saving, savingRef, run: runSave } = useSaving();
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -265,12 +258,8 @@ export default function LeaveScreen({ navigation, embedded = false }) {
 
   return (
     <>
-      <Screen
-        /* 임베디드면 광고는 CalendarScreen 이 세그먼트 밖에 하나만 그린다 */
-        ad={embedded ? undefined : AD_UNITS.LEAVE_BOTTOM}
-        header={embedded ? undefined : <AppHeader title="휴가 관리" />}
-        contentContainerStyle={embedded ? { paddingTop: sp.xs } : undefined}
-      >
+      {/* 광고는 CalendarScreen 이 세그먼트 밖에 하나만 그린다 */}
+      <Screen contentContainerStyle={{ paddingTop: sp.xs }}>
         {/* 잔여 휴가 — 사람들이 실제로 원하는 유일한 숫자 */}
         <Section index={0}>
           <HeroCard>
@@ -363,22 +352,6 @@ export default function LeaveScreen({ navigation, embedded = false }) {
             />
           </View>
         </Section>
-
-        {/* 달력 안내 — 캘린더 탭 안(embedded)에서는 바로 위 세그먼트가 같은 일을 한다.
-            예전엔 자기 탭의 '달력' 세그먼트로 가는 링크를 또 그리고 있었다. */}
-        {!embedded ? (
-          <Section index={2}>
-            <Card pad="none" style={{ paddingHorizontal: sp.lg }}>
-              <ListRow
-                title="휴가·일정 달력"
-                subtitle="이번 달 전체를 한눈에 볼 수 있어요"
-                icon="calendar-outline"
-                chevron
-                onPress={() => navigation.navigate('calendar', { section: 'month', ts: Date.now() })}
-              />
-            </Card>
-          </Section>
-        ) : null}
 
         {/* 포상휴가 */}
         {bonusRecords.length > 0 ? (

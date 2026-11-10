@@ -29,7 +29,7 @@ import { motion, radius as r, space as sp, type as ty } from '../../theme/tokens
  * 바뀌고, 복무가 쌓일수록 광원이 또렷해진다.
  *
  * ⚠️ 무한 루프 예산(§4, 히어로 안 최대 2개):
- *      링 안 StickRunner 1 + (AuroraWash 광원 1 | EmberField 1 | HeroCard sheen 1)
+ *      링 안 StickSoldier 1 + (AuroraWash 광원 1 | EmberField 1 | HeroCard sheen 1)
  *    불티가 뜨는 단계(done/d3)에서는 sheen 을 끄고, AuroraWash 의 광원도
  *    불티에 자리를 내준다. 세 개가 한 화면에서 겹치면 그냥 지저분하다.
  *

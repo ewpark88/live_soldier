@@ -2,8 +2,21 @@
  * 전역 로드맵 — 입대부터 전역까지 주요 마일스톤 자동 계산
  * 홈 화면 타임라인에 사용. 모든 계산은 클라이언트(저장된 입대정보)만으로 수행.
  */
-import { calcDaysLeft, formatDate, parseDate } from './dateUtils';
-import { isOfficer } from '../constants/serviceTerms';
+// 한 줄로 둔다 — scripts/test-calc.js 는 import 를 줄 단위로 지워서 여러 줄 import 를 못 읽는다
+import { calcDaysLeft, calcRankByEnlistDate, calcRankFromPromotions, formatDate, parseDate } from './dateUtils';
+import { isOfficer, personnelLabel } from '../constants/serviceTerms';
+
+/**
+ * 지금 계급 라벨 — 홈·설정·급여·월급표·축하·위젯이 모두 이것을 쓴다.
+ * 간부: 직접 고른 계급(없으면 '장교'/'부사관'). 병사: 진급일 기록 → 없으면 입대일 기준.
+ * 예전엔 화면마다 복사돼 있었고, 월급표만 입대일 폴백이 빠져 진급일을 안 고친
+ * 사용자에겐 현재 계급 강조가 사라졌다.
+ */
+export function currentRankLabel(info, promotions) {
+  if (!info) return null;
+  if (isOfficer(info.personnelType)) return info.officerRank ?? personnelLabel(info.personnelType);
+  return calcRankFromPromotions(promotions) ?? calcRankByEnlistDate(info.enlistDate);
+}
 
 function addDays(dateStr, n) {
   const d = parseDate(dateStr);

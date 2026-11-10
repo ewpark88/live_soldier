@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Alert, ScrollView, StyleSheet, View,
 } from 'react-native';
@@ -15,11 +15,10 @@ import RangeCalendar from '../components/RangeCalendar';
 import DatePickerField from '../components/DatePickerField';
 import SetupRequired from '../components/SetupRequired';
 import {
-  Screen, AppHeader, Section, Grid, Button, Chip, StatTile,
+  Screen, Section, Grid, Button, Chip, StatTile,
   Divider, EmptyState, Txt, BottomSheet, PressScale,
   Checkbox, TextField, FormSheet,
 } from '../components/ui';
-import { AD_UNITS } from '../constants/adUnits';
 import { TRAINING_PRESETS, presetTone } from '../constants/trainingPresets';
 import {
   loadTodos, addTodo, toggleTodo, deleteTodo, loadMilitaryInfo,
@@ -29,11 +28,12 @@ import {
 } from '../utils/dateUtils';
 import useToday from '../hooks/useToday';
 import useShowInterstitial from '../hooks/useShowInterstitial';
+import { useSaving } from '../hooks/useSaving';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
 import { guardSave, guardDelete, SAVE_FAILED } from '../utils/saveGuard';
 import { refreshScheduledNotifications } from '../utils/notifications';
-import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
+import { motion, radius as r, space as sp } from '../theme/tokens';
 
 /** 시작~종료 포함 일수 (단일이면 1) */
 function calcDuration(startDate, endDate) {
@@ -133,9 +133,9 @@ function TodoItem({ item, onToggle, onDelete, last }) {
 }
 
 /**
- * 일정 관리. embedded 설명은 LeaveScreen 헤더 주석 참고.
+ * 일정 관리 — 캘린더 탭의 '일정' 세그먼트 콘텐츠. 라우트가 아니다 (LeaveScreen 헤더 주석 참고).
  */
-export default function TodoScreen({ navigation, embedded = false }) {
+export default function TodoScreen() {
   const tc = useThemeColors();
   const m = useMotion();
   const s = useMemo(() => makeStyles(tc), [tc]);
@@ -155,8 +155,7 @@ export default function TodoScreen({ navigation, embedded = false }) {
   const [formNote, setFormNote] = useState('');
   // 연타 차단 — 예전엔 '추가'를 두 번 누르면 같은 일정·알림이 두 개 생겼다
   // (휴가·급여 저장과 같은 방식: ref 는 같은 프레임의 두 번째 탭, state 는 로딩 표시)
-  const savingRef = useRef(false);
-  const [saving, setSaving] = useState(false);
+  const { saving, savingRef, run: runSave } = useSaving();
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
@@ -185,21 +184,13 @@ export default function TodoScreen({ navigation, embedded = false }) {
     if (!formTitle.trim()) { haptic.warning(); Alert.alert('오류', '할 일 내용을 입력해주세요.'); return; }
     if (!formDate) { haptic.warning(); Alert.alert('오류', '날짜를 선택해주세요.'); return; }
     const endDate = formEndDate && formEndDate > formDate ? formEndDate : '';
-    savingRef.current = true;
-    setSaving(true);
-    let next;
-    try {
-      next = await guardSave(() => addTodo({
-        title: formTitle.trim(),
-        date: formDate,
-        endDate,
-        note: formNote.trim(),
-      }));
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
-    if (next === SAVE_FAILED) return;   // 시트를 닫지 않는다 — 입력을 날리지 않기 위해
+    const next = await runSave(() => guardSave(() => addTodo({
+      title: formTitle.trim(),
+      date: formDate,
+      endDate,
+      note: formNote.trim(),
+    })));
+    if (next === undefined || next === SAVE_FAILED) return;   // 시트를 닫지 않는다 — 입력을 날리지 않기 위해
     setTodos(next);
     haptic.success();
     refreshScheduledNotifications().catch(() => {});
@@ -269,41 +260,20 @@ export default function TodoScreen({ navigation, embedded = false }) {
 
   return (
     <>
-      <Screen
-        /* 임베디드면 광고는 CalendarScreen 이 세그먼트 밖에 하나만 그린다 */
-        ad={embedded ? undefined : AD_UNITS.TODO_BOTTOM}
-        /* 마지막 카드가 FAB 에 가리지 않도록 FAB 높이 + 여백만큼 비운다 */
-        contentContainerStyle={{ paddingBottom: FAB_SIZE + FAB_GAP * 2, ...(embedded ? { paddingTop: sp.xs } : null) }}
-        header={
-          embedded ? undefined : (
-            <AppHeader
-              title="일정 관리"
-              right={
-                <Chip
-                  label="훈련 추가"
-                  icon="flash"
-                  size="sm"
-                  onPress={() => setSheet('presets')}
-                />
-              }
-            />
-          )
-        }
-      >
-        {/* 요약 + 날짜 필터
-            임베드 모드엔 헤더가 없어 '훈련 추가'가 갈 곳이 없었다 — 예전엔 카드 위에
-            자기 마진을 가진 칩이 떠 있었다(세로 간격 규칙 위반). 카드 제목 줄로 옮긴다. */}
+      {/* 광고는 CalendarScreen 이 세그먼트 밖에 하나만 그린다.
+          마지막 카드가 FAB 에 가리지 않도록 FAB 높이 + 여백만큼 비운다. */}
+      <Screen contentContainerStyle={{ paddingBottom: FAB_SIZE + FAB_GAP * 2, paddingTop: sp.xs }}>
+        {/* 요약 + 날짜 필터. 헤더가 없으니 '훈련 추가'는 카드 제목 줄에 둔다
+            (카드 위에 자기 마진을 가진 칩을 띄우면 세로 간격 규칙 위반). */}
         <Section index={0}>
           <Card>
-            {embedded ? (
-              <SectionTitle
-                icon="checkbox-outline"
-                right={<Chip label="훈련 추가" icon="flash" size="sm" onPress={() => setSheet('presets')} />}
-                style={s.summaryTitle}
-              >
-                일정 요약
-              </SectionTitle>
-            ) : null}
+            <SectionTitle
+              icon="checkbox-outline"
+              right={<Chip label="훈련 추가" icon="flash" size="sm" onPress={() => setSheet('presets')} />}
+              style={s.summaryTitle}
+            >
+              일정 요약
+            </SectionTitle>
             <View style={s.statRow}>
               <StatTile label="전체" value={totalCount} tone="primary" countUp />
               <StatTile label="완료" value={doneCount} tone="success" countUp />
@@ -386,12 +356,10 @@ export default function TodoScreen({ navigation, embedded = false }) {
         )}
       </Screen>
 
-      {/* FAB — 광고 푸터 위에 뜬다 (탭바는 푸터 아래라 여기서 셈하지 않는다).
-          임베디드면 푸터가 부모(CalendarScreen) 쪽이라 이 영역 밖에 있다 → 푸터
-          높이(~76)를 뺀 만큼만 띄운다. */}
+      {/* FAB — 광고 푸터는 부모(CalendarScreen) 쪽이라 이 영역 밖에 있다 */}
       <Animated.View
         entering={m.enter(ZoomIn, 0, motion.duration.slow)}
-        style={[s.fabWrap, { bottom: embedded ? FAB_GAP : FAB_BOTTOM }]}
+        style={[s.fabWrap, { bottom: FAB_GAP }]}
         pointerEvents="box-none"
       >
         <PressScale onPress={openAdd} haptic="medium" style={s.fab} accessibilityLabel="일정 추가">
@@ -475,7 +443,6 @@ export default function TodoScreen({ navigation, embedded = false }) {
 /* FAB 자리 — 독립 화면에선 광고 푸터(~76) 위로, 임베드면 부모가 푸터를 갖는다 */
 const FAB_SIZE = 56;
 const FAB_GAP = sp.xl;
-const FAB_BOTTOM = 76 + FAB_GAP;
 
 const makeItemStyles = (tc) =>
   StyleSheet.create({

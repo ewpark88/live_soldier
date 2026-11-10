@@ -37,23 +37,21 @@ import { useStreak } from '../state/StreakContext';
 import { haptic } from '../utils/haptics';
 import { guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import {
-  calcDaysLeft, calcServedDays, calcProgress,
-  calcRankByEnlistDate, calcRankFromPromotions, nextPromotion,
-  formatDateKo, parseDate,
+  calcDaysLeft, calcServedDays, calcProgress, nextPromotion,
+  formatDateKo, parseDate, WEEKDAYS_KO,
 } from '../utils/dateUtils';
-import { buildRoadmap, milestoneProgress } from '../utils/roadmapUtils';
-import { BRANCHES, isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { buildRoadmap, currentRankLabel, milestoneProgress } from '../utils/roadmapUtils';
+import { BRANCHES, isOfficer } from '../constants/serviceTerms';
 import { getPhase, PHASE_META } from '../constants/phases';
 import { space as sp } from '../theme/tokens';
 
 /* 단계별 히어로 색은 테마 팔레트가 소유한다 — tc.phase[stage].
    아이콘·문구·불티 밀도는 constants/phases.js 의 PHASE_META. */
 
-const WD = ['일', '월', '화', '수', '목', '금', '토'];
 /** 'YYYY-MM-DD' → '11월 2일(월)' */
 function md(dateStr) {
   const d = parseDate(dateStr);
-  return d ? `${d.getMonth() + 1}월 ${d.getDate()}일(${WD[d.getDay()]})` : '';
+  return d ? `${d.getMonth() + 1}월 ${d.getDate()}일(${WEEKDAYS_KO[d.getDay()]})` : '';
 }
 
 export default function HomeScreen({ navigation }) {
@@ -249,9 +247,7 @@ export default function HomeScreen({ navigation }) {
 
   const servedDays = calcServedDays(info.enlistDate, info.dischargeDate);
   const officer = isOfficer(info.personnelType);
-  const rank = officer
-    ? (info.officerRank ?? personnelLabel(info.personnelType))
-    : (calcRankFromPromotions(promotions) ?? calcRankByEnlistDate(info.enlistDate));
+  const rank = currentRankLabel(info, promotions);
   const leaveLeft = leaveTotal - leaveUsed;
   const cfg = tc.phase[phase];
   const meta = PHASE_META[phase];

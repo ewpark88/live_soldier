@@ -3,10 +3,9 @@ import { StyleSheet, View } from 'react-native';
 import { Txt, PressScale } from '../ui';
 import { useThemeColors } from '../../theme/ThemeContext';
 import { radius as r, space as sp, tabular, type as ty } from '../../theme/tokens';
-import { spanDates, parseDate } from '../../utils/dateUtils';
+import { spanDates, parseDate, WEEKDAYS_KO } from '../../utils/dateUtils';
 import { todayStrOffset } from '../../utils/streak';
 
-const WD = ['일', '월', '화', '수', '목', '금', '토'];
 
 /**
  * 이번 주 7일 스트립 (카드 없음 — ThisWeek 가 감싼다).
@@ -68,7 +67,7 @@ export default function WeekStrip({ today, records = [], bonusRecords = [], todo
     <View style={s.row}>
       {days.map((d) => {
         const label = [
-          `${WD[d.dow]}요일 ${d.num}일`,
+          `${WEEKDAYS_KO[d.dow]}요일 ${d.num}일`,
           d.isToday && '오늘',
           d.used && '휴가',
           d.bonus && '포상휴가 부여',
@@ -94,7 +93,7 @@ export default function WeekStrip({ today, records = [], bonusRecords = [], todo
               ]}
               maxFontSizeMultiplier={1.2}
             >
-              {WD[d.dow]}
+              {WEEKDAYS_KO[d.dow]}
             </Txt>
 
             <View

@@ -511,6 +511,14 @@ eq(api.getRankByMonths(14), '병장', '계급 구간: 14개월 경계');
 eq(api.rankFromServedMonths(999), '병장', '계급 구간: 큰 값도 병장');
 eq(api.getRankByMonths(999), '병장', '계급 구간: 봉급표도 큰 값에서 병장');
 
+/* 현재 계급 라벨 — 홈·설정·급여·월급표·축하·위젯 공용 (예전엔 6곳에 복사돼 있었다) */
+eq(api.currentRankLabel(null, null), null, '현재 계급: 정보 없음');
+eq(api.currentRankLabel({ personnelType: 'officer', officerRank: '중위', enlistDate: '2020-01-01' }, null), '중위', '현재 계급: 장교는 고른 계급');
+eq(api.currentRankLabel({ personnelType: 'nco', officerRank: null, enlistDate: '2020-01-01' }, null), api.personnelLabel('nco'), '현재 계급: 간부 계급 미선택 → 신분 라벨');
+eq(api.currentRankLabel({ personnelType: 'soldier', enlistDate: '2000-01-01' }, null), '병장', '현재 계급: 진급일 없으면 입대일 기준');
+eq(api.currentRankLabel({ personnelType: 'soldier', enlistDate: '2000-01-01' }, { 일병: '2999-01-01', 상병: '2999-06-01', 병장: '2999-12-01' }),
+  api.calcRankFromPromotions({ 일병: '2999-01-01', 상병: '2999-06-01', 병장: '2999-12-01' }) ?? '병장', '현재 계급: 진급일 기록 우선');
+
 /* ─── DST 고정 날짜 가드 ──────────────────────────────────────────────
  * calcProgress 를 밀리초 비율로 되돌리면 DST 구간에서 1% 어긋난다.
  * '오늘 기준 ±50일' 로만 검증하면 1년 중 절반은 DST 가 창 밖이라 조용히

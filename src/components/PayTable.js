@@ -5,6 +5,7 @@ import { useThemeColors } from '../theme/ThemeContext';
 import { radius as r, space as sp, tabular, type as ty } from '../theme/tokens';
 import { useMotion } from '../hooks/useMotion';
 import ProgressBar from './ProgressBar';
+import { formatMoney } from '../constants/salaryGuide';
 import Chip from './ui/Chip';
 
 /**
@@ -73,9 +74,6 @@ export default function PayTable({ rows = [], currentKey, note }) {
   );
 }
 
-function formatMoney(n) {
-  return String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
 
 const makeStyles = (tc) =>
   StyleSheet.create({

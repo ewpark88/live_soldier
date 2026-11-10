@@ -5,6 +5,13 @@
  * 혜택 내용·금액은 정책에 따라 변동될 수 있으므로 화면 하단에 주의 문구를 둔다.
  */
 
+import { SAVINGS } from '../utils/savingsUtils';
+
+/* 적금 수치는 계산기(savingsUtils.SAVINGS)와 한 곳에서 — 제도가 바뀌면 SAVINGS 만 고친다 */
+const SAVINGS_DESC =
+  `월 최대 ${SAVINGS.MONTHLY_MAX / 10000}만원 · 연 ${Math.round(SAVINGS.DEFAULT_RATE * 100)}% 금리에 ` +
+  `정부가 원금의 ${Math.round(SAVINGS.DEFAULT_MATCH * 100)}%를 매칭지원. 전역 시 목돈으로.`;
+
 export const BENEFIT_CATEGORIES = [
   {
     key: 'finance',
@@ -14,7 +21,7 @@ export const BENEFIT_CATEGORIES = [
     items: [
       {
         title: '장병내일준비적금',
-        desc: '월 최대 55만원 · 연 5% 금리에 정부가 원금의 100%를 매칭지원. 전역 시 목돈으로.',
+        desc: SAVINGS_DESC,
         tag: '강력추천',
         url: 'https://www.mnd.go.kr/mbshome/mbs/mnd/subview.jsp?id=mnd_011302060000',
       },

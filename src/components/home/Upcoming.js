@@ -6,6 +6,7 @@ import SectionTitle from '../SectionTitle';
 import CircularGauge from '../CircularGauge';
 import { Txt, PressScale, Divider, GROUP_INSET } from '../ui';
 import { useThemeColors } from '../../theme/ThemeContext';
+import { homeTones } from './tones';
 import { radius as r, space as sp, type as ty, tabular } from '../../theme/tokens';
 import { formatMoney } from '../../constants/salaryGuide';
 
@@ -26,12 +27,7 @@ export default function Upcoming({ items = [] }) {
   const s = useMemo(() => makeStyles(tc), [tc]);
   if (!items.length) return null;
 
-  const TONE = {
-    primary: { fg: tc.primary, bg: tc.primarySoft },
-    accent: { fg: tc.accentText, bg: tc.accentSoft },
-    success: { fg: tc.success, bg: tc.successSoft },
-    neutral: { fg: tc.textSecondary, bg: tc.surfaceSunken },
-  };
+  const TONE = homeTones(tc);
 
   return (
     <Card pad="none">
