@@ -358,6 +358,36 @@ function reset() { store = {}; failReads = false; failWrites = false; }
     failWrites = false;
     ok(threw, '복원: 쓰기 실패는 던진다 (guardSave 가 알 수 있게)');
   }
+  {
+    // 부가 항목(테마) 쓰기만 실패 — 프로필은 이미 교체됐으니 성공으로 끝나야 한다
+    const orig = AsyncStorageMock.setItem;
+    AsyncStorageMock.setItem = async (k, v) => {
+      if (k === '@theme_v2') throw new Error('disk full');
+      return orig(k, v);
+    };
+    let threw = false;
+    try { await S.importAll(json); } catch (e) { threw = true; }
+    AsyncStorageMock.setItem = orig;
+    ok(!threw, '복원: 테마 쓰기 실패는 복원 전체를 실패로 만들지 않는다');
+    eq((await S.loadMilitaryInfo()).branch, 'airforce', '복원 부분 실패: 프로필은 복원됨');
+  }
+  ok(store['@profiles_v1.preimport'], '삭제 전: 복원 직전 사본 존재');
+  await S.clearAllData();
+  ok(store['@profiles_v1.preimport'] === undefined, '전체 삭제: 복원 직전 사본도 지운다');
+
+  /* 메인·백업 모두 손상 — 빈 프로필로 덮기 전에 원문을 남긴다 */
+  reset();
+  store['@profiles_v1'] = '{broken-main';
+  store['@profiles_v1.bak'] = '{broken-bak';
+  eq(await S.loadMilitaryInfo(), null, '이중 손상: 빈 프로필로 시작');
+  eq(store['@profiles_v1.corrupt'], '{broken-main', '이중 손상: 원문 보관');
+
+  /* 신분이 data.personnelType 에만 있는 프로필도 공유 재가져오기에서 찾아야 한다 */
+  reset();
+  await S.savePersonnelType('soldier');
+  await S.saveMilitaryInfo({ enlistDate: '2025-05-12', branch: 'navy', months: 20 });
+  eq(await S.findProfileByShare({ enlistDate: '2025-05-12', branch: 'navy', personnelType: 'soldier' }),
+    (await S.listProfiles()).activeId, '공유: data.personnelType 에만 있는 신분도 매칭');
 
   /* ── v1.5: 막대병 저장 ── */
   reset();

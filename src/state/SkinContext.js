@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { loadSkins, saveSkins } from '../utils/storage';
 import { DEFAULT_SKINS_STATE, withSelected, withUnlocked } from '../utils/skins';
 
@@ -26,42 +26,55 @@ export function SkinProvider({ children }) {
   const [state, setState] = useState(DEFAULT_SKINS_STATE);
   const [ready, setReady] = useState(false);
   const ref = useRef(state);
-  ref.current = state;
 
-  useEffect(() => {
-    let alive = true;
-    loadSkins().then((s) => {
-      if (!alive) return;
-      ref.current = s;
-      setState(s);
-      setReady(true);
+  /* 첫 로드가 끝나기 전에 commit 하면 기본값(무료 1종)을 저장해 광고로 얻은 걸
+     지운다. 모든 변경은 첫 로드 → 이전 변경 순서로 줄 세운다 (chain). */
+  const chain = useRef(null);
+  if (chain.current == null) {
+    chain.current = loadSkins()
+      .catch(() => DEFAULT_SKINS_STATE)
+      .then((s) => {
+        ref.current = s;
+        setState(s);
+        setReady(true);
+      });
+  }
+
+  /* fn(현재 상태) → 다음 상태. 실패하면 호출자에게 던지되 줄은 끊지 않는다. */
+  const commit = useCallback((fn) => {
+    const run = chain.current.then(async () => {
+      const cur = ref.current;
+      const next = fn(cur);
+      if (next === cur) return cur;
+      const saved = await saveSkins(next);   // 실패하면 여기서 던진다
+      ref.current = saved;
+      setState(saved);
+      return saved;
     });
-    return () => { alive = false; };
+    chain.current = run.catch(() => {});
+    return run;
   }, []);
 
-  const commit = useCallback(async (next) => {
-    const saved = await saveSkins(next);   // 실패하면 여기서 던진다
-    ref.current = saved;
-    setState(saved);
-    return saved;
-  }, []);
-
-  const select = useCallback((id) => commit(withSelected(ref.current, id)), [commit]);
-  const unlock = useCallback((id) => commit(withUnlocked(ref.current, id)), [commit]);
+  const select = useCallback((id) => commit((s) => withSelected(s, id)), [commit]);
+  const unlock = useCallback((id) => commit((s) => withUnlocked(s, id)), [commit]);
   const unlockAndSelect = useCallback(
-    (id) => commit(withSelected(withUnlocked(ref.current, id), id)),
+    (id) => commit((s) => withSelected(withUnlocked(s, id), id)),
     [commit]
   );
   const markDexSeen = useCallback(
-    () => (ref.current.dexSeen ? Promise.resolve(ref.current) : commit({ ...ref.current, dexSeen: true })),
+    () => commit((s) => (s.dexSeen ? s : { ...s, dexSeen: true })),
     [commit]
   );
 
   /** 백업 복원 직후 */
-  const reload = useCallback(async () => {
-    const s = await loadSkins();
-    ref.current = s;
-    setState(s);
+  const reload = useCallback(() => {
+    const run = chain.current.then(async () => {
+      const s = await loadSkins();
+      ref.current = s;
+      setState(s);
+    });
+    chain.current = run.catch(() => {});
+    return run;
   }, []);
 
   const value = useMemo(

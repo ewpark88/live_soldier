@@ -43,6 +43,26 @@ function _isObj(v) {
   return v != null && typeof v === 'object' && !Array.isArray(v);
 }
 
+/* storage.MAX_PROFILES 와 같은 값. storage 가 이 파일을 import 하므로 거꾸로 가져오면 순환이다. */
+const MAX_PROFILES = 12;
+const NAME_MAX = 40;
+
+/* 프로필 data 필드 형태 — 최상위만 보면 todos:"x" 같은 값이 통과해서
+   복원 직후 (cur ?? []).filter 에서 화면이 죽는다. 없는(null) 건 허용. */
+const ARRAY_FIELDS = ['leaveRecords', 'leaveBonus', 'todos'];
+const OBJECT_FIELDS = ['militaryInfo', 'salaryInfo', 'rankPromotions', 'savingsPlan'];
+
+function _validData(data) {
+  for (const k of ARRAY_FIELDS) {
+    if (data[k] != null && !Array.isArray(data[k])) return false;
+  }
+  for (const k of OBJECT_FIELDS) {
+    if (data[k] != null && !_isObj(data[k])) return false;
+  }
+  if (data.celebrated != null && !Array.isArray(data.celebrated)) return false;
+  return true;
+}
+
 /**
  * 백업 텍스트/객체 검증.
  * @returns {{ ok: true, value, summary: { count, names, exportedAt } }
@@ -58,14 +78,16 @@ export function parseBackup(input) {
 
   const d = obj.data;
   const ps = d && d.profiles;
-  if (!_isObj(d) || !_isObj(ps) || !Array.isArray(ps.profiles) || ps.profiles.length === 0) {
+  if (!_isObj(d) || !_isObj(ps) || !Array.isArray(ps.profiles)
+      || ps.profiles.length === 0 || ps.profiles.length > MAX_PROFILES) {
     return { ok: false, reason: 'data' };
   }
   for (const p of ps.profiles) {
-    if (!_isObj(p) || typeof p.id !== 'string' || !p.id || typeof p.name !== 'string') {
+    if (!_isObj(p) || typeof p.id !== 'string' || !p.id || typeof p.name !== 'string'
+        || p.name.length > NAME_MAX) {
       return { ok: false, reason: 'data' };
     }
-    if (p.data != null && !_isObj(p.data)) return { ok: false, reason: 'data' };
+    if (p.data != null && (!_isObj(p.data) || !_validData(p.data))) return { ok: false, reason: 'data' };
   }
   const ids = new Set(ps.profiles.map((p) => p.id));
   if (ids.size !== ps.profiles.length) return { ok: false, reason: 'data' };
@@ -81,7 +103,8 @@ export function parseBackup(input) {
     value: {
       store,
       theme: _isObj(d.theme) ? d.theme : null,
-      streak: _isObj(d.streak) ? d.streak : null,
+      // days 가 배열이 아니면 streak.pushDay 가 죽는다 — 스트릭만 버리고 나머지는 복원
+      streak: _isObj(d.streak) && (d.streak.days == null || Array.isArray(d.streak.days)) ? d.streak : null,
       uiPrefs: _isObj(d.uiPrefs) ? d.uiPrefs : null,
       skins: _isObj(d.skins) ? d.skins : null,
     },

@@ -18,6 +18,8 @@ import { mergeSkins, normalizeSkins } from './skins';
 
 const STORE_KEY = '@profiles_v1';
 const STORE_BACKUP_KEY = '@profiles_v1.bak';  // 마지막으로 정상 파싱된 스냅샷
+const PREIMPORT_KEY = '@profiles_v1.preimport';   // 복원 직전 상태 (되돌리기 안전망)
+const CORRUPT_KEY = '@profiles_v1.corrupt';       // 메인·백업 모두 손상됐을 때의 원문 (수동 복구용)
 
 /* 레코드 id 생성 — Date.now() 만 쓰면 같은 밀리초에 만든 둘이 충돌한다.
    충돌하면 삭제·완료토글이 엉뚱한 항목을 건드린다. */
@@ -89,7 +91,7 @@ function _emptyData() {
 
 function _newProfile(name, photo = null, data = null) {
   return {
-    id:    'p' + Date.now().toString() + Math.floor(Math.random() * 1000),
+    id:    'p' + _newId(),
     name:  name || '본인',
     photo: photo || null,
     data:  data || _emptyData(),
@@ -157,6 +159,14 @@ async function _loadStore() {
       }
     } catch (e) {
       _warn('백업 복구 실패', e);
+    }
+
+    // 메인·백업 모두 못 살렸다 — 빈 프로필로 덮기 전에 원문을 남겨 둔다.
+    // 앱은 읽지 않지만, 덮어쓰면 수동 복구 가능성까지 사라진다.
+    try {
+      await AsyncStorage.setItem(CORRUPT_KEY, raw);
+    } catch (e) {
+      _warn('손상 원문 보관 실패', e);
     }
   }
 
@@ -714,6 +724,8 @@ async function _clearAllData() {
   await AsyncStorage.multiRemove([
     STORE_KEY,
     STORE_BACKUP_KEY,   // 백업을 남기면 손상 복구 경로가 삭제한 데이터를 되살린다
+    PREIMPORT_KEY,      // 복원 직전 사본 — 남기면 '모두 삭제'가 사본 하나를 흘린다
+    CORRUPT_KEY,
     LEGACY.MILITARY_INFO,
     LEGACY.LEAVE_RECORDS,
     LEGACY.LEAVE_TOTAL,
@@ -739,8 +751,17 @@ export async function findProfileByShare(militaryInfo) {
   const key = shareIdentity(militaryInfo);
   if (!key) return null;
   const store = await _loadStore();
-  const hit = store.profiles.find((p) => shareIdentity(p.data && p.data.militaryInfo) === key);
+  const hit = store.profiles.find((p) => shareIdentity(_identitySource(p.data)) === key);
   return hit ? hit.id : null;
+}
+
+/* shareIdentity 재료 — personnelType 은 data 직속이 우선 (loadPersonnelType 과 같은 순서).
+   militaryInfo 에만 보면 온보딩에서 신분을 먼저 정한 프로필이 영원히 매칭되지 않는다. */
+function _identitySource(data) {
+  const mi = data && data.militaryInfo;
+  if (!mi) return null;
+  const pt = data.personnelType || mi.personnelType || null;
+  return pt === mi.personnelType ? mi : { ...mi, personnelType: pt };
 }
 
 function _sharedData(base, { militaryInfo, promotions }) {
@@ -811,7 +832,6 @@ export async function loadShareSource(id) {
 }
 
 // ─── 백업 / 복원 ─────────────────────────────────────────────────────
-const PREIMPORT_KEY = '@profiles_v1.preimport';   // 복원 직전 상태 (되돌리기 안전망)
 
 /** 전체 백업 객체 (JSON 직렬화 전) */
 export async function exportAll() {
@@ -848,12 +868,18 @@ export function importAll(input) {
     } catch (e) {
       _warn('복원 전 스냅샷 실패', e);
     }
-    await _saveStore(store);
-    if (theme) await _themeSerial(() => AsyncStorage.setItem(THEME_V2_KEY, JSON.stringify(theme)));
-    if (streak) await saveStreak(streak);
-    if (uiPrefs) await saveUIPrefs(uiPrefs);
+    await _saveStore(store);   // 본체 — 실패하면 여기서 던진다 (아직 아무것도 안 바뀜)
+
+    // 부가 항목은 best-effort. 프로필이 이미 교체된 뒤라, 여기서 던지면 사용자는
+    // '복원 실패'를 보는데 데이터는 바뀌어 있고 afterDataReplaced 도 건너뛴다.
+    const extra = async (label, fn) => {
+      try { await fn(); } catch (e) { _warn(`복원: ${label} 실패`, e); }
+    };
+    if (theme) await extra('테마', () => _themeSerial(() => AsyncStorage.setItem(THEME_V2_KEY, JSON.stringify(theme))));
+    if (streak) await extra('스트릭', () => saveStreak(streak));
+    if (uiPrefs) await extra('설정', () => saveUIPrefs(uiPrefs));
     // 막대병은 덮어쓰지 않고 합친다 — 이 기기에서 광고로 얻은 것을 잃지 않게
-    if (skins) await saveSkins(mergeSkins(await loadSkins(), skins));
+    if (skins) await extra('막대병', async () => saveSkins(mergeSkins(await loadSkins(), skins)));
     return parsed.summary;
   });
 }

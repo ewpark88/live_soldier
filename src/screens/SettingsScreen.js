@@ -122,7 +122,11 @@ export default function SettingsScreen({ navigation }) {
           text: '삭제',
           style: 'destructive',
           onPress: async () => {
+            // 프로필 사진 파일은 저장소 밖(documentDirectory)에 있다 — 복원과 같이 지운다
+            const oldPhotos = (await listProfiles().catch(() => ({ profiles: [] }))).profiles
+              .map((p) => p.photo).filter(Boolean);
             if ((await guardDelete(() => clearAllData())) === SAVE_FAILED) return;
+            oldPhotos.forEach((u) => removeProfilePhoto(u));
             await afterDataReplaced();
             Alert.alert('삭제 완료', '모든 데이터가 초기화되었습니다.', [
               { text: '확인', onPress: () => navigation.navigate('home') },

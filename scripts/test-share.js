@@ -165,6 +165,19 @@ eq(B.parseBackup({ ...bk, data: { profiles: { profiles: [] } } }).reason, 'data'
 eq(B.parseBackup({ ...bk, data: { profiles: { profiles: [{ id: 'a', name: 'x' }, { id: 'a', name: 'y' }] } } }).reason, 'data', '백업 파싱: 중복 id');
 eq(B.parseBackup({ ...bk, data: { profiles: { profiles: [{ id: 'a', name: 1 }] } } }).reason, 'data', '백업 파싱: 이름 타입');
 {
+  const one = (data) => B.parseBackup({ ...bk, data: { profiles: { profiles: [{ id: 'a', name: 'x', data }] } } });
+  eq(one({ todos: 'x' }).reason, 'data', '백업 파싱: todos 배열 아님');
+  eq(one({ leaveRecords: {} }).reason, 'data', '백업 파싱: leaveRecords 객체');
+  eq(one({ militaryInfo: [] }).reason, 'data', '백업 파싱: militaryInfo 배열');
+  eq(one({ celebrated: 'a' }).reason, 'data', '백업 파싱: celebrated 문자열');
+  eq(one({ todos: null, militaryInfo: null, celebrated: null }).ok, true, '백업 파싱: null 필드 허용');
+  const many = Array.from({ length: 13 }, (_, i) => ({ id: 'p' + i, name: 'n' }));
+  eq(B.parseBackup({ ...bk, data: { profiles: { profiles: many } } }).reason, 'data', '백업 파싱: 프로필 수 초과');
+  eq(B.parseBackup({ ...bk, data: { profiles: { profiles: [{ id: 'a', name: 'x'.repeat(41) }] } } }).reason, 'data', '백업 파싱: 이름 길이 초과');
+  const badStreak = B.parseBackup({ ...bk, data: { ...bk.data, streak: { days: 'x' } } });
+  eq([badStreak.ok, badStreak.value.streak], [true, null], '백업 파싱: 깨진 스트릭만 버림');
+}
+{
   const r = B.parseBackup({ ...bk, data: { profiles: { activeId: 'zz', profiles: [{ id: 'a', name: 'x', photo: 'file:///y' }] } } });
   eq([r.value.store.activeId, r.value.store.profiles[0].photo], ['a', null], '백업 파싱: 없는 activeId·사진 경로 보정');
 }
