@@ -152,6 +152,10 @@ export default function ShareImportSheet() {
       if (id === SAVE_FAILED) return;
       if (!id) { Alert.alert('알림', `프로필은 최대 ${MAX_PROFILES}명까지 등록할 수 있어요.`); return; }
       done(`${payload.name} 님을 추가했어요`);
+    } catch (e) {
+      // listProfiles 등 guardSave 밖의 읽기 실패
+      haptic.warning();
+      Alert.alert('저장 실패', '프로필을 추가하지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally {
       setSaving(false);
     }

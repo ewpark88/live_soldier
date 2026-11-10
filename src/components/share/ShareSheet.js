@@ -37,6 +37,9 @@ export default function ShareSheet({ visible, onClose, card, onText, onFamily, t
         haptic.warning();
         await cur.onText?.();   // 캡처가 안 되면 최소한 글로라도 나간다
       }
+    } catch (e) {
+      // 공유 시트를 못 띄웠다 — 처리되지 않은 rejection 으로 남기지 않는다
+      haptic.warning();
     } finally {
       setBusy(false);
     }

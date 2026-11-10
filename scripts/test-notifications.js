@@ -223,6 +223,20 @@ async function setup(prefs) {
     eq(t[0] && t[0].trigger.date.getHours(), 9, '일정(당일 아침): 09시');
     eq(t[0] && t[0].data.route, 'calendar', '일정: 누르면 캘린더로');
   }
+  {
+    // 알림 탭 → 캘린더의 해당 세그먼트 (이미 예약된 알림도 event 로 찾는다)
+    let listener = null;
+    NotifMock.addNotificationResponseReceivedListener = (fn) => { listener = fn; return { remove() {} }; };
+    const got = [];
+    const off = N.subscribeNotificationTaps((route, params) => got.push([route, params && params.section]));
+    const tap = (data) => listener({ notification: { request: { content: { data } } } });
+    tap({ event: 'todo', route: 'calendar' });
+    tap({ event: 'leave', route: 'calendar' });
+    tap({ event: 'payday', route: 'salary' });
+    off();
+    delete NotifMock.addNotificationResponseReceivedListener;
+    eq(got, [['calendar', 'todo'], ['calendar', 'leave'], ['salary', undefined]], '알림 탭: 캘린더 세그먼트 전달');
+  }
   await N.saveNotifPrefs({ todoTiming: 'eve' });
   await N.refreshScheduledNotifications({ force: true });
   {
@@ -243,6 +257,13 @@ async function setup(prefs) {
     const p = scheduled.filter((x) => x.data && x.data.event === 'payday').map((x) => ymd(x.trigger.date));
     // 2026-01-10 은 토요일 → 01-09(금). 02-10 화, 03-10 화
     eq(p, ['2026-01-09', '2026-02-10', '2026-03-10'], '월급날: 다가오는 3회 (주말이면 직전 금요일)');
+  }
+  NOW = new RealDate(2026, 1, 10, 10, 0, 0);   // 2026-02-10 월급날, 09시 지남
+  await setup({ discharge: false, milestone: false, payday: true });
+  {
+    const p = scheduled.filter((x) => x.data && x.data.event === 'payday').map((x) => ymd(x.trigger.date));
+    // 오늘 슬롯은 지나서 건너뛰고도 3회를 채운다. 05-10 은 일요일 → 05-08(금)
+    eq(p, ['2026-03-10', '2026-04-10', '2026-05-08'], '월급날: 당일 9시 지나도 3회 채움');
   }
   NOW = new RealDate(2026, 8, 20, 10, 0, 0);  // 전역 2026-09-30 직전
   await setup({ discharge: false, milestone: false, payday: true });

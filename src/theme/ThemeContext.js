@@ -82,9 +82,11 @@ export function ThemeProvider({ children }) {
 
   const setThemeId = (id) => {
     setThemeIdState(id);
-    saveThemeSettings({ themeId: id }).catch(() => {});
-    // 위젯도 같이 갈아입는다 (fire-and-forget — 자체 try/catch 를 갖고 있다)
-    updateDischargeWidget();
+    // 위젯도 같이 갈아입는다 — 저장이 끝난 뒤에. 위젯은 저장소에서 테마를 읽으므로
+    // 먼저 부르면 이전 테마로 그려지고 다음 주기(30분)까지 그대로였다.
+    saveThemeSettings({ themeId: id })
+      .catch(() => {})
+      .then(() => updateDischargeWidget());   // 자체 try/catch 를 갖고 있다
   };
 
   const markThemeIntroSeen = () => {

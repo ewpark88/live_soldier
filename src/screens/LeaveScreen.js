@@ -124,14 +124,19 @@ export default function LeaveScreen({ navigation, embedded = false }) {
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
   const loadData = async () => {
-    const mi = await loadMilitaryInfo();
-    setMilitaryInfo(mi);
-    if (!mi) return;
-    setRecords(await loadLeaveRecords());
-    setBonusRecords(await loadLeaveBonusRecords());
-    const lt = await loadLeaveTotal();
-    setLeaveBase(lt);
-    setBaseInput(String(lt));
+    try {
+      const mi = await loadMilitaryInfo();
+      setMilitaryInfo(mi);
+      if (!mi) return;
+      setRecords(await loadLeaveRecords());
+      setBonusRecords(await loadLeaveBonusRecords());
+      const lt = await loadLeaveTotal();
+      setLeaveBase(lt);
+      setBaseInput(String(lt));
+    } catch (e) {
+      // 빈 화면에 갇히지 않게 — 미설정 안내로 떨어진다
+      setMilitaryInfo((prev) => (prev === undefined ? null : prev));
+    }
   };
 
   const usedDays = records.reduce((acc, x) => acc + (x.days || 0), 0);
@@ -158,7 +163,7 @@ export default function LeaveScreen({ navigation, embedded = false }) {
     if (next === SAVE_FAILED) return;   // 모달을 닫지 않는다 — 입력을 날리지 않기 위해
     setRecords(next);
     haptic.success();
-    closeModal();
+    resetModal();
     afterLeaveChanged();
     showAd();
   });
@@ -202,7 +207,7 @@ export default function LeaveScreen({ navigation, embedded = false }) {
       if (next === SAVE_FAILED) return;
       setBonusRecords(next);
       haptic.success();
-      closeModal();
+      resetModal();
       showAd();
     });
   };
@@ -237,7 +242,14 @@ export default function LeaveScreen({ navigation, embedded = false }) {
     ]);
   };
 
+  /* 사용자가 닫기(배경 탭·뒤로가기) — 저장 중엔 막는다 (TodoScreen.closeSheet 와 같은 규칙).
+     저장 성공 경로는 savingRef 가 아직 true 라 resetModal 을 직접 부른다. */
   const closeModal = () => {
+    if (savingRef.current) return;
+    resetModal();
+  };
+
+  const resetModal = () => {
     setModalType(MODAL_NONE);
     setFormDate('');
     setFormEndDate('');

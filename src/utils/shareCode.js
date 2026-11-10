@@ -223,7 +223,8 @@ export function decodeShareCode(input) {
         enlistDate,
         branch,
         personnelType: type,
-        officerRank: officer && typeof officerRank === 'string' && officerRank ? officerRank : null,
+        // 인코더와 같은 12자 상한 — 조작한 코드가 긴 문자열을 프로필에 넣지 못하게
+        officerRank: officer && typeof officerRank === 'string' && officerRank ? officerRank.slice(0, 12) : null,
         months: m,
       },
       promotions,

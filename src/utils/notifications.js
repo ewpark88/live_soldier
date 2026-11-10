@@ -71,8 +71,8 @@ export const NOTIF_EVENTS = [
   { key: 'discharge', group: 'service', route: 'roadmap', title: '전역 D-day', desc: 'D-100·30·7·1·당일 오전 9시', icon: 'flag-outline' },
   { key: 'promotion', group: 'service', route: 'roadmap', title: '진급일', desc: '일병·상병·병장 진급 당일 오전 9시', icon: 'chevron-up-circle-outline', soldierOnly: true },
   { key: 'milestone', group: 'service', route: 'roadmap', title: '마일스톤', desc: '입대 100일 · 반환점 등 전날 저녁 9시', icon: 'trophy-outline' },
-  { key: 'leave', group: 'life', route: 'calendar', title: '휴가 전날', desc: '휴가 시작 전날 저녁 9시', icon: 'airplane-outline' },
-  { key: 'todo', group: 'life', route: 'calendar', title: '일정', desc: '날짜를 정한 할 일', icon: 'checkbox-outline' },
+  { key: 'leave', group: 'life', route: 'calendar', section: 'leave', title: '휴가 전날', desc: '휴가 시작 전날 저녁 9시', icon: 'airplane-outline' },
+  { key: 'todo', group: 'life', route: 'calendar', section: 'todo', title: '일정', desc: '날짜를 정한 할 일', icon: 'checkbox-outline' },
   { key: 'payday', group: 'life', route: 'salary', title: '월급날', desc: '매월 10일(주말이면 금요일) 오전 9시', icon: 'wallet-outline' },
   { key: 'streak', group: 'habit', route: 'home', title: '출석 스트릭', desc: '앱을 안 연 날 저녁 9시', icon: 'flame-outline' },
   { key: 'daily', group: 'habit', route: 'home', title: '매일 D-day', desc: '정한 시각에 매일 한 번', icon: 'today-outline' },
@@ -277,10 +277,15 @@ export async function markNotifPromptDone() {
   try { await AsyncStorage.setItem(PROMPT_KEY, '1'); } catch (e) {}
 }
 
-/** 알림 끄기: 모든 예약 취소 + 플래그 저장 */
+/**
+ * 알림 끄기: 플래그 저장 + 모든 예약 취소.
+ * 플래그 저장에 실패하면 예약도 건드리지 않고 false — 예전엔 예약만 지우고 스위치는
+ * 켜진 채로 남아 '눌렀는데 아무 일도 안 일어남'이 됐다 (다음 실행에 다시 잡히기도 한다).
+ */
 export async function disableNotifications() {
-  await setNotifEnabledFlag(false);
+  if (!(await setNotifEnabledFlag(false))) return false;
   await _clearAll();
+  return true;
 }
 
 async function _clearAll() {
@@ -314,6 +319,8 @@ const EVENT_CHANNEL = {
   streak: CHANNEL_STREAK, daily: CHANNEL_DAILY,
 };
 const EVENT_ROUTE = Object.fromEntries(NOTIF_EVENTS.map((e) => [e.key, e.route]));
+/* 캘린더 탭의 어느 세그먼트를 열지. 탭 시점에 event 로 찾으므로 이미 예약된 알림에도 적용된다. */
+const EVENT_SECTION = Object.fromEntries(NOTIF_EVENTS.filter((e) => e.section).map((e) => [e.key, e.section]));
 
 function _content(event, title, body) {
   const ch = EVENT_CHANNEL[event];
@@ -332,15 +339,17 @@ function _content(event, title, body) {
 /**
  * 알림을 눌러 앱이 열렸을 때 이벤트의 화면으로 보낸다.
  * 앱이 꺼져 있다가 알림으로 켜진 경우(getLastNotificationResponseAsync)도 받는다.
- * @param {(route: string) => void} onRoute
+ * @param {(route: string, params?: object) => void} onRoute
  * @returns {() => void} 구독 해제
  */
 export function subscribeNotificationTaps(onRoute) {
   if (!Notifications) return () => {};
   const handle = (resp) => {
     try {
-      const route = resp?.notification?.request?.content?.data?.route;
-      if (typeof route === 'string') onRoute(route);
+      const data = resp?.notification?.request?.content?.data;
+      const route = data?.route;
+      const section = EVENT_SECTION[data?.event];
+      if (typeof route === 'string') onRoute(route, section ? { section, ts: Date.now() } : undefined);
     } catch (e) {}
   };
   let sub = null;
@@ -351,7 +360,7 @@ export function subscribeNotificationTaps(onRoute) {
         if (!r) return;
         handle(r);
         // 다음 실행에서 같은 응답을 다시 처리하지 않게
-        try { Notifications.clearLastNotificationResponseAsync?.(); } catch (e) {}
+        try { Notifications.clearLastNotificationResponseAsync?.()?.catch?.(() => {}); } catch (e) {}
       })
       .catch(() => {});
   } catch (e) {}
@@ -643,9 +652,12 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
 
   // 월급날 — 다가오는 3회 (앱을 몇 주 안 열어도 끊기지 않게). 전역 뒤 월급은 없다.
   if (prefs.payday) {
+    // 오늘이 월급날인데 9시가 지났으면 scheduleAt 이 건너뛴다 — 그 슬롯은 세지 않는다.
+    // (예전엔 세서 2회만 잡혔다.) 실패가 이어져도 끝나도록 시도 횟수에 상한을 둔다.
     let pay = getNextPayday(today).date;
-    for (let i = 0; i < 3 && pay <= disc; i += 1) {
-      await scheduleAt('payday', pay, '오늘은 월급날 💰', `${who}이번 달 월급이 들어오는 날이에요. (공휴일이면 하루 이를 수 있어요)`);
+    let booked = 0;
+    for (let tries = 0; booked < 3 && tries < 5 && pay <= disc; tries += 1) {
+      if (await scheduleAt('payday', pay, '오늘은 월급날 💰', `${who}이번 달 월급이 들어오는 날이에요. (공휴일이면 하루 이를 수 있어요)`)) booked += 1;
       const [y, m] = pay.split('-').map(Number);
       pay = paydayOf(y, m);   // m 은 1-based 라 0-based 인자로 넘기면 곧 다음 달이다
     }

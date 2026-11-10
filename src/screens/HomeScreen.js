@@ -78,14 +78,19 @@ export default function HomeScreen({ navigation }) {
   const [notifPrompt, setNotifPrompt] = useState(false);
   const [notifBusy, setNotifBusy] = useState(false);
   const promptTimer = useRef(null);
+  const focused = useRef(false);   // 다른 탭에 있을 때 프로필 변경 신호로 시트가 뜨지 않게
 
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
 
   useFocusEffect(
     useCallback(() => {
+      focused.current = true;
       loadData();
-      return () => clearTimeout(promptTimer.current);   // 떠난 화면에서 시트를 띄우지 않는다
+      return () => {
+        focused.current = false;
+        clearTimeout(promptTimer.current);   // 떠난 화면에서 시트를 띄우지 않는다
+      };
     }, [])
   );
   // 공유 코드로 프로필을 받거나 백업을 복원하면 탭 포커스는 그대로라 위 effect 가
@@ -134,10 +139,13 @@ export default function HomeScreen({ navigation }) {
      전역 정보 저장 직후엔 전면광고가 뜰 수 있다. 광고가 덮고 있으면 이번엔 건너뛰고
      다음 포커스에 다시 본다. 지연은 히어로 진입 애니메이션이 끝날 때까지. */
   const maybeOfferNotif = async () => {
-    if (!(await shouldOfferNotifPrompt())) return;
+    // 설정 탭에서 프로필을 바꾸면 useProfilesChanged 로 여기까지 온다 — 그때 띄우면
+    // 시트(Modal)가 설정 화면 위에 뜬다. 홈이 보일 때만. 다음 포커스에 다시 본다.
+    if (!focused.current) return;
+    if (!(await shouldOfferNotifPrompt().catch(() => false))) return;
     clearTimeout(promptTimer.current);
     promptTimer.current = setTimeout(() => {
-      if (isInterstitialShowing()) return;
+      if (!focused.current || isInterstitialShowing()) return;
       setNotifPrompt(true);
     }, 900);
   };
@@ -146,7 +154,7 @@ export default function HomeScreen({ navigation }) {
     if (notifBusy) return;
     setNotifBusy(true);
     try {
-      const ok = await enableNotifications();
+      const ok = await enableNotifications().catch(() => false);
       await markNotifPromptDone();
       setNotifPrompt(false);
       if (ok) { haptic.success(); return; }

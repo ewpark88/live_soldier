@@ -18,7 +18,9 @@ export function setHapticsEnabled(v) {
 const safe = (fn) => {
   if (!enabled) return;
   try {
-    fn();
+    // *Async 는 프라미스를 돌려준다 — 동기 try 로는 거부를 못 잡는다 (햅틱 없는 기기)
+    const p = fn();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
   } catch {
     // 무시 — 햅틱 실패가 사용자 동작을 막아선 안 된다
   }

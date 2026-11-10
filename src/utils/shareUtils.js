@@ -101,7 +101,7 @@ export function buildFamilyShareMessage(name, info, code) {
   const dday = dleft != null && dleft > 0 ? ` (D-${dleft})` : '';
   return (
     `🪖 ${who} 전역일을 같이 세어요!\n` +
-    `${formatDateKo(info.dischargeDate)} 전역${dday}\n\n` +
+    (info?.dischargeDate ? `${formatDateKo(info.dischargeDate)} 전역${dday}\n\n` : '\n') +
     `① '전역까지' 앱 설치\n${STORE_URL}\n` +
     `② 프로필 '추가' → '공유 코드로 추가'에 이 메시지를 붙여넣기\n\n` +
     `${code}`

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -111,7 +111,15 @@ export default function DischargeScreen({ navigation }) {
   const selectedBranch = BRANCHES.find((b) => b.key === branch) ?? BRANCHES[0];
   const officer = isOfficer(personnelType);
 
+  /* 연타 방지 — 저장 사이에 두 번째 탭이 들어오면 전면광고·햅틱이 두 번 돈다 */
+  const savingRef = useRef(false);
   const handleSave = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try { await _handleSave(); } finally { savingRef.current = false; }
+  };
+
+  const _handleSave = async () => {
     if (!enlistDate) { haptic.warning(); Alert.alert('오류', '입대일을 선택해주세요.'); return; }
     if (!isValidDateString(enlistDate)) {
       haptic.warning();
@@ -153,8 +161,10 @@ export default function DischargeScreen({ navigation }) {
       months,
     };
     try {
-      await saveMilitaryInfo(mi);
+      // 신분 먼저 — 입대정보가 저장된 뒤 신분 저장이 실패하면 loadPersonnelType 은
+      // data.personnelType(옛 값)을 우선해서 두 값이 어긋난 채로 남는다.
       await savePersonnelType(personnelType);
+      await saveMilitaryInfo(mi);
     } catch (e) {
       // 저장이 실패했는데 성공한 것처럼 화면을 넘기면, 사용자는 입력이
       // 남은 줄 알고 앱을 닫았다가 다음 실행에서 온보딩을 다시 만난다.
@@ -175,6 +185,9 @@ export default function DischargeScreen({ navigation }) {
 
     setInfo(mi);
     setEditing(false);
+    // 입대일이 바뀌면 단계(phase)도 바뀐다 — 메시지를 다시 고른다
+    setMsgOffset(0);
+    setMessage(getMessageForPhase(getPhase(calcDaysLeft(mi.dischargeDate))));
     updateDischargeWidget();
     refreshScheduledNotifications().catch(() => {});
     haptic.success();

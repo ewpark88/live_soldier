@@ -99,7 +99,7 @@ export default function App() {
       // iOS 14+ ATT 광고 추적 동의 요청
       if (Platform.OS === 'ios' && requestTrackingPermissionsAsync) {
         const { status } = await requestTrackingPermissionsAsync();
-        console.log('[ATT] 추적 권한 상태:', status);
+        if (__DEV__) console.log('[ATT] 추적 권한 상태:', status);
       }
 
       // AdMob SDK 초기화 — 끝나야 배너가 요청을 시작한다 (adManager.markAdsReady).
@@ -108,10 +108,10 @@ export default function App() {
         const fallback = setTimeout(markAdsReady, 3000);
         await MobileAds().initialize();
         clearTimeout(fallback);
-        console.log('[AdMob] SDK 초기화 완료');
+        if (__DEV__) console.log('[AdMob] SDK 초기화 완료');
       }
     } catch (e) {
-      console.log('[AdMob] Expo Go 환경 - 광고 초기화 스킵');
+      if (__DEV__) console.log('[AdMob] Expo Go 환경 - 광고 초기화 스킵');
     } finally {
       markAdsReady();
     }

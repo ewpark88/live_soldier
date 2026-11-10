@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -60,20 +60,38 @@ export default function CalendarScreen({ navigation, route }) {
     if (next && next !== section) setSection(next);
   }, [route?.params?.section, route?.params?.ts]);
 
+  /* 달력 세그먼트용 데이터. 휴가·일정 세그먼트는 각자 자기 사본을 읽고 쓰므로
+     거기서 바꾼 것은 탭 포커스가 그대로인 채로 '달력'에 돌아오면 반영되지 않았다.
+     → 포커스 때 + 다른 세그먼트에서 '달력'으로 돌아올 때 다시 읽는다. */
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const reload = useCallback(async () => {
+    try {
+      const [mi, lr, lb, td] = await Promise.all([
+        loadMilitaryInfo(), loadLeaveRecords(), loadLeaveBonusRecords(), loadTodos(),
+      ]);
+      if (!alive.current) return;
+      setInfo(mi);
+      setRecords(lr);
+      setBonus(lb);
+      setTodos(td);
+    } catch (e) {
+      // 저장소를 못 읽어도 빈 화면에 갇히지 않게 — 미설정 안내로 떨어진다
+      if (alive.current) setInfo((prev) => (prev === undefined ? null : prev));
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      let alive = true;
-      (async () => {
-        const mi = await loadMilitaryInfo();
-        if (!alive) return;
-        setInfo(mi);
-        setRecords(await loadLeaveRecords());
-        setBonus(await loadLeaveBonusRecords());
-        setTodos(await loadTodos());
-      })();
-      return () => { alive = false; };
-    }, [])
+      reload();
+    }, [reload])
   );
+
+  const prevSection = useRef(section);
+  useEffect(() => {
+    if (section === 'month' && prevSection.current !== 'month') reload();
+    prevSection.current = section;
+  }, [section]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const header = (
     <View style={{ paddingTop: insets.top }}>

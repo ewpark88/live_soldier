@@ -48,7 +48,7 @@ export default function ThemeScreen() {
         if (!info) return;
         const promos = await loadRankPromotions(info.enlistDate);
         if (alive) setRoadmap(buildRoadmap(info, promos));
-      })();
+      })().catch(() => {});   // 로드맵은 잠금 진행도 표시용 — 못 읽으면 없이 그린다
       return () => { alive = false; };
     }, [])
   );

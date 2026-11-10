@@ -161,10 +161,15 @@ export default function TodoScreen({ navigation, embedded = false }) {
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
   const loadData = async () => {
-    const mi = await loadMilitaryInfo();
-    setMilitaryInfo(mi);
-    if (!mi) return;
-    setTodos(await loadTodos());
+    try {
+      const mi = await loadMilitaryInfo();
+      setMilitaryInfo(mi);
+      if (!mi) return;
+      setTodos(await loadTodos());
+    } catch (e) {
+      // 빈 화면에 갇히지 않게 — 미설정 안내로 떨어진다
+      setMilitaryInfo((prev) => (prev === undefined ? null : prev));
+    }
   };
 
   const handlePreset = (preset) => {

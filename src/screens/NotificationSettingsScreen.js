@@ -25,6 +25,7 @@ const GROUPS = [
 
 const DAILY_HOURS = [
   { value: 8, label: '아침 8시' },
+  { value: 9, label: '아침 9시' },   // 기본값 — 없으면 처음 들어왔을 때 아무 칩도 선택돼 있지 않다
   { value: 12, label: '점심 12시' },
   { value: 21, label: '저녁 9시' },
 ];
@@ -74,9 +75,14 @@ export default function NotificationSettingsScreen() {
   useEffect(() => () => { alive.current = false; }, []);
 
   const reload = useCallback(async () => {
-    const [p, pm, pl, mi] = await Promise.all([
-      loadNotifPrefs(), getNotifPermission(), loadNotifPlan(), loadMilitaryInfo().catch(() => null),
-    ]);
+    let p, pm, pl, mi;
+    try {
+      [p, pm, pl, mi] = await Promise.all([
+        loadNotifPrefs(), getNotifPermission(), loadNotifPlan(), loadMilitaryInfo().catch(() => null),
+      ]);
+    } catch (e) {
+      return;   // 기본값 화면을 그대로 둔다 — 다음 포커스에서 다시 읽는다
+    }
     if (!alive.current) return;
     setPrefs(p);
     setPerm(pm);
@@ -141,7 +147,10 @@ export default function NotificationSettingsScreen() {
         } else {
           haptic.warning();
           const pm = await getNotifPermission();
-          if (pm.status === 'denied' && !pm.canAskAgain) {
+          if (pm.status === 'granted') {
+            // 권한은 있는데 켜짐 저장이 실패한 경우 — 권한 안내는 엉뚱하다
+            Alert.alert('저장 실패', '설정을 저장하지 못했습니다.\n기기 저장공간을 확인한 뒤 다시 시도해주세요.');
+          } else if (pm.status === 'denied' && !pm.canAskAgain) {
             Alert.alert(
               '알림 권한이 꺼져 있어요',
               '휴대폰 설정 → 앱 → 전역까지 → 알림에서 허용해 주세요.',
@@ -151,8 +160,9 @@ export default function NotificationSettingsScreen() {
             Alert.alert('권한 필요', '알림을 받으려면 알림 권한을 허용해 주세요.');
           }
         }
-      } else {
-        await disableNotifications();
+      } else if (!(await disableNotifications())) {
+        haptic.warning();
+        Alert.alert('저장 실패', '설정을 저장하지 못했습니다.\n기기 저장공간을 확인한 뒤 다시 시도해주세요.');
       }
       await reload();
     } finally {
@@ -160,17 +170,30 @@ export default function NotificationSettingsScreen() {
     }
   };
 
-  const savePatch = async (patch) => {
-    // 낙관적 반영 → 실패하면 되돌린다
-    const prev = prefs;
-    setPrefs({ ...prev, ...patch });
+  /* 낙관적 반영 → 실패하면 '이 패치의 키만' 되돌린다.
+     예전엔 호출 시점의 prefs 통째로 되돌리거나 덮어서, 스위치 A·B 를 빠르게 연달아
+     누르면 A 의 저장 결과가 B 의 반영을 지웠다. 저장도 순서대로 줄 세운다. */
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
+  const patchChain = useRef(Promise.resolve());
+  const savePatch = (patch) => {
+    const before = {};
+    for (const k of Object.keys(patch)) before[k] = prefsRef.current[k];
+    setPrefs((p) => ({ ...p, ...patch }));
     haptic.select();
-    const next = await guardSave(() => saveNotifPrefs(patch));
-    if (next === SAVE_FAILED) { setPrefs(prev); return; }
-    setPrefs(next);
-    // 예약 구성이 바뀌었으므로 시그니처 게이트를 건너뛰고 다시 잡는다
-    await refreshScheduledNotifications({ force: true }).catch(() => {});
-    if (alive.current) setPlan(await loadNotifPlan());
+    const run = patchChain.current.then(async () => {
+      const next = await guardSave(() => saveNotifPrefs(patch));
+      if (next === SAVE_FAILED) {
+        if (alive.current) setPrefs((p) => ({ ...p, ...before }));
+        return;
+      }
+      // 예약 구성이 바뀌었으므로 시그니처 게이트를 건너뛰고 다시 잡는다
+      await refreshScheduledNotifications({ force: true }).catch(() => {});
+      const pl = await loadNotifPlan().catch(() => null);
+      if (alive.current && pl) setPlan(pl);
+    });
+    patchChain.current = run.catch(() => {});
+    return run;
   };
 
   const master = !!prefs.master;
@@ -181,7 +204,7 @@ export default function NotificationSettingsScreen() {
       const t = TODO_TIMING_OPTIONS.find((o) => o.key === prefs.todoTiming);
       return `할 일 · ${t ? t.label : ''}`;
     }
-    if (ev.key === 'daily') return `매일 ${fmtHour(prefs.dailyHour ?? 9)}`;
+    if (ev.key === 'daily') return `매일 ${fmtHour(prefs.dailyHour ?? DEFAULT_NOTIF_PREFS.dailyHour)}`;
     return ev.desc;
   };
 

@@ -75,7 +75,7 @@ export default function SavingsScreen({ navigation }) {
   const touched = useRef(false);
   useEffect(() => {
     let alive = true;
-    loadSavingsPlan().then((plan) => {
+    loadSavingsPlan().catch(() => null).then((plan) => {
       if (!alive || touched.current) return;
       if (plan) {
         setMonthly(String(plan.monthly));

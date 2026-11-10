@@ -59,13 +59,22 @@ export default function SalaryScreen({ navigation }) {
     setTotalMonths(si ? String(si.totalMonths) : String(mi?.months ?? ''));
   };
 
+  const customOpen = useRef(false);
+  customOpen.current = customMode;
+
   const loadData = async () => {
-    const mi = await loadMilitaryInfo();
-    setMilitaryInfo(mi);
-    const si = await loadSalaryInfo();
-    setSalaryInfo(si);
-    resetForm(si, mi);
-    setPromotions(await loadRankPromotions(mi?.enlistDate));
+    try {
+      const mi = await loadMilitaryInfo();
+      setMilitaryInfo(mi);
+      const si = await loadSalaryInfo();
+      setSalaryInfo(si);
+      // 직접 입력 폼을 열어 둔 채 탭을 떠났다 오면 입력 중인 값을 덮지 않는다
+      if (!customOpen.current) resetForm(si, mi);
+      setPromotions(await loadRankPromotions(mi?.enlistDate));
+    } catch (e) {
+      // 빈 화면에 갇히지 않게 — 미설정 안내로 떨어진다
+      setMilitaryInfo((prev) => (prev === undefined ? null : prev));
+    }
   };
 
   const handleCancel = () => {
@@ -122,7 +131,14 @@ export default function SalaryScreen({ navigation }) {
   };
 
   if (militaryInfo === undefined) return <Screen scroll={false} />;
-  if (!militaryInfo) return <SetupRequired />;
+  if (!militaryInfo) {
+    // 헤더·안전영역 없이 맨 컴포넌트만 그리던 분기 — 다른 탭과 같은 껍데기를 쓴다
+    return (
+      <Screen scroll={false} header={<AppHeader title="급여 계산" />}>
+        <SetupRequired />
+      </Screen>
+    );
+  }
 
   const officer = isOfficer(militaryInfo.personnelType);
   const servedMonths = calcServedMonths(militaryInfo.enlistDate);

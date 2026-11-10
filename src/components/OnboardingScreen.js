@@ -40,7 +40,7 @@ export default function OnboardingScreen({ name, onSelect }) {
         </Txt>
         <Txt role="subtitle" style={s.center}>어떤 신분으로 복무 중이신가요?</Txt>
         <Txt role="bodySm" tone="secondary" style={s.center}>
-          선택에 따라 맞는 계급·봉급·계산이 적용돼요.{'\n'}나중에 ‘전역일 계산’에서 변경할 수 있어요.
+          선택에 따라 맞는 계급·봉급·계산이 적용돼요.{'\n'}나중에 ‘전역 정보’에서 변경할 수 있어요.
         </Txt>
       </Animated.View>
 

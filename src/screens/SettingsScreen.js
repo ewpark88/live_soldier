@@ -41,9 +41,11 @@ export default function SettingsScreen({ navigation }) {
   const backupBusy = useRef(false);
 
   const loadProfile = useCallback(async () => {
-    const mi = await loadMilitaryInfo();
-    setInfo(mi);
-    setPromotions(await loadRankPromotions(mi?.enlistDate));
+    try {
+      const mi = await loadMilitaryInfo();
+      setInfo(mi);
+      setPromotions(await loadRankPromotions(mi?.enlistDate));
+    } catch (e) { /* 프로필 요약만 비어 보인다 — 메뉴는 그대로 쓸 수 있다 */ }
   }, []);
 
   useFocusEffect(
@@ -57,7 +59,7 @@ export default function SettingsScreen({ navigation }) {
           blocked: p.master && pm.status !== 'granted' && pm.status !== 'unavailable',
           text: p.master ? `${on}개 이벤트 켜짐` : '꺼짐',
         });
-      });
+      }).catch(() => {});
       loadProfile();
       return () => { alive = false; };
     }, [loadProfile])
@@ -80,8 +82,8 @@ export default function SettingsScreen({ navigation }) {
 
   /* 병사/간부에 따라 봉급표 행이 갈린다 (예전엔 햄버거 메뉴가 하던 분기) */
   const payRow = isOfficer(info?.personnelType)
-    ? { title: '간부 봉급 참고', subtitle: '계급·호봉별 봉급표', icon: 'ribbon-outline', route: 'officerPay' }
-    : { title: '병사 월급 가이드', subtitle: '계급별 표준 월급', icon: 'card-outline', route: 'salaryGuide' };
+    ? { title: '간부 봉급 참고', subtitle: '초임(1호봉) 월 기본급', icon: 'list-outline', route: 'officerPay' }
+    : { title: '병사 월급 가이드', subtitle: '계급별 표준 월급', icon: 'list-outline', route: 'salaryGuide' };
 
   const SHORTCUTS = [
     { title: '전역 정보', subtitle: '입대일·군별·진급일 수정', icon: 'flag-outline', route: 'discharge' },
