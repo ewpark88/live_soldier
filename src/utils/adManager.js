@@ -121,7 +121,7 @@ export function onAdsReady(cb) {
 
 function _init() {
   if (interstitial || !InterstitialAd || !AdEventType) return;
-  const unitId = getAdUnitId(AD_UNITS.INTERSTITIAL_TAB, 'interstitial');
+  const unitId = getAdUnitId(AD_UNITS.INTERSTITIAL_SAVE, 'interstitial');
   if (!unitId) return;
 
   interstitial = InterstitialAd.createForAdRequest(unitId, {

@@ -99,7 +99,7 @@ export default function ThemeScreen() {
   return (
     <Screen
       standalone
-      ad={AD_UNITS.SALARY_MIDDLE}
+      ad={AD_UNITS.REFERENCE_BOTTOM}
       header={<AppHeader title="테마" subtitle="앱 전체 색을 바꿉니다" back />}
     >
       {/* 밝기 */}

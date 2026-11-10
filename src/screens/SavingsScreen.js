@@ -129,7 +129,7 @@ export default function SavingsScreen({ navigation }) {
   return (
     <Screen
       standalone
-      ad={AD_UNITS.SALARY_MIDDLE}
+      ad={AD_UNITS.SAVINGS_BOTTOM}
       contentContainerStyle={{ paddingBottom: sp.xxxl }}
       header={
         <AppHeader

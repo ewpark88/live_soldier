@@ -24,81 +24,71 @@ const TEST_INTERSTITIAL  = (TestIds && TestIds.INTERSTITIAL) || 'ca-app-pub-3940
 const TEST_REWARDED_INTERSTITIAL =
   (TestIds && TestIds.REWARDED_INTERSTITIAL) || 'ca-app-pub-3940256099942544/5354046379';
 
+/*
+ * 배정 원칙 (v1.5.1): 새 광고 단위는 만들지 않고 이미 발급된 것만 쓴다.
+ * 발급만 되고 안 쓰이던 단위(전역 중간·휴가 중간·일정 중간·일정 하단)를 노출이 많은
+ * 화면(설정·가족 공유·도감·적금)에 옮겨 붙였다. realId 는 AdMob 콘솔의 단위 그대로라
+ * 콘솔의 단위 이름은 옛 이름일 수 있다 — 리포트를 볼 땐 아래 '콘솔 이름'을 참고.
+ * 참고 화면(월급표·간부 봉급·혜택·테마·알림 설정)은 SALARY_MIDDLE 하나를 같이 쓴다.
+ */
 export const AD_UNITS = {
-  // ── 배너 광고 (Banner) ──────────────────────────────────────────
-  HOME_TOP: {
-    id: 'home_top_banner',
-    label: '홈 · 메인카드 하단',
-    realId: 'ca-app-pub-8353634332299342/1949989068',
-  },
+  // ── 배너 광고 (Banner) — 화면당 하나, <Screen ad> 푸터에만 ──────────
   HOME_BOTTOM: {
     id: 'home_bottom_banner',
-    label: '홈 · 화면 하단',
+    label: '홈 · 하단',
     realId: 'ca-app-pub-8353634332299342/9197314884',
+  },
+  SETTINGS_BOTTOM: {
+    id: 'settings_bottom_banner',
+    label: '내 정보(설정) · 하단',      // 콘솔 이름: 전역 · 입력폼/결과 사이
+    realId: 'ca-app-pub-8353634332299342/8323825721',
   },
   ROADMAP_BOTTOM: {
     id: 'roadmap_bottom_banner',
-    label: '전역로드맵 · 하단',
-    // 전용 광고 단위 발급 전까지 미사용 단위(홈 상단) 재활용
+    label: '전역로드맵 · 하단',          // 콘솔 이름: 홈 · 메인카드 하단
     realId: 'ca-app-pub-8353634332299342/1949989068',
   },
   SHARE_BOTTOM: {
     id: 'share_bottom_banner',
-    label: '가족 공유 · 하단',
-    // 전용 광고 단위 발급 전까지 미사용 단위(홈 상단) 재활용 — ROADMAP_BOTTOM 과 같은 방식
-    realId: 'ca-app-pub-8353634332299342/1949989068',
-  },
-  DISCHARGE_MIDDLE: {
-    id: 'discharge_middle_banner',
-    label: '전역 · 입력폼/결과 사이',
-    realId: 'ca-app-pub-8353634332299342/8323825721',
-  },
-  DISCHARGE_BOTTOM: {
-    id: 'discharge_bottom_banner',
-    label: '전역 · 통계 하단',
-    realId: 'ca-app-pub-8353634332299342/5921023668',
-  },
-  LEAVE_MIDDLE: {
-    id: 'leave_middle_banner',
-    label: '휴가 · 리스트 중간',
+    label: '가족 공유 · 하단',           // 콘솔 이름: 휴가 · 리스트 중간
     realId: 'ca-app-pub-8353634332299342/4935245050',
-  },
-  LEAVE_BOTTOM: {
-    id: 'leave_bottom_banner',
-    label: '휴가 · 하단',
-    realId: 'ca-app-pub-8353634332299342/3622163389',
-  },
-  SALARY_MIDDLE: {
-    id: 'salary_middle_banner',
-    label: '급여 · 월급표 하단',
-    realId: 'ca-app-pub-8353634332299342/7010744050',
-  },
-  SALARY_BOTTOM: {
-    id: 'salary_bottom_banner',
-    label: '급여 · 하단',
-    realId: 'ca-app-pub-8353634332299342/3318911055',
-  },
-  TODO_MIDDLE: {
-    id: 'todo_middle_banner',
-    label: '일정 · 그룹 사이',
-    realId: 'ca-app-pub-8353634332299342/8378011059',
   },
   DEX_BOTTOM: {
     id: 'dex_bottom_banner',
-    label: '막대병 도감 · 하단',
-    // 전용 광고 단위 발급 전까지 미사용 단위(홈 상단) 재활용 — ROADMAP_BOTTOM 과 같은 방식
-    realId: 'ca-app-pub-8353634332299342/1949989068',
+    label: '막대병 도감 · 하단',         // 콘솔 이름: 일정 · 그룹 사이
+    realId: 'ca-app-pub-8353634332299342/8378011059',
   },
-  TODO_BOTTOM: {
-    id: 'todo_bottom_banner',
-    label: '일정 · 하단',
+  SAVINGS_BOTTOM: {
+    id: 'savings_bottom_banner',
+    label: '장병내일적금 · 하단',        // 콘솔 이름: 일정 · 하단
     realId: 'ca-app-pub-8353634332299342/7884233215',
+  },
+  DISCHARGE_BOTTOM: {
+    id: 'discharge_bottom_banner',
+    label: '전역 정보 · 하단',
+    realId: 'ca-app-pub-8353634332299342/5921023668',
+  },
+  CALENDAR_BOTTOM: {
+    id: 'calendar_bottom_banner',
+    label: '캘린더 탭 · 하단 (달력·휴가·일정 공용)',   // 콘솔 이름: 휴가 · 하단
+    realId: 'ca-app-pub-8353634332299342/3622163389',
+  },
+  SALARY_BOTTOM: {
+    id: 'salary_bottom_banner',
+    label: '급여 탭 · 하단',
+    realId: 'ca-app-pub-8353634332299342/3318911055',
+  },
+  REFERENCE_BOTTOM: {
+    id: 'reference_bottom_banner',
+    label: '참고 화면 공용 · 하단 (월급표·간부 봉급·혜택·테마·알림 설정)',  // 콘솔 이름: 급여 · 월급표 하단
+    realId: 'ca-app-pub-8353634332299342/7010744050',
   },
 
   // ── 전면 광고 (Interstitial) ────────────────────────────────────
-  INTERSTITIAL_TAB: {
-    id: 'interstitial_tab_switch',
-    label: '전면 · 탭 전환',
+  // '주요 저장' 직후에만 뜬다 (전역 정보·휴가·할 일·급여). 탭 전환·앱 실행에서는 절대 안 띄운다.
+  INTERSTITIAL_SAVE: {
+    id: 'interstitial_after_save',
+    label: '전면 · 주요 저장 직후',     // 콘솔 이름: 전면 · 탭 전환 (이름만 옛것)
     realId: 'ca-app-pub-8353634332299342/1046315947',
   },
 

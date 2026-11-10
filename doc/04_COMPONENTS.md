@@ -39,8 +39,8 @@ try {
 import AdBanner from '../components/AdBanner';
 import { AD_UNITS } from '../constants/adUnits';
 
-<AdBanner unit={AD_UNITS.HOME_TOP} />
-<AdBanner unit={AD_UNITS.LEAVE_BOTTOM} style={{ marginTop: 8 }} />
+<AdBanner unit={AD_UNITS.HOME_BOTTOM} />
+<AdBanner unit={AD_UNITS.CALENDAR_BOTTOM} style={{ marginTop: 8 }} />
 ```
 
 ---

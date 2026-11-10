@@ -44,7 +44,7 @@ export default function BenefitsScreen({ navigation }) {
   return (
     <Screen
       standalone
-      ad={AD_UNITS.SALARY_MIDDLE}
+      ad={AD_UNITS.REFERENCE_BOTTOM}
       scrollRef={scrollRef}
       header={
         <AppHeader

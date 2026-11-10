@@ -197,7 +197,7 @@ export default function SettingsScreen({ navigation }) {
 
   return (
     <Screen
-      ad={AD_UNITS.HOME_BOTTOM}
+      ad={AD_UNITS.SETTINGS_BOTTOM}
       header={<AppHeader title="내 정보" />}
     >
       {/* ── 프로필 ── */}

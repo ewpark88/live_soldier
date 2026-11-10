@@ -235,7 +235,7 @@ export default function NotificationSettingsScreen() {
   return (
     <Screen
       standalone
-      ad={AD_UNITS.SALARY_MIDDLE}
+      ad={AD_UNITS.REFERENCE_BOTTOM}
       header={<AppHeader title="알림" subtitle="이벤트마다 따로 켜고 끕니다" back />}
     >
       {/* ── 마스터 ── */}
