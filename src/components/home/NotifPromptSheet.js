@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet, Txt, Button } from '../ui';
 import { useThemeColors } from '../../theme/ThemeContext';
 import { radius as r, space as sp } from '../../theme/tokens';
+import { termsFor } from '../../constants/serviceTerms';
 
 /**
  * 입대일 입력 뒤 홈에서 한 번 뜨는 알림 안내.
@@ -16,15 +17,17 @@ import { radius as r, space as sp } from '../../theme/tokens';
  * 노출 조건은 `shouldOfferNotifPrompt()` 가, 전면광고와 겹치지 않게 하는 건
  * 홈(HomeScreen)이 맡는다.
  */
-export default function NotifPromptSheet({ visible, onAccept, onDecline, soldier, busy = false }) {
+export default function NotifPromptSheet({ visible, onAccept, onDecline, soldier, payday = soldier, personnelType, busy = false }) {
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
+  const t = termsFor(personnelType);
 
+  // soldier = 병사(진급 체계 있음). payday = 매월 10일 월급날 알림 대상(현역 — 간부 포함).
   const items = [
-    { icon: 'flag-outline', text: '전역 D-100 · 30 · 7 · 1 · 당일' },
+    { icon: 'flag-outline', text: `${t.end} D-100 · 30 · 7 · 1 · 당일` },
     soldier ? { icon: 'chevron-up-circle-outline', text: '일병 · 상병 · 병장 진급일' } : null,
     { icon: 'airplane-outline', text: '휴가 전날 · 날짜를 정한 일정' },
-    soldier ? { icon: 'wallet-outline', text: '월급날 (매월 10일)' } : null,
+    payday ? { icon: 'wallet-outline', text: '월급날 (매월 10일)' } : null,
   ].filter(Boolean);
 
   return (

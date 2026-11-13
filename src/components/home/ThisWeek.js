@@ -19,7 +19,7 @@ import { space as sp } from '../../theme/tokens';
  * (예전엔 칩 / 셰브런 / 카드 전체 누름이 섞여 있었다)
  */
 export default function ThisWeek({
-  today, records, bonusRecords, todos = [], attendance, onToggle, onPressAll, onPressDay, max = 3,
+  today, records, bonusRecords, bonusLabel, todos = [], attendance, onToggle, onPressAll, onPressDay, max = 3,
 }) {
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
@@ -59,6 +59,7 @@ export default function ThisWeek({
           today={today}
           records={records}
           bonusRecords={bonusRecords}
+          bonusLabel={bonusLabel}
           todos={todos}
           attendance={attendance}
           onPress={onPressDay}

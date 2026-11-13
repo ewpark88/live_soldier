@@ -13,11 +13,11 @@ import {
   loadMilitaryInfo, loadRankPromotions, loadTodos, listProfiles, loadStreak,
   loadLeaveRecords,
 } from './storage';
-import { buildRoadmap } from './roadmapUtils';
+import { buildRoadmap, validOfficerPromotions } from './roadmapUtils';
 import { parseDate, formatDate } from './dateUtils';
 import { hash32, todayStr } from './daily';
 import { getNextPayday, paydayOf } from './upcoming';
-import { isOfficer } from '../constants/serviceTerms';
+import { hasSoldierRanks, isOfficer, josa, paydayEligible, termsFor } from '../constants/serviceTerms';
 
 const NOTIF_KEY = '@notif_enabled';      // 레거시 마스터 플래그 (write-through 유지)
 const PREFS_KEY = '@notif_prefs_v1';
@@ -74,10 +74,29 @@ export const NOTIF_EVENTS = [
   { key: 'milestone', group: 'service', route: 'roadmap', title: '마일스톤', desc: '입대 100일 · 반환점 등 전날 저녁 9시', icon: 'trophy-outline' },
   { key: 'leave', group: 'life', route: 'calendar', section: 'leave', title: '휴가 전날', desc: '휴가 시작 전날 저녁 9시', icon: 'airplane-outline' },
   { key: 'todo', group: 'life', route: 'calendar', section: 'todo', title: '일정', desc: '날짜를 정한 할 일', icon: 'checkbox-outline' },
-  { key: 'payday', group: 'life', route: 'salary', title: '월급날', desc: '매월 10일(주말이면 금요일) 오전 9시', icon: 'wallet-outline' },
+  { key: 'payday', group: 'life', route: 'salary', title: '월급날', desc: '매월 10일(주말이면 금요일) 오전 9시', icon: 'wallet-outline', activeOnly: true },
   { key: 'streak', group: 'habit', route: 'home', title: '출석 스트릭', desc: '앱을 안 연 날 저녁 9시', icon: 'flame-outline' },
   { key: 'daily', group: 'habit', route: 'home', title: '매일 D-day', desc: '정한 시각에 매일 한 번', icon: 'today-outline' },
 ];
+
+/**
+ * 신분에 맞는 이벤트 목록 (v1.6) — 설정 화면이 쓴다.
+ *  - soldierOnly(진급일): 병사 + 간부(v1.6, 기록한 진급 이력) — 대체복무는 숨긴다
+ *  - activeOnly(월급날 10일): 현역만 — 대체복무는 복무기관·근무처마다 지급일이 다르다
+ *  - 제목·설명의 '전역/입대'는 신분 용어로 바꾼다
+ */
+export function notifEventsFor(personnelType) {
+  const t = termsFor(personnelType);
+  return NOTIF_EVENTS
+    .filter((ev) => !(ev.soldierOnly && !hasSoldierRanks(personnelType) && !isOfficer(personnelType)))
+    .filter((ev) => !(ev.activeOnly && !paydayEligible(personnelType)))
+    .map((ev) => {
+      if (ev.key === 'discharge') return { ...ev, title: `${t.end} D-day` };
+      if (ev.key === 'promotion' && isOfficer(personnelType)) return { ...ev, desc: '기록한 진급일 당일 오전 9시' };
+      if (ev.key === 'milestone') return { ...ev, desc: `${t.start} 100일 · 반환점 등 전날 저녁 9시` };
+      return ev;
+    });
+}
 
 /**
  * 저장된 값 → 현재 스키마. 순수 함수 (테스트가 직접 부른다).
@@ -165,8 +184,9 @@ async function ensureAndroidChannel() {
   const PUBLIC = Notifications.AndroidNotificationVisibility?.PUBLIC;
   try {
     await Notifications.setNotificationChannelAsync(CHANNEL_SERVICE, {
-      name: '전역·진급·마일스톤',
-      description: '전역 D-day, 진급일, 입대 100일·반환점 같은 이정표',
+      // 채널은 앱 전체 공용이라 신분 중립 문구 (대체복무 v1.6)
+      name: '복무 D-day·마일스톤',
+      description: '복무 종료 D-day, 진급일, 100일·반환점 같은 이정표',
       importance: A.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       ...(PUBLIC != null ? { lockscreenVisibility: PUBLIC } : {}),
@@ -503,10 +523,13 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
   // 그래서 오늘 날짜와 스트릭 상태가 서명에 들어가야 한다 (아래 주석 참고).
   const streakForSig = prefs.streak ? await loadStreak().catch(() => null) : null;
 
-  const officer = isOfficer(info.personnelType);
-  const promoForSig = officer
+  const t = termsFor(info.personnelType);
+  // 진급 체계는 병사만 (간부·대체복무는 없다)
+  const promoForSig = !hasSoldierRanks(info.personnelType)
     ? null
     : await loadRankPromotions(info.enlistDate).catch(() => null);
+  // 간부 진급 이력 (v1.6) — 전역 정보에서 기록한 것. 예정일이면 당일 알림을 건다.
+  const cadrePromos = isOfficer(info.personnelType) ? validOfficerPromotions(info) : [];
   let todosForSig = [];
   try { todosForSig = await loadTodos(); } catch (e) {}
   let leavesForSig = [];
@@ -530,6 +553,7 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
     enlist: info.enlistDate,
     type: info.personnelType,
     promo: promoForSig,
+    cadrePromo: cadrePromos.map((p) => `${p.rank}|${p.date}`),
     name,
     prefs,
     todos: todosForSig
@@ -563,11 +587,12 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
   let dischargeEveScheduled = false;
 
   if (prefs.discharge) {
-    await scheduleAt('discharge', addDaysStr(disc, -100), '전역 D-100 🔥', `${who}전역까지 100일 남았어요! 이제 보입니다.`);
-    await scheduleAt('discharge', addDaysStr(disc, -30),  '전역 D-30 🔥',  `${who}전역 한 달 전! 가장 설레는 시기예요.`);
-    await scheduleAt('discharge', addDaysStr(disc, -7),   '전역 D-7 🏆',   `${who}전역까지 일주일! 끝까지 무사고로.`);
-    dischargeEveScheduled = await scheduleAt('discharge', addDaysStr(disc, -1), '전역 D-1 🎖️', `${who}내일이면 전역입니다! 마지막 밤 잘 보내요.`);
-    await scheduleAt('discharge', disc, '전역을 축하합니다! 🎉', `${who}국방의 의무를 마쳤습니다. 정말 고생 많았어요!`);
+    const E = t.end;
+    await scheduleAt('discharge', addDaysStr(disc, -100), `${E} D-100 🔥`, `${who}${E}까지 100일 남았어요! 이제 보입니다.`);
+    await scheduleAt('discharge', addDaysStr(disc, -30),  `${E} D-30 🔥`,  `${who}${E} 한 달 전! 가장 설레는 시기예요.`);
+    await scheduleAt('discharge', addDaysStr(disc, -7),   `${E} D-7 🏆`,   `${who}${E}까지 일주일! 끝까지 무사고로.`);
+    dischargeEveScheduled = await scheduleAt('discharge', addDaysStr(disc, -1), `${E} D-1 🎖️`, `${who}내일이면 ${E}입니다! 마지막 밤 잘 보내요.`);
+    await scheduleAt('discharge', disc, `${josa(E, '을/를')} 축하합니다! 🎉`, `${who}${josa(t.duty, '을/를')} 마쳤습니다. 정말 고생 많았어요!`);
   }
 
   if (prefs.promotion && promoForSig) {
@@ -575,6 +600,11 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
     if (promo.일병) await scheduleAt('promotion', promo.일병, '일병 진급 🎖️', `${who}오늘은 일병 진급일이에요. 축하해요!`);
     if (promo.상병) await scheduleAt('promotion', promo.상병, '상병 진급 🎖️', `${who}오늘은 상병 진급일이에요. 축하해요!`);
     if (promo.병장) await scheduleAt('promotion', promo.병장, '병장 진급 👑', `${who}오늘은 병장 진급일이에요. 최고참!`);
+  }
+  if (prefs.promotion && cadrePromos.length) {
+    for (const p of cadrePromos) {
+      await scheduleAt('promotion', p.date, `${p.rank} 진급 🎖️`, `${who}오늘은 ${p.rank} 진급일이에요. 축하해요!`);
+    }
   }
 
   // 마일스톤 — 입대 100일 당일 + 이정표 전야 (향후 180일 이내만, 최대 7건으로 유계)
@@ -591,7 +621,7 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
   // 전역 D-day 를 꺼 둔 사람에게도 '내일은 전역!' 전야는 간다 — 마일스톤 스위치
   // 소관이고, 전역 전날 아무 알림도 없는 쪽이 더 나쁘다.
   if (prefs.milestone) {
-    await scheduleAt('milestone', addDaysStr(info.enlistDate, 99), '입대 100일 💯', `${who}벌써 입대 100일! 잘 적응하고 있어요.`);
+    await scheduleAt('milestone', addDaysStr(info.enlistDate, 99), `${t.start} 100일 💯`, `${who}벌써 ${t.start} 100일! 잘 적응하고 있어요.`);
 
     const roadmap = buildRoadmap(info, promoForSig);
     for (const ms of roadmap) {
@@ -638,7 +668,7 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
   }
 
   // 월급날 — 다가오는 3회 (앱을 몇 주 안 열어도 끊기지 않게). 전역 뒤 월급은 없다.
-  if (prefs.payday) {
+  if (prefs.payday && paydayEligible(info.personnelType)) {
     // 오늘이 월급날인데 9시가 지났으면 scheduleAt 이 건너뛴다 — 그 슬롯은 세지 않는다.
     // (예전엔 세서 2회만 잡혔다.) 실패가 이어져도 끝나도록 시도 횟수에 상한을 둔다.
     let pay = getNextPayday(today).date;
@@ -669,9 +699,9 @@ async function _refreshScheduledNotifications({ force = false } = {}) {
   }
 
   // 매일 D-day 넛지 — 반복 트리거 1건 (기본 꺼짐)
-  // 전역한 뒤에는 '전역까지 한 걸음' 넛지가 의미가 없다
+  // 복무가 끝난 뒤에는 '한 걸음' 넛지가 의미가 없다
   if (prefs.daily && today <= disc) {
-    await scheduleDaily(prefs.dailyHour ?? 9, '오늘도 전역까지 한 걸음 🪖', `${who}앱에서 남은 일수를 확인해보세요.`);
+    await scheduleDaily(prefs.dailyHour ?? 9, `오늘도 ${t.end}까지 한 걸음 ${t.emoji}`, `${who}앱에서 남은 일수를 확인해보세요.`);
   }
 
   try {

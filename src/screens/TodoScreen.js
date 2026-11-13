@@ -19,7 +19,8 @@ import {
   Divider, EmptyState, Txt, BottomSheet, PressScale,
   Checkbox, TextField, FormSheet,
 } from '../components/ui';
-import { TRAINING_PRESETS, presetTone } from '../constants/trainingPresets';
+import { presetsFor, presetTone } from '../constants/trainingPresets';
+import { isAlternative } from '../constants/serviceTerms';
 import {
   loadTodos, addTodo, toggleTodo, deleteTodo, loadMilitaryInfo,
 } from '../utils/storage';
@@ -171,6 +172,11 @@ export default function TodoScreen() {
     }
   };
 
+  // 대체복무는 부대 훈련 프리셋 대신 전용 목록 (기초군사훈련·직무교육 등)
+  const alt = isAlternative(militaryInfo?.personnelType);
+  const presets = presetsFor(alt);
+  const presetLabel = alt ? '빠른 추가' : '훈련 추가';
+
   const handlePreset = (preset) => {
     setFormTitle(preset.name);
     setFormNote(preset.note);
@@ -269,7 +275,7 @@ export default function TodoScreen() {
           <Card>
             <SectionTitle
               icon="checkbox-outline"
-              right={<Chip label="훈련 추가" icon="flash" size="sm" onPress={() => setSheet('presets')} />}
+              right={<Chip label={presetLabel} icon="flash" size="sm" onPress={() => setSheet('presets')} />}
               style={s.summaryTitle}
             >
               일정 요약
@@ -312,7 +318,7 @@ export default function TodoScreen() {
                 desc={
                   filterDate
                     ? '다른 날짜를 보거나 필터를 해제해보세요.'
-                    : '훈련 일정이나 할 일을 등록해두면 알림으로 미리 알려드려요.'
+                    : `${alt ? '교육' : '훈련'} 일정이나 할 일을 등록해두면 알림으로 미리 알려드려요.`
                 }
                 action={{ label: '일정 추가', icon: 'add', onPress: openAdd }}
                 compact
@@ -371,14 +377,14 @@ export default function TodoScreen() {
       {/* 훈련 프리셋 시트 — 예전엔 화면 중간에서 펼쳐지며 아래 목록을 통째로
           밀어냈다. 시트로 빼면 레이아웃 이동이 0이 된다. */}
       <BottomSheet visible={sheet === 'presets'} onClose={closeSheet}>
-        <Txt role="subtitle" style={{ marginBottom: sp.xs }}>훈련 빠른 추가</Txt>
+        <Txt role="subtitle" style={{ marginBottom: sp.xs }}>{alt ? '일정 빠른 추가' : '훈련 빠른 추가'}</Txt>
         <Txt role="caption" tone="secondary" style={{ marginBottom: sp.lg }}>
           누르면 오늘 날짜로 기간이 자동 지정돼요
         </Txt>
 
         <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
           <Grid columns={3} gap={sp.sm}>
-            {TRAINING_PRESETS.map((p) => (
+            {presets.map((p) => (
               <PressScale
                 key={p.name}
                 onPress={() => handlePreset(p)}
@@ -411,7 +417,7 @@ export default function TodoScreen() {
           label="할 일 내용 *"
           value={formTitle}
           onChangeText={setFormTitle}
-          placeholder="예) 혹한기 훈련, 면회 신청..."
+          placeholder={alt ? '예) 직무교육, 병원 예약...' : '예) 혹한기 훈련, 면회 신청...'}
           maxLength={40}
         />
 

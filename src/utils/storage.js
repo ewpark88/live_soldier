@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calcDischargeDate, calcPromotionDate, formatDate } from './dateUtils';
-import { resolveLeaveDays } from '../constants/serviceTerms';
+import { defaultLeaveDaysFor, hasSoldierRanks, normalizePersonnelType, termsFor } from '../constants/serviceTerms';
+import { normalizeAnnualLeave } from './leaveUtils';
 import { buildBackup, parseBackup } from './backup';
 import { shareIdentity } from './shareCode';
 import { mergeSkins, normalizeSkins } from './skins';
@@ -72,10 +73,11 @@ function _safeParse(raw, fallback) {
 
 function _emptyData() {
   return {
-    personnelType:  null,   // 'soldier' | 'nco' | 'officer' (온보딩에서 결정)
+    personnelType:  null,   // 'soldier' | 'nco' | 'officer' | 대체복무 5종 (serviceTerms.PERSONNEL_TYPES, 온보딩에서 결정)
     militaryInfo:   null,
     leaveRecords:   [],
     leaveTotal:     null,   // null = 미설정 → 군종 기본값 사용
+    leaveAnnual:    null,   // v1.6 간부 전용: 올해 연가 일수 (매년 부여). null = 미설정. 구버전은 무시한다
     leaveBonus:     [],
     salaryInfo:     null,
     todos:          [],
@@ -312,6 +314,8 @@ export function calcDefaultPromotions(enlistDate) {
 // ─── 진급일 Storage ───────────────────────────────────────────────────
 export async function loadRankPromotions(enlistDate) {
   try {
+    // 병사가 아니면 진급 체계가 없다 — 기본 진급일을 만들어 내지 않는다 (간부·대체복무)
+    if (!hasSoldierRanks(await loadPersonnelType())) return null;
     const rp = await _getField('rankPromotions');
     if (rp) return rp;
     return enlistDate ? calcDefaultPromotions(enlistDate) : null;
@@ -373,7 +377,7 @@ export async function loadPersonnelType() {
 }
 
 export async function savePersonnelType(type) {
-  await _setField('personnelType', type);
+  await _setField('personnelType', normalizePersonnelType(type));
 }
 
 // ─── Leave Records ───────────────────────────────────────────────────
@@ -406,7 +410,21 @@ export async function loadLeaveTotal() {
   const n = Number(v);
   if (Number.isFinite(n) && n > 0) return n;
   const mi = await loadMilitaryInfo();
-  return resolveLeaveDays(mi?.branch);
+  // 대체복무: 사회복무요원 28, 그 외 0(근무처 규정 — 사용자가 직접 입력)
+  return defaultLeaveDaysFor(mi);
+}
+
+/**
+ * 간부 연 단위 연가 (v1.6). 간부 연가는 복무기간 전체가 아니라 매년 부여된다.
+ * leaveTotal 의 의미·기록 형태는 바꾸지 않는다 — 구버전 앱은 이 필드를 모르고 지나간다.
+ * @returns 1 이상 정수 | null(미설정)
+ */
+export async function loadLeaveAnnual() {
+  try { return normalizeAnnualLeave(await _getField('leaveAnnual')); } catch { return null; }
+}
+
+export async function saveLeaveAnnual(days) {
+  await _setField('leaveAnnual', normalizeAnnualLeave(days));
 }
 
 // ─── Leave Bonus (포상휴가) ────────────────────────────────────────────
@@ -658,6 +676,19 @@ export function markCelebrated(keys) {
   return _updateField('celebrated', (cur) => [...new Set([...(cur ?? []), ...keys])]);
 }
 
+/**
+ * 축하 이력에서 key 를 뺀다 — 간부 복무연장(v1.6)으로 '전역 100일 전'·'전역'이 다시
+ * 미래로 밀렸을 때만 쓴다. 빼지 않으면 새 날짜에 도달해도 이미 축하한 것으로 보여
+ * 다시는 축하하지 않는다. 미시딩(null) 이력은 건드리지 않는다 (시딩이 과거를 흡수한다).
+ */
+export function unmarkCelebrated(keys) {
+  return _updateField('celebrated', (cur) => {
+    if (!Array.isArray(cur)) return cur ?? null;
+    const drop = new Set(keys);
+    return cur.filter((k) => !drop.has(k));
+  });
+}
+
 // ─── 출석 스트릭 ──────────────────────────────────────────────────────
 // 기기 범위다. "며칠 연속 앱을 열었나"는 프로필(본인/남친/아들)이 아니라
 // 사람의 행동이다. 프로필 2개를 쓰는 사용자가 스트릭을 반으로 쪼개 갖는 건
@@ -775,6 +806,7 @@ function _sharedData(base, { militaryInfo, promotions }) {
       branch: militaryInfo.branch,
       personnelType: militaryInfo.personnelType,
       officerRank: militaryInfo.officerRank ?? null,
+      subType: militaryInfo.subType ?? null,
       dischargeDate: discharge ? formatDate(discharge) : null,
       months,
     },
@@ -793,7 +825,7 @@ export function addSharedProfile(shared) {
   return _serial(async () => {
     const store = await _loadStore();
     if (store.profiles.length >= MAX_PROFILES) return null;
-    const profile = _newProfile(shared.name || '장병', null, _sharedData(_emptyData(), shared));
+    const profile = _newProfile(shared.name || termsFor(shared.militaryInfo?.personnelType).member, null, _sharedData(_emptyData(), shared));
     store.profiles.push(profile);
     store.activeId = profile.id;
     await _saveStore(store);
@@ -826,7 +858,8 @@ export async function loadShareSource(id) {
   if (!p) return null;
   return {
     name: p.name,
-    militaryInfo: _withRecomputedDischarge(p.data ? p.data.militaryInfo : null),
+    // 신분은 data 직속이 우선 — militaryInfo 에만 보면 간부·대체복무가 'soldier' 코드로 나간다
+    militaryInfo: _withRecomputedDischarge(_identitySource(p.data)),
     promotions: p.data ? p.data.rankPromotions ?? null : null,
   };
 }

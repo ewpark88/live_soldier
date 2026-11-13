@@ -15,6 +15,7 @@ import {
 import { AD_UNITS } from '../constants/adUnits';
 import { loadMilitaryInfo, loadSavingsPlan, saveSavingsPlan } from '../utils/storage';
 import { calcServedMonths } from '../utils/dateUtils';
+import { savingsEligible, termsFor } from '../constants/serviceTerms';
 import { formatMoney } from '../constants/salaryGuide';
 import { calcSavings, recommendedSavingMonths, SAVINGS } from '../utils/savingsUtils';
 import { useThemeColors } from '../theme/ThemeContext';
@@ -122,6 +123,7 @@ export default function SavingsScreen({ navigation }) {
   // 그냥 clearTimeout 하면 마지막 400ms 안의 입력이 조용히 사라진다.
   useEffect(() => flushSave, [flushSave]);
 
+  const terms = termsFor(militaryInfo?.personnelType);   // 사회복무요원이면 '소집해제 시'
   const onlyDigits = (t) => t.replace(/[^0-9]/g, '');
   const onMonthly = (t) => { touched.current = true; const v = onlyDigits(t); setMonthly(v); persist(v, months); };
   const onMonths = (t) => { touched.current = true; const v = onlyDigits(t); setMonths(v); persist(monthly, v); };
@@ -134,15 +136,21 @@ export default function SavingsScreen({ navigation }) {
       header={
         <AppHeader
           title="장병내일적금"
-          subtitle="전역 시 받을 목돈을 미리 계산"
+          subtitle={`${terms.end} 시 받을 목돈을 미리 계산`}
           back
         />
       }
     >
       {/* 만기 수령액 — 이 화면의 유일한 주인공 */}
       <Section index={0}>
+        {/* 진입점은 가입 대상에게만 보이지만, 간부 등이 들어오면 대상이 아님을 먼저 말한다 */}
+        {militaryInfo && !savingsEligible(militaryInfo.personnelType) ? (
+          <Txt role="caption" tone="secondary" style={{ marginBottom: sp.md }}>
+            장병내일준비적금은 현역병·사회복무요원 등 의무복무자 대상 상품이에요. 지금 신분은 가입 대상이 아니라서 계산은 참고용이에요.
+          </Txt>
+        ) : null}
         <HeroCard>
-          <Txt role="label" tone="heroMuted">전역 시 예상 수령액</Txt>
+          <Txt role="label" tone="heroMuted">{terms.end} 시 예상 수령액</Txt>
           <View style={s.heroAmountRow}>
             <AnimatedNumber
               value={result.total}
@@ -244,7 +252,7 @@ export default function SavingsScreen({ navigation }) {
               tone="primary"
             />
             <Divider color={tc.primaryLight} spacing={sp.xxs} />
-            <BreakdownRow label="전역 시 총 수령액" value={result.total} strong />
+            <BreakdownRow label={`${terms.end} 시 총 수령액`} value={result.total} strong />
           </View>
         </Card>
       </Section>

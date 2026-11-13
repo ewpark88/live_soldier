@@ -6,6 +6,7 @@ import {
   loadMilitaryInfo, loadRankPromotions, loadCelebrated, markCelebrated, unlockTheme,
 } from '../utils/storage';
 import { buildRoadmap } from '../utils/roadmapUtils';
+import { hasSoldierRanks } from '../constants/serviceTerms';
 import { dueMilestone, unlockedBy } from '../utils/celebration';
 import { THEME_LIST } from '../theme/palettes';
 
@@ -34,7 +35,8 @@ export function CelebrationProvider({ children }) {
     try {
       const info = await loadMilitaryInfo();
       if (!info) return;
-      const promos = await loadRankPromotions(info.enlistDate);
+      // 진급 마일스톤은 병사만 — 간부·대체복무는 읽지 않는다 (저장소도 null 을 주지만 이중으로)
+      const promos = hasSoldierRanks(info.personnelType) ? await loadRankPromotions(info.enlistDate) : null;
       const roadmap = buildRoadmap(info, promos);
       const celebrated = await loadCelebrated();
 

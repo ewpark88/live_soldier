@@ -1,10 +1,16 @@
 /**
  * 공유 코드 — 서버 없이 '전역일'을 다른 기기로 옮긴다 (곰신·부모님).
  * ─────────────────────────────────────────────────────────────────────────
- *   JY1-<base64url 본문><체크섬 2자>
+ *   JY1-<base64url 본문><체크섬 2자>   현역(병사·부사관·장교)
+ *   JY2-<base64url 본문><체크섬 2자>   대체복무 (v1.6)
  *
  * 본문은 배열 JSON 이다 (키 이름을 빼서 코드를 짧게):
- *   [이름, 입대일(YYYYMMDD), 군별, 신분, 장교계급|0, 복무개월, 일병|0, 상병|0, 병장|0]
+ *   JY1: [이름, 입대일(YYYYMMDD), 군별, 신분, 장교계급|0, 복무개월, 일병|0, 상병|0, 병장|0]
+ *   JY2: [이름, 편입·소집일(YYYYMMDD), 0, 신분, 세부유형|0, 복무개월]
+ *
+ * 왜 접두사를 나눴나: 구버전 앱의 디코더는 모르는 신분을 'data'(정보 오류)로
+ * 거부한다. JY2 로 보내면 구버전은 'version'(앱 업데이트 안내)으로 답한다.
+ * 현역 코드는 계속 JY1 이라 이미 카톡에 뿌려진 코드·구버전 앱과 그대로 호환된다.
  *
  * 무엇을 싣지 않는가:
  *   · 전역일 — 받는 쪽이 입대일+개월로 다시 계산한다 (계산식이 바뀌어도 양쪽이 같다)
@@ -17,11 +23,15 @@
 import { hash32 } from './daily';   // 체크섬 = FNV-1a (daily·알림 시그니처와 같은 구현)
 
 export const SHARE_PREFIX = 'JY1-';
+export const SHARE_PREFIX_ALT = 'JY2-';
 export const SHARE_SCHEME = 'jeonryeokkami';
 export const SHARE_HOST = 'add';
 
 const BRANCH_KEYS = ['army', 'navy', 'airforce', 'marines'];
 const TYPE_KEYS = ['soldier', 'nco', 'officer'];
+// serviceTerms.ALT_TYPE_KEYS / ALT_SUBTYPES 와 같은 값 (이 파일은 import 를 하지 않는다 — 맨 Node 테스트)
+const ALT_KEYS = ['social', 'industrial', 'research', 'professional', 'artsports'];
+const ALT_SUB_KEYS = { industrial: ['active', 'reserve'], professional: ['doctor', 'lawyer', 'vet'] };
 const NAME_MAX = 20;
 
 /* ─── UTF-8 ⇄ 바이트 (한글 이름) ──────────────────────────────────────── */
@@ -128,10 +138,23 @@ export function encodeShareCode({ name, militaryInfo: mi, promotions } = {}) {
   if (!mi || !_validYmd(mi.enlistDate)) return null;
   const months = Math.floor(Number(mi.months));
   if (!Number.isFinite(months) || months < 1 || months > 600) return null;
+  const nm0 = String(name ?? '').trim().slice(0, NAME_MAX);
+
+  if (ALT_KEYS.includes(mi.personnelType)) {
+    const subs = ALT_SUB_KEYS[mi.personnelType] ?? [];
+    const sub = subs.includes(mi.subType) ? mi.subType : 0;
+    const alt = [nm0, _pack(mi.enlistDate), 0, mi.personnelType, sub, months];
+    const altBody = _b64urlEncode(_utf8Encode(JSON.stringify(alt)));
+    return SHARE_PREFIX_ALT + altBody + _check(altBody);
+  }
+
   const branch = BRANCH_KEYS.includes(mi.branch) ? mi.branch : 'army';
-  const type = TYPE_KEYS.includes(mi.personnelType) ? mi.personnelType : 'soldier';
+  // 준사관(v1.6)은 JY1 에 'nco' + 계급 '준위' 로 싣는다 — 구버전 앱의 TYPE_KEYS 에
+  // 'warrant' 가 없어 새 키를 넣으면 'data' 오류가 난다. 신버전은 디코드할 때 되돌린다.
+  const type = mi.personnelType === 'warrant' ? 'nco'
+    : TYPE_KEYS.includes(mi.personnelType) ? mi.personnelType : 'soldier';
   const officer = type !== 'soldier';
-  const nm = String(name ?? '').trim().slice(0, NAME_MAX);
+  const nm = nm0;
   const p = !officer && promotions ? promotions : null;
 
   const arr = [
@@ -139,7 +162,8 @@ export function encodeShareCode({ name, militaryInfo: mi, promotions } = {}) {
     _pack(mi.enlistDate),
     branch,
     type,
-    officer && mi.officerRank ? String(mi.officerRank).slice(0, 12) : 0,
+    mi.personnelType === 'warrant' ? '준위'
+      : officer && mi.officerRank ? String(mi.officerRank).slice(0, 12) : 0,
     months,
     p ? _pack(p.일병) : 0,
     p ? _pack(p.상병) : 0,
@@ -162,7 +186,7 @@ export function findShareCode(text) {
   // 통과하므로 원문에서 바로 찾으면 된다. 예전엔 ?c= 를 decodeURIComponent 해서
   // '%' 가 섞인 링크(…?c=50%OFF)가 URIError 로 앱을 죽였고, 앞에 다른 사이트의
   // ?c= 링크가 있으면 진짜 코드를 놓쳤다.
-  const m = text.match(/JY1-[A-Za-z0-9_-]{8,}/);
+  const m = text.match(/JY[12]-[A-Za-z0-9_-]{8,}/);
   return m ? m[0] : null;
 }
 
@@ -175,9 +199,10 @@ export function decodeShareCode(input) {
   const code = findShareCode(input);
   if (!code) {
     // 접두사는 맞는데 다른 버전이면 '앱 업데이트' 안내를 할 수 있게 구분한다
-    if (typeof input === 'string' && /JY[2-9]-/.test(input)) return { ok: false, reason: 'version' };
+    if (typeof input === 'string' && /JY[3-9]-/.test(input)) return { ok: false, reason: 'version' };
     return { ok: false, reason: 'format' };
   }
+  const isAlt = code.startsWith(SHARE_PREFIX_ALT);
   const raw = code.slice(SHARE_PREFIX.length);
   if (raw.length < 4) return { ok: false, reason: 'format' };
   const body = raw.slice(0, -2);
@@ -192,6 +217,7 @@ export function decodeShareCode(input) {
     return { ok: false, reason: 'format' };
   }
   if (!Array.isArray(arr) || arr.length < 6) return { ok: false, reason: 'data' };
+  if (isAlt) return _decodeAlt(arr);
 
   const [name, enlist, branch, type, officerRank, months, p1 = 0, p2 = 0, p3 = 0] = arr;
   const enlistDate = _unpack(enlist);
@@ -215,12 +241,41 @@ export function decodeShareCode(input) {
       militaryInfo: {
         enlistDate,
         branch,
-        personnelType: type,
+        // 준사관은 nco + '준위' 로 실려 온다 (인코더 주석 참고)
+        personnelType: type !== 'soldier' && officerRank === '준위' ? 'warrant' : type,
         // 인코더와 같은 12자 상한 — 조작한 코드가 긴 문자열을 프로필에 넣지 못하게
         officerRank: officer && typeof officerRank === 'string' && officerRank ? officerRank.slice(0, 12) : null,
         months: m,
       },
       promotions,
+    },
+  };
+}
+
+/** JY2 본문 → 대체복무 프로필 */
+function _decodeAlt(arr) {
+  const [name, enlist, , type, sub, months] = arr;
+  const enlistDate = _unpack(enlist);
+  const m = Number(months);
+  if (!enlistDate || !ALT_KEYS.includes(type) || typeof name !== 'string'
+    || !Number.isInteger(m) || m < 1 || m > 600) {
+    return { ok: false, reason: 'data' };
+  }
+  const subs = ALT_SUB_KEYS[type] ?? [];
+  if (sub !== 0 && !subs.includes(sub)) return { ok: false, reason: 'data' };
+  return {
+    ok: true,
+    value: {
+      name: name.trim().slice(0, NAME_MAX),
+      militaryInfo: {
+        enlistDate,
+        branch: null,
+        personnelType: type,
+        officerRank: null,
+        subType: sub === 0 ? null : sub,
+        months: m,
+      },
+      promotions: null,
     },
   };
 }
@@ -236,7 +291,8 @@ export function shareCodeUrl(code) {
  */
 export function shareIdentity(militaryInfo) {
   if (!militaryInfo) return null;
-  return `${militaryInfo.enlistDate}|${militaryInfo.branch}|${militaryInfo.personnelType}`;
+  // 대체복무는 군별이 없다(null) — 빈 칸으로 고정해 'null'/'undefined' 문자열 차이를 없앤다
+  return `${militaryInfo.enlistDate}|${militaryInfo.branch ?? ''}|${militaryInfo.personnelType}`;
 }
 
 /** 실패 사유 → 사용자 문구 */
@@ -244,7 +300,7 @@ export function shareErrorMessage(reason) {
   switch (reason) {
     case 'checksum': return '코드 일부가 빠졌거나 바뀌었어요. 받은 메시지를 통째로 다시 복사해 주세요.';
     case 'version': return '더 새로운 버전의 앱에서 만든 코드예요. 앱을 업데이트해 주세요.';
-    case 'data': return '코드는 읽었지만 입대 정보가 올바르지 않아요.';
-    default: return "'JY1-' 로 시작하는 공유 코드를 찾지 못했어요.";
+    case 'data': return '코드는 읽었지만 복무 정보가 올바르지 않아요.';
+    default: return "'JY1-' 또는 'JY2-' 로 시작하는 공유 코드를 찾지 못했어요.";
   }
 }

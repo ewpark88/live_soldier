@@ -57,16 +57,21 @@ eas build --platform android --profile production
   중간 색이 한 번도 검사되지 않아 D-Day 숫자 대비가 2.4:1 까지 떨어져 있었다.
   v1.2 부터는 **시간대 워시(`DAYPART_WASH`)를 합성한 뒤의** 스톱까지 검사한다.
   원본만 통과하고 밤 워시에서 무너지는 조합이 실제로 8건 있었다.
+- **복무 갈래는 셋이다 (v1.6)**: 병사 / 간부 / 대체복무 (`serviceTerms.serviceCategory`).
+  `!isOfficer(pt)` 를 "병사"의 뜻으로 쓰지 말 것 — 대체복무자에게 진급·병 봉급이 붙는다.
+  병사만을 뜻하면 `hasSoldierRanks`, 적금·월급날은 `savingsEligible`/`paydayEligible`.
+  '입대/전역/장병/곰신' 같은 문구는 하드코딩하지 않고 `termsFor(pt)` 문구 사전을 쓴다
+  (조사는 `josa()`). 앱 이름 '전역까지' 만 고정이다.
 - 네비게이션은 루트 native-stack + 4탭이다. **라우트 이름은 트리 전체에서 유일**해야
   하고, `navigate` 버블링은 위로만 간다 — 여러 곳에서 진입하는 화면은 루트 스택에 둔다.
 - `npm test` 는 9개 스위트를 돌린다. 순수 로직을 고쳤으면 반드시 돌린다.
-  - `test-calc.js` (251) 날짜·계급·로드맵·적금·스트릭·축하
-  - `test-clock.js` (60) **시계를 특정 날짜로 고정**해야만 드러나는 것
+  - `test-calc.js` (359) 날짜·계급·로드맵·적금·스트릭·축하
+  - `test-clock.js` (64) **시계를 특정 날짜로 고정**해야만 드러나는 것
     (윤일 임관자 호봉, DST 전환, 월말 입대자 복무개월, 다음 휴가·월급날)
-  - `test-storage.js` (92) AsyncStorage 목 위에서 실제 저장소 로직 (공유 프로필·백업 복원 포함)
-  - `test-notifications.js` (56) expo-notifications 목 위에서 예약 로직 (이벤트별 스위치·채널·일정 시각·월급날·첫 알림 안내)
+  - `test-storage.js` (125) AsyncStorage 목 위에서 실제 저장소 로직 (공유 프로필·백업 복원 포함)
+  - `test-notifications.js` (88) expo-notifications 목 위에서 예약 로직 (이벤트별 스위치·채널·일정 시각·월급날·첫 알림 안내)
   - `test-ads.js` (28) 전면광고 지연 로드·빈도 제한·만료·무장 상태 (노출률 회귀 방지)
-  - `test-share.js` (59) 공유 코드 왕복·변조 검출, 백업 파일 검증
+  - `test-share.js` (118) 공유 코드 왕복·변조 검출, 백업 파일 검증
   - `test-review.js` (39) 인앱 리뷰 요청 조건 (사용 기간·광고 겹침 방지·90일 간격·누적 한도)
   - `test-skins.js` (74) 막대병 도감 — 보유·장착 상태, 리그 포즈('worklet' 정적 검사 포함), 보상형 광고 흐름
   - `test-tz.js` 계산·시계 스위트를 **10개 시간대**에서 반복
@@ -110,7 +115,10 @@ eas build --platform android --profile production
 - 곰신·부모님 공유는 **코드 복사**다 — 계정·동기화 없음. `src/utils/shareCode.js`
   (`JY1-` + base64url + 체크섬). 싣는 것: 이름·입대일·군별·신분·장교계급·복무개월·
   **직접 고친** 진급일. 전역일은 싣지 않는다(받는 쪽이 계산). 휴가·일정·급여·사진도 안 싣는다.
-- 코드 형식을 바꾸면 접두사 버전(`JY2-`)을 올리고 구버전 디코더를 남긴다 — 이미 카톡에
+- **대체복무(v1.6)는 `JY2-`** — `[이름, 소집·편입일, 0, 신분, 세부유형(subType)|0, 복무개월]`.
+  대체복무 `militaryInfo` 는 `branch: null` + `subType`. 현역 코드는 계속 JY1 (구버전 호환),
+  구버전 앱은 JY2 를 '업데이트 필요'로 거절한다. 디코더는 JY1·JY2 둘 다 유지한다.
+- 코드 형식을 바꾸면 접두사 버전(다음은 `JY3-` — JY2 는 대체복무가 쓴다)을 올리고 구버전 디코더를 남긴다 — 이미 카톡에
   뿌려진 코드가 있다. `test-share.js` 를 함께 고친다.
 - 가져오기는 `requestShareImport()` 한 경로로 모인다 (프로필 바 · QR 딥링크
   `jeonryeokkami://add?c=` · 클립보드 감지). 딥링크 intent-filter 는 bare 라

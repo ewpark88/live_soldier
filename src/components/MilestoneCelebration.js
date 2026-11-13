@@ -13,7 +13,7 @@ import { HeroCard, Button, Txt } from './ui';
 import { useThemeColors } from '../theme/ThemeContext';
 import { useMotion } from '../hooks/useMotion';
 import { haptic } from '../utils/haptics';
-import { getPhase, PHASE_META } from '../constants/phases';
+import { getPhase, phaseMetaFor } from '../constants/phases';
 import { formatDateKo } from '../utils/dateUtils';
 import { motion, radius as r, space as sp } from '../theme/tokens';
 
@@ -32,7 +32,7 @@ import { motion, radius as r, space as sp } from '../theme/tokens';
  * 화면별로 마운트하면 탭 전환마다 이중 발화한다.
  */
 export default function MilestoneCelebration({
-  visible, milestone, unlockedTheme, daysLeft = 0, onShare, onClose,
+  visible, milestone, unlockedTheme, daysLeft = 0, onShare, onClose, personnelType,
 }) {
   const tc = useThemeColors();
   const m = useMotion();
@@ -66,7 +66,8 @@ export default function MilestoneCelebration({
 
   const stage = getPhase(daysLeft);
   const ph = tc.phase[stage];
-  const meta = PHASE_META[stage];
+  // personnelType(선택): 대체복무면 '소집해제/복무만료' 문구. 없으면 현역 문구.
+  const meta = phaseMetaFor(stage, personnelType);
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose}>

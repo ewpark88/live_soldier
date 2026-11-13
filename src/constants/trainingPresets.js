@@ -23,6 +23,22 @@ export const TRAINING_PRESETS = [
 ];
 
 /**
+ * 대체복무용 프리셋 (v1.6) — 위 목록은 부대 훈련이라 사회복무요원·산업기능요원
+ * 등에게는 해당하지 않는다. 기간은 복무 형태마다 달라 기본값일 뿐이다.
+ */
+export const ALT_PRESETS = [
+  { emoji: '🎖️', icon: 'shield-half', name: '기초군사훈련', days: 21, tone: 'primary', note: '복무 형태에 따라 기간이 다를 수 있어요' },
+  { emoji: '📋', icon: 'clipboard', name: '직무교육', days: 1, tone: 'accent', note: '복무기관·근무처 직무·소양 교육' },
+  { emoji: '🏥', icon: 'medkit', name: '구급법 교육', days: 1, tone: 'success', note: '응급처치·심폐소생술 교육' },
+  { emoji: '🩺', icon: 'pulse', name: '건강검진', days: 1, tone: 'neutral', note: '정기 건강검진' },
+];
+
+/** 신분에 맞는 프리셋 목록 */
+export function presetsFor(isAlt) {
+  return isAlt ? ALT_PRESETS : TRAINING_PRESETS;
+}
+
+/**
  * 프리셋 tone 키 → 실제 색. 테마 색은 런타임에 결정되므로 tc 를 받아 푼다.
  * (QuickActions 의 TONE 맵과 같은 방식)
  */

@@ -21,7 +21,7 @@ import { todayStrOffset } from '../../utils/streak';
  * 셀은 flex:1 행이다 (퍼센트 폭이 아니라 — Grid 규칙과 같은 이유).
  * 상태는 색만으로 전하지 않는다 — 스크린리더용 라벨을 셀마다 붙인다.
  */
-export default function WeekStrip({ today, records = [], bonusRecords = [], todos = [], attendance = [], onPress }) {
+export default function WeekStrip({ today, records = [], bonusRecords = [], bonusLabel = '포상휴가', todos = [], attendance = [], onPress }) {
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
 
@@ -70,7 +70,7 @@ export default function WeekStrip({ today, records = [], bonusRecords = [], todo
           `${WEEKDAYS_KO[d.dow]}요일 ${d.num}일`,
           d.isToday && '오늘',
           d.used && '휴가',
-          d.bonus && '포상휴가 부여',
+          d.bonus && `${bonusLabel} 부여`,
           d.todo && '일정 있음',
           d.attended && '출석',
         ].filter(Boolean).join(', ');

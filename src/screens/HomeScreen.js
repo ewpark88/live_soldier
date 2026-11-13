@@ -18,7 +18,7 @@ import { Screen, Section, EmptyState } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
 import { RANK_IMAGES } from '../constants/rankImages';
 import {
-  loadMilitaryInfo, loadLeaveRecords, loadLeaveTotal,
+  loadMilitaryInfo, loadLeaveRecords, loadLeaveTotal, loadLeaveAnnual,
   loadLeaveBonusRecords, loadRankPromotions, listProfiles,
   loadPersonnelType, savePersonnelType, loadTodos, toggleTodo,
   loadSavingsPlan, loadSalaryInfo,
@@ -31,6 +31,9 @@ import {
 import { isInterstitialShowing } from '../utils/adManager';
 import { getNextLeave, getNextPayday, getSavingsMaturity } from '../utils/upcoming';
 import { getSalaryByRank } from '../constants/salaryGuide';
+import { getOfficerBasePay } from '../constants/militaryRanks';
+import { hobongStatus } from '../utils/officerUtils';
+import { annualLeaveSummary } from '../utils/leaveUtils';
 import { useProfilesChanged } from '../state/appEvents';
 import { useDailyHero } from '../hooks/useDailyHero';
 import { useStreak } from '../state/StreakContext';
@@ -41,8 +44,11 @@ import {
   formatDateKo, parseDate, WEEKDAYS_KO,
 } from '../utils/dateUtils';
 import { buildRoadmap, currentRankLabel, milestoneProgress } from '../utils/roadmapUtils';
-import { BRANCHES, isOfficer } from '../constants/serviceTerms';
-import { getPhase, PHASE_META } from '../constants/phases';
+import {
+  branchLabelOf, hasSoldierRanks, isAlternative, isOfficer, josa, paydayEligible, savingsEligible, termsFor,
+} from '../constants/serviceTerms';
+import { getPhase, phaseMetaFor } from '../constants/phases';
+import { benefitsFor } from '../constants/benefits';
 import { space as sp } from '../theme/tokens';
 
 /* 단계별 히어로 색은 테마 팔레트가 소유한다 — tc.phase[stage].
@@ -62,6 +68,7 @@ export default function HomeScreen({ navigation }) {
   const [info, setInfo] = useState(null);
   const [leaveUsed, setLeaveUsed] = useState(0);
   const [leaveTotal, setLeaveTotal] = useState(0);   // loadLeaveTotal 이 군종 기본값으로 채운다
+  const [leaveAnnual, setLeaveAnnual] = useState(null);   // 간부(v1.6): 올해 연가. null = 미설정
   const [promotions, setPromotions] = useState(null);
   const [profileName, setProfileName] = useState('');
   const [personnelType, setPersonnelType] = useState(undefined);
@@ -124,6 +131,7 @@ export default function HomeScreen({ navigation }) {
     const bonus = await loadLeaveBonusRecords();
     setBonusRecords(bonus);
     setLeaveTotal(base + bonus.reduce((acc, x) => acc + (x.days || 0), 0));
+    setLeaveAnnual(isOfficer(mi?.personnelType) ? await loadLeaveAnnual() : null);
 
     setTodos(await loadTodos());
     setPromotions(await loadRankPromotions(mi?.enlistDate));
@@ -201,7 +209,7 @@ export default function HomeScreen({ navigation }) {
 
   const daysLeft = info ? calcDaysLeft(info.dischargeDate) : 0;
   const phase = getPhase(daysLeft);
-  const daily = useDailyHero(phase);
+  const daily = useDailyHero(phase, info?.personnelType ?? personnelType);
 
   /* ── 로딩 ── */
   if (!info && personnelType === undefined) {
@@ -222,8 +230,9 @@ export default function HomeScreen({ navigation }) {
     );
   }
 
-  /* ── 입대 정보 미입력 ── */
+  /* ── 입대(복무) 정보 미입력 ── */
   if (!info) {
+    const te = termsFor(personnelType);
     return (
       <Screen ad={AD_UNITS.HOME_BOTTOM}>
         <View style={s.topRow}>
@@ -234,9 +243,9 @@ export default function HomeScreen({ navigation }) {
         <EmptyState
           icon="shield-half"
           title={profileName ? `${profileName} 님, 환영합니다!` : '환영합니다!'}
-          desc={'입대 정보를 입력하면\n전역까지 얼마나 남았는지 알 수 있어요.\n\n가족·곰신이라면 장병에게 받은 공유 코드로\n바로 추가할 수도 있어요 (위쪽 프로필 \'추가\').'}
+          desc={`${josa(te.info, '을/를')} 입력하면\n${te.end}까지 얼마나 남았는지 알 수 있어요.\n\n가족이라면 받은 공유 코드로\n바로 추가할 수도 있어요 (위쪽 프로필 '추가').`}
           action={{
-            label: '입대 정보 입력하기',
+            label: `${te.info} 입력하기`,
             icon: 'create-outline',
             onPress: () => navigation.navigate('discharge'),
           }}
@@ -246,14 +255,24 @@ export default function HomeScreen({ navigation }) {
   }
 
   const servedDays = calcServedDays(info.enlistDate, info.dischargeDate);
-  const officer = isOfficer(info.personnelType);
+  const pt = info.personnelType;
+  const ranks = hasSoldierRanks(pt);   // 병사만 진급·병 봉급
+  const t = termsFor(pt);
   const rank = currentRankLabel(info, promotions);
-  const leaveLeft = leaveTotal - leaveUsed;
+  // 총 휴가가 미설정(0)이면 잔여를 계산하지 않는다 — 간부(연 단위 연가)·일부 대체복무는
+  // 기본값이 없어 0 이다. 예전처럼 빼면 '남은 휴가 -3일'이 히어로에 뜬다.
+  // 간부는 연 단위 — 올해 연가 + 올해 부여 − 올해 사용 (미설정이면 null → '설정')
+  const leaveLeft = isOfficer(pt)
+    ? annualLeaveSummary(leaveRecords, leaveAnnual, Number(today.slice(0, 4)), bonusRecords).remaining
+    : leaveTotal > 0 ? leaveTotal - leaveUsed : null;
   const cfg = tc.phase[phase];
-  const meta = PHASE_META[phase];
-  const promo = officer ? null : nextPromotion(promotions);
-  const crest = RANK_IMAGES[rank];
-  const branchLabel = BRANCHES.find((b) => b.key === info.branch)?.label ?? '';
+  const meta = phaseMetaFor(phase, pt);
+  const promo = ranks ? nextPromotion(promotions) : null;
+  // 간부: 히어로 세 번째 타일에 '다음 진급' 대신 호봉 (전역 뒤 승급은 보여주지 않는다)
+  const hobong = isOfficer(pt) ? hobongStatus(info.enlistDate, info.dischargeDate) : null;
+  // 대체복무는 계급장이 없다 (rank 자리에 '사회복무요원' 같은 신분 이름이 온다)
+  const crest = isAlternative(pt) ? null : RANK_IMAGES[rank];
+  const branchLabel = branchLabelOf(info) ?? '';
 
   const roadmap = buildRoadmap(info, promotions);
   const nextMs = roadmap.find((mi) => !mi.done) ?? null;
@@ -299,16 +318,21 @@ export default function HomeScreen({ navigation }) {
     });
   }
 
-  // 월급날 — 병 봉급(매월 10일)만. 간부 지급일·호봉 반영은 확실하지 않아 넣지 않는다.
-  if (!officer && daysLeft > 0) {
+  // 월급날 — 군인 보수는 병·간부 모두 매월 10일이다 (알림도 간부에게 간다 — paydayEligible).
+  // 예전엔 병사만 보여서 간부는 알림은 오는데 홈엔 월급날이 없었다.
+  // 금액: 직접 입력 → 병사 표준표 / 간부 초임 참고값 → 없으면 금액 없이 날짜만.
+  // 대체복무는 복무기관·근무처마다 지급일이 달라 넣지 않는다.
+  if (paydayEligible(pt) && daysLeft > 0) {
     const pay = getNextPayday(today);
-    const amount = salaryInfo?.monthlyAmount || getSalaryByRank(rank);
+    const amount = salaryInfo?.monthlyAmount
+      || (ranks ? getSalaryByRank(rank) : getOfficerBasePay(info.officerRank));
+    const amountText = amount ? `예상 ${won(amount)}` : '금액은 급여 탭에서 입력';
     upcoming.push({
       key: 'payday',
       icon: 'cash-outline',
       tone: 'success',
       title: '월급날',
-      subtitle: `${md(pay.date)} · 예상 ${won(amount)}\n${pay.shifted ? '10일이 주말이라 앞당겨 계산 · ' : ''}공휴일은 반영하지 않아요`,
+      subtitle: `${md(pay.date)} · ${amountText}\n${pay.shifted ? '10일이 주말이라 앞당겨 계산 · ' : ''}공휴일은 반영하지 않아요`,
       dday: pay.dday,
       onPress: () => navigation.navigate('salary'),
     });
@@ -327,13 +351,16 @@ export default function HomeScreen({ navigation }) {
     });
   }
 
-  const maturity = daysLeft > 0 ? getSavingsMaturity(savingsPlan, info.dischargeDate, today) : null;
+  // 장병내일준비적금은 현역병·사회복무요원만 — 다른 신분은 계획이 남아 있어도 보이지 않는다
+  const maturity = daysLeft > 0 && savingsEligible(pt)
+    ? getSavingsMaturity(savingsPlan, info.dischargeDate, today)
+    : null;
   if (maturity) {
     upcoming.push({
       key: 'savings',
       icon: 'calculator-outline',
       tone: 'success',
-      title: '적금 만기 (전역 시)',
+      title: `적금 만기 (${t.end} 시)`,
       subtitle: `예상 수령 ${won(maturity.total)} · 원금 ${won(maturity.principal)}`,
       dday: maturity.dday,
       onPress: () => navigation.navigate('savings'),
@@ -343,14 +370,15 @@ export default function HomeScreen({ navigation }) {
   /* 바로가기 — 탭바와 겹치는 항목(휴가 기록·급여)은 뺐다. 탭 한 번이면 가는 곳을
      홈에 또 두면 버튼만 늘고 발견성은 늘지 않는다. */
   const quickActions = [
-    { key: 'family', icon: 'people-outline', label: '가족·곰신 공유', tone: 'primary', onPress: () => navigation.navigate('shareProfile') },
-    { key: 'savings', icon: 'calculator-outline', label: '장병내일적금', tone: 'success', onPress: () => navigation.navigate('savings') },
-    { key: 'roadmap', icon: 'map-outline', label: '전역 로드맵', tone: 'accent', onPress: () => navigation.navigate('roadmap') },
-    { key: 'benefits', icon: 'gift-outline', label: '군인 혜택', tone: 'neutral', onPress: () => navigation.navigate('benefits') },
-  ];
+    { key: 'family', icon: 'people-outline', label: `${t.familyAnd} 공유`, tone: 'primary', onPress: () => navigation.navigate('shareProfile') },
+    savingsEligible(pt) ? { key: 'savings', icon: 'calculator-outline', label: '장병내일적금', tone: 'success', onPress: () => navigation.navigate('savings') } : null,
+    { key: 'roadmap', icon: 'map-outline', label: t.roadmapTitle, tone: 'accent', onPress: () => navigation.navigate('roadmap') },
+    // 해당하는 혜택이 하나도 없는 신분이면 바로가기를 두지 않는다
+    benefitsFor(pt).length > 0 ? { key: 'benefits', icon: 'gift-outline', label: t.benefitsShort, tone: 'neutral', onPress: () => navigation.navigate('benefits') } : null,
+  ].filter(Boolean);
 
   const openDdayShare = () => setShareCard({
-    title: '전역일 자랑하기',
+    title: `${t.endDate} 자랑하기`,
     kind: 'dday',
     data: {
       name: profileName,
@@ -359,6 +387,7 @@ export default function HomeScreen({ navigation }) {
       daysLeft,
       progress: calcProgress(info.enlistDate, info.dischargeDate),
       dischargeDate: info.dischargeDate,
+      personnelType: pt,
     },
     onText: () => shareDischarge(info, rank, profileName),
     family: true,
@@ -369,7 +398,7 @@ export default function HomeScreen({ navigation }) {
     setShareCard({
       title: '스트릭 자랑하기',
       kind: 'streak',
-      data: { name: profileName, branchLabel, rank, daysLeft, streak },
+      data: { name: profileName, branchLabel, rank, daysLeft, streak, personnelType: pt },
       onText: () => shareStreak(streak, info, profileName),
       family: false,
     });
@@ -395,7 +424,7 @@ export default function HomeScreen({ navigation }) {
         /* Screen 은 헤더가 없으면 insets.top 을 콘텐츠에 먹인다. 히어로도 같은
            값을 갖고 있어서 덮지 않으면 상태바 높이만큼 이중 여백이 생긴다. */
         contentContainerStyle={{ paddingTop: 0, paddingBottom: sp.md }}
-        overlay={<HomeTopBar scrollY={scrollY} daysLeft={daysLeft} name={profileName} />}
+        overlay={<HomeTopBar scrollY={scrollY} daysLeft={daysLeft} name={profileName} personnelType={pt} />}
       >
         <HomeHero
           info={info}
@@ -404,8 +433,10 @@ export default function HomeScreen({ navigation }) {
           daysLeft={daysLeft}
           servedDays={servedDays}
           leaveLeft={leaveLeft}
+          leaveLabel={isOfficer(pt) ? '남은 연가' : undefined}
           months={info.months}
           promo={promo}
+          hobong={hobong}
           progress={heroProgress}
           cfg={cfg}
           meta={meta}
@@ -431,6 +462,7 @@ export default function HomeScreen({ navigation }) {
               today={today}
               records={leaveRecords}
               bonusRecords={bonusRecords}
+              bonusLabel={t.bonusLeave}
               todos={todos}
               attendance={days}
               onToggle={handleToggleTodo}
@@ -469,7 +501,9 @@ export default function HomeScreen({ navigation }) {
         visible={notifPrompt}
         onAccept={acceptNotif}
         onDecline={declineNotif}
-        soldier={!officer}
+        soldier={ranks}
+        payday={paydayEligible(pt)}
+        personnelType={pt}
         busy={notifBusy}
       />
 

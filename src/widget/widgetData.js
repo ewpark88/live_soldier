@@ -9,7 +9,7 @@ import {
   calcDaysLeft, calcProgress, formatDateKo,
 } from '../utils/dateUtils';
 import { currentRankLabel } from '../utils/roadmapUtils';
-import { isOfficer } from '../constants/serviceTerms';
+import { hasSoldierRanks, termsFor } from '../constants/serviceTerms';
 
 /**
  * 위젯에 넘길 색 — 팔레트 전체가 아니라 5키 서브셋만.
@@ -54,12 +54,10 @@ export async function getWidgetData() {
     if (!Number.isFinite(daysLeft) || !Number.isFinite(progress)) {
       return { empty: true, name: active?.name ?? '', theme };
     }
-    const officer  = isOfficer(mi.personnelType);
+    // 진급일 기록은 병사만 쓴다 — 간부·대체복무는 읽지 않고 넘어간다
+    const rank = currentRankLabel(mi, hasSoldierRanks(mi.personnelType) ? await loadRankPromotions(mi.enlistDate) : null);
 
-    // 간부는 진급일 기록을 쓰지 않는다 — 읽지 않고 넘어간다
-    const rank = currentRankLabel(mi, officer ? null : await loadRankPromotions(mi.enlistDate));
-
-    const ddayText = daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-DAY' : '전역';
+    const ddayText = daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-DAY' : termsFor(mi.personnelType).end;
 
     // 다음 휴가 한 줄 — 전역 전만. 휴가 중이면 '복귀까지'가 더 궁금하다.
     let leaveText = '';

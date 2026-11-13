@@ -47,7 +47,7 @@ const api = loadModule(
   'constants/serviceTerms.js',   // roadmapUtils 가 isOfficer 를 쓴다
   'constants/salaryGuide.js',    // 계급 구간이 dateUtils 와 일치하는지 대조한다
   'daily.js', 'dateUtils.js', 'officerUtils.js', 'streak.js', 'celebration.js',
-  'roadmapUtils.js', 'savingsUtils.js',
+  'roadmapUtils.js', 'savingsUtils.js', 'leaveUtils.js',
 );
 
 /* ─── 미니 어서션 프레임워크 ─────────────────────────────────────────── */
@@ -285,6 +285,19 @@ eq(api.calcHobong(todayPlus(-800)), 3, 'calcHobong: 2년 경과 = 3호봉');
 const hb = api.nextHobongInfo(todayPlus(-400));
 ok(hb && hb.current === 2 && hb.next === 3, 'nextHobongInfo: 현재 2 → 다음 3호봉');
 
+/* hobongStatus — 전역일 뒤의 승급은 보여주지 않는다 (간부 로드맵·홈) */
+{
+  const enl = todayPlus(-400);               // 2호봉, 다음 승급은 약 330일 뒤
+  const far = api.hobongStatus(enl, todayPlus(1000));
+  ok(far && far.current === 2 && far.next === 3 && far.last === false, 'hobongStatus: 전역 전 승급 있음');
+  const near = api.hobongStatus(enl, todayPlus(100));
+  eq([near.current, near.next, near.daysLeft, near.last], [2, null, null, true], 'hobongStatus: 다음 승급이 전역 뒤 → 마지막 호봉');
+  eq(api.hobongStatus(enl, todayPlus(0)), null, 'hobongStatus: 전역 당일 → null');
+  eq(api.hobongStatus(enl, todayPlus(-5)), null, 'hobongStatus: 전역 후 → null (호봉이 계속 오르지 않는다)');
+  eq(api.hobongStatus(null, todayPlus(100)), null, 'hobongStatus: 임관일 없음 → null');
+  eq(api.hobongStatus(enl, 'bad'), null, 'hobongStatus: 전역일 깨짐 → null');
+}
+
 /* 호봉 승급 경계 — 예전에는 365.25 로 나눠 평년 주년 당일에 1 적게 나왔다 */
 function yearsAgoStr(n, offsetDays = 0) {
   const t = new Date(); t.setHours(0, 0, 0, 0);
@@ -519,6 +532,63 @@ eq(api.currentRankLabel({ personnelType: 'soldier', enlistDate: '2000-01-01' }, 
 eq(api.currentRankLabel({ personnelType: 'soldier', enlistDate: '2000-01-01' }, { 일병: '2999-01-01', 상병: '2999-06-01', 병장: '2999-12-01' }),
   api.calcRankFromPromotions({ 일병: '2999-01-01', 상병: '2999-06-01', 병장: '2999-12-01' }) ?? '병장', '현재 계급: 진급일 기록 우선');
 
+/* ─── 대체복무 (v1.6) ─────────────────────────────────────────────────
+ * 예전엔 isOfficer 가 아니면 전부 병사 경로였다. 새 신분이 병사 진급·봉급을
+ * 물려받지 않는지, 세 갈래가 정확히 나뉘는지 못 박는다. */
+eq(['soldier', 'nco', 'officer', 'social', 'industrial', 'research', 'professional', 'artsports', null, 'zzz'].map(api.serviceCategory),
+  ['soldier', 'cadre', 'cadre', 'alt', 'alt', 'alt', 'alt', 'alt', 'soldier', 'soldier'], '갈래: 병사/간부/대체복무 (모르는 값은 병사)');
+eq(api.isOfficer('social'), false, '갈래: 대체복무는 간부가 아니다 (isOfficer 의미 불변)');
+eq(api.hasSoldierRanks('social'), false, '갈래: 대체복무는 진급 체계 없음');
+eq(api.ALT_TYPE_KEYS, api.PERSONNEL_TYPES.filter((p) => p.group === 'alt').map((p) => p.key), '갈래: ALT_TYPE_KEYS == PERSONNEL_TYPES(alt)');
+ok(api.PERSONNEL_TYPES.every((p) => p.group === 'active' || p.group === 'alt'), '갈래: 모든 신분에 group');
+eq([
+  api.defaultMonthsFor('social'), api.defaultMonthsFor('industrial'), api.defaultMonthsFor('industrial', 'active'),
+  api.defaultMonthsFor('industrial', 'reserve'), api.defaultMonthsFor('research'), api.defaultMonthsFor('professional', 'doctor'),
+  api.defaultMonthsFor('professional', 'vet'), api.defaultMonthsFor('artsports'),
+], [21, 34, 34, 23, 36, 36, 36, 34], '복무개월: 대체복무 기본값');
+eq([api.defaultMonthsFor('soldier', null, 'navy'), api.defaultMonthsFor('officer')], [20, null], '복무개월: 병사는 군별, 간부는 직접 입력');
+eq(api.defaultMonthsFor('social', 'doctor'), 21, '복무개월: 맞지 않는 세부유형은 무시');
+eq([api.defaultLeaveDaysFor({ personnelType: 'social', branch: 'airforce' }), api.defaultLeaveDaysFor({ personnelType: 'research' }), api.defaultLeaveDaysFor({ personnelType: 'soldier', branch: 'airforce' })],
+  [28, 0, 28], '연가: 사회복무요원 28 · 그 외 대체복무 미설정(0) · 병사는 군별');
+eq(['soldier', 'officer', 'social', 'industrial'].map(api.savingsEligible), [true, false, true, false], '적금 대상: 현역병·사회복무요원');
+eq(['soldier', 'nco', 'social', 'artsports'].map(api.paydayEligible), [true, true, false, false], '월급날(10일): 현역만');
+eq(api.serviceLabel({ personnelType: 'professional', subType: 'lawyer' }), '공익법무관', '신분 라벨: 세부유형 이름');
+eq(api.serviceLabel({ personnelType: 'industrial', subType: 'reserve' }), '산업기능요원(보충역)', '신분 라벨: 산업기능요원 세부');
+eq(api.serviceLabel({ personnelType: 'social' }), '사회복무요원', '신분 라벨: 세부 없음');
+eq(api.branchLabelOf({ personnelType: 'social', branch: 'army' }), null, '군별 라벨: 대체복무는 없음 (남아 있는 branch 무시)');
+eq(api.branchLabelOf({ personnelType: 'soldier', branch: 'navy' }), '해군', '군별 라벨: 병사');
+eq(api.currentRankLabel({ personnelType: 'professional', subType: 'doctor', enlistDate: '2000-01-01' }, { 일병: '2000-03-01' }), '공중보건의사', '현재 계급: 대체복무는 신분 라벨 (병장 아님)');
+eq([['전역', '을/를'], ['소집해제', '을/를'], ['입대', '이/가'], ['편입', '이/가'], ['복무만료', '은/는'], ['서울', '으로/로'], ['소집', '으로/로'], ['ABC', '을/를']].map(([w, p]) => api.josa(w, p)),
+  ['전역을', '소집해제를', '입대가', '편입이', '복무만료는', '서울로', '소집으로', 'ABC를'], '조사: 받침 판정');
+{
+  const keys = Object.keys(api.termsFor('soldier')).sort();
+  for (const p of api.PERSONNEL_TYPES) {
+    eq(Object.keys(api.termsFor(p.key)).sort(), keys, `문구 사전: ${p.key} 의 키가 현역과 같다`);
+  }
+  eq([api.termsFor('social').start, api.termsFor('social').end], ['소집', '소집해제'], '문구 사전: 사회복무요원');
+  eq([api.termsFor('research').start, api.termsFor('research').end], ['편입', '복무만료'], '문구 사전: 전문연구요원');
+  eq(api.termsFor('nco').end, '전역', '문구 사전: 간부는 전역');
+  ok(api.PERSONNEL_TYPES.filter((p) => p.group === 'alt').every((p) => !/전역|입대|진급|장병|곰신|군인/.test(JSON.stringify(api.termsFor(p.key)))),
+    '문구 사전: 대체복무 사전에 군 용어 없음');
+}
+{
+  const social = { enlistDate: '2025-01-05', dischargeDate: '2026-10-04', personnelType: 'social' };
+  const rm = api.buildRoadmap(social, rmPromo);
+  eq(rm.map((x) => x.key), ['enlist', 'd100in', 'half', 'd100out', 'discharge'], '로드맵(사회복무요원): 진급 마일스톤 없음 (진급일을 넘겨도)');
+  eq(rm.map((x) => x.label), ['소집', '소집 100일', '반환점 (복무 절반)', '소집해제 100일 전', '소집해제'], '로드맵(사회복무요원): 라벨');
+  ok(!/전역|입대/.test(JSON.stringify(api.buildRoadmap({ ...social, personnelType: 'artsports' }, null).map((x) => x.label))), '로드맵(예술·체육요원): 군 용어 없음');
+  eq(api.buildRoadmap(rmInfo, rmPromo).map((x) => x.label)[0], '입대', '로드맵(병사): 라벨 그대로');
+}
+{
+  // 대체복무 응원 메시지 — 단계 키가 같고, 군 용어가 없어야 한다
+  const alt = api.altPhaseMessages('소집해제');
+  eq(Object.keys(alt).sort(), Object.keys(api.PHASE_MESSAGES).sort(), '응원(대체복무): 단계 키 동일');
+  ok(Object.values(alt).every((pool) => pool.length >= 4), '응원(대체복무): 단계마다 4개 이상');
+  ok(!/전역|입대|말출|용사|곰신|훈련|군 생활/.test(JSON.stringify(alt)), '응원(대체복무): 군 용어 없음');
+  ok(alt.normal.includes(api.getMessageForPhase('normal', '2026-05-05', 0, '소집해제')), '응원(대체복무): 대체복무 풀에서 고른다');
+  ok(api.PHASE_MESSAGES.normal.includes(api.getMessageForPhase('normal', '2026-05-05')), '응원(현역): 기존 풀 그대로');
+}
+
 /* ─── DST 고정 날짜 가드 ──────────────────────────────────────────────
  * calcProgress 를 밀리초 비율로 되돌리면 DST 구간에서 1% 어긋난다.
  * '오늘 기준 ±50일' 로만 검증하면 1년 중 절반은 DST 가 창 밖이라 조용히
@@ -534,6 +604,101 @@ eq(ymd(api.calcDischargeDate('2024-10-01', 2)), '2024-11-30', 'DST: 가을 전�
 eq(api.spanDates('2024-03-09', 3), ['2024-03-09', '2024-03-10', '2024-03-11'], 'DST: 봄 전환을 넘는 span');
 eq(api.spanDates('2024-11-02', 3), ['2024-11-02', '2024-11-03', '2024-11-04'], 'DST: 가을 전환을 넘는 span');
 eq(api.endDateFromSpan('2024-03-09', 3), '2024-03-11', 'DST: 봄 전환 endDateFromSpan');
+
+/* ─── 간부 급여·계급 참고표 (v1.6 간부 점검) ─────────────────────────────
+ * 참고값 없는 계급(원사·준위·소령~)도 표에 행이 있어야 '현재' 표시가 붙는다.
+ * 계급 선택지(ranksFor)와 참고표 행이 어긋나면 고른 계급이 표에서 사라진다. */
+{
+  const R = loadModule('constants/militaryRanks.js');
+  eq(R.ranksFor('nco'), ['하사', '중사', '상사', '원사'], '간부 계급: 부사관 선택지');
+  eq(R.ranksFor('officer'), ['소위', '중위', '대위', '소령', '중령', '대령'], '간부 계급: 장교 선택지');
+  eq(R.ranksFor('social'), [], '간부 계급: 대체복무는 없음');
+  eq(R.OFFICER_PAY_GUIDE.map((g) => g.rank), [...R.ranksFor('nco'), ...R.ranksFor('warrant'), ...R.ranksFor('officer')], '봉급 참고표: 고를 수 있는 모든 계급에 행이 있다');
+  ok(R.OFFICER_PAY_GUIDE.every((g) => g.amount === null || (Number.isInteger(g.amount) && g.amount > 0)), '봉급 참고표: 금액은 양의 정수 또는 null(직접 입력)');
+  eq(R.OFFICER_PAY_GUIDE.filter((g) => g.amount === null).map((g) => g.rank), [], '봉급 참고표: 2026년 표는 전 계급 값이 있다');
+  eq([R.getOfficerBasePay('하사'), R.getOfficerBasePay('소위'), R.getOfficerBasePay('대위'), R.getOfficerBasePay('준위')], [2133000, 2150400, 2805000, 2544300], '봉급 참고표: 2026년 1호봉');
+  eq(R.OFFICER_PAY_YEAR, 2026, '봉급 참고표: 기준 연도');
+  eq(R.ranksFor('nco').includes('준위'), false, '계급: 준위는 부사관이 아니다');
+  eq(R.ranksFor('warrant'), ['준위'], '계급: 준사관 = 준위');
+  eq(R.OFFICER_PAY_GUIDE.find((g) => g.rank === '준위').group, '준사관', '봉급 참고표: 준위는 준사관');
+  eq(R.getOfficerBasePay('준장'), null, '초임 참고값: 표에 없는 계급은 null (0 아님)');
+  // 간부 연가는 매년 부여 — 병사용 군종 기본값(24~28)을 물려받지 않는다
+  eq(['nco', 'officer'].map((pt) => api.defaultLeaveDaysFor({ personnelType: pt, branch: 'airforce' })), [0, 0], '연가: 간부는 미설정(0) — 직접 입력');
+  eq(api.termsFor('officer').startDate, '임관일', '문구 사전: 간부 시작일은 임관일');
+}
+
+/* ─── 혜택 — 간부 적용 상태 (v1.6) ─────────────────────────────────── */
+{
+  const BF = loadModule('savingsUtils.js', 'constants/benefits.js');
+  const all = BF.BENEFIT_CATEGORIES.flatMap((c) => c.items);
+  ok(all.every((it) => ['yes', 'ask', 'no'].includes(it.cadre)), '혜택: 모든 항목에 간부 적용 상태가 명시돼 있다');
+  for (const pt of ['nco', 'warrant', 'officer']) {
+    const items = BF.benefitsFor(pt).flatMap((c) => c.items);
+    eq(items.length, all.filter((it) => it.cadre !== 'no').length, `혜택(${pt}): 'no' 만 빠진다`);
+    ok(items.filter((it) => it.ask).every((it) => !it.tag), `혜택(${pt}): 판매처 문의 항목엔 추천 태그 없음`);
+    ok(!items.some((it) => it.title === '장병내일준비적금' || it.title === '군 장병 전용 요금제'), `혜택(${pt}): 병사 전용 숨김`);
+    ok(items.some((it) => it.ask), `혜택(${pt}): 애매한 항목은 판매처 문의로 노출`);
+  }
+  eq(BF.benefitsFor('soldier'), BF.BENEFIT_CATEGORIES, '혜택(병사): 전부');
+  ok(BF.benefitsFor('soldier').flatMap((c) => c.items).every((it) => !it.ask), '혜택(병사): 판매처 문의 표시 없음');
+}
+
+/* ─── 간부 연 단위 연가 (v1.6, leaveUtils) ───────────────────────────
+ * 간부 연가는 매년 부여된다. 기록 형태({date, days})는 그대로 두고 연도 창으로만 센다. */
+{
+  const recs = [
+    { date: '2025-12-30', days: 4 },   // 12/30·12/31 (2025) + 1/1·1/2 (2026) — 해를 넘는 휴가
+    { date: '2026-03-02', days: 3 },
+    { date: '2024-02-28', days: 3 },   // 윤년: 2/28·2/29·3/1
+    { date: 'bad', days: 2 },          // 깨진 기록은 무시
+  ];
+  eq(api.leaveDaysInYear(recs, 2025), 2, '연가(연 단위): 해를 넘는 휴가는 작년 몫만');
+  eq(api.leaveDaysInYear(recs, 2026), 5, '연가(연 단위): 올해 = 넘어온 2일 + 3월 3일');
+  eq(api.leaveDaysInYear(recs, 2024), 3, '연가(연 단위): 윤일 포함 3일');
+  eq(api.leaveDaysInYear(null, 2026), 0, '연가(연 단위): 기록 없음');
+  eq(api.annualLeaveSummary(recs, 21, 2026, [{ date: '2026-05-01', days: 2 }, { date: '2025-11-01', days: 3 }]),
+    { year: 2026, annual: 21, bonus: 2, total: 23, used: 5, remaining: 18 }, '연가(연 단위): 올해 요약 (올해 부여된 포상만)');
+  eq(api.annualLeaveSummary(recs, null, 2026).remaining, null, '연가(연 단위): 미설정이면 남은 일수 null (음수 금지)');
+  eq(api.annualLeaveSummary(recs, 0, 2026).remaining, null, '연가(연 단위): 0 도 미설정');
+  eq(api.annualLeaveSummary(recs, '21', 2026).annual, 21, '연가(연 단위): 문자열 저장값도 숫자로');
+  eq(api.leaveUsedByYear(recs, 2026), [{ year: 2025, used: 2 }, { year: 2024, used: 3 }], '연가(연 단위): 지난 해별 사용량 (최근 순, 올해 제외)');
+  eq([api.normalizeAnnualLeave(-1), api.normalizeAnnualLeave('x'), api.normalizeAnnualLeave(21.7)], [null, null, 21], '연가(연 단위): 저장값 정규화');
+}
+
+/* ─── 간부 진급 이력 · 복무연장 (v1.6, roadmapUtils) ─────────────────
+ * mi.months 는 연장을 합친 총 개월이다 — 구버전 앱·공유 코드가 같은 전역일을 계산한다. */
+{
+  const ymdOf = (d) => d;   // todayPlus 가 이미 'YYYY-MM-DD' (Date 로 다시 파싱하면 음수 시간대에서 하루 밀린다)
+  const past = ymdOf(todayPlus(-30));
+  const future = ymdOf(todayPlus(40));
+  const enlist = ymdOf(todayPlus(-400));
+  const disc = ymdOf(todayPlus(800));
+  const off = { personnelType: 'officer', officerRank: '소위', enlistDate: enlist, dischargeDate: disc, months: 40,
+    officerPromotions: [{ rank: '대위', date: future }, { rank: '중위', date: past }, { rank: '', date: past }, { rank: '소령', date: 'bad' }] };
+  eq(api.validOfficerPromotions(off).map((p) => p.rank), ['중위', '대위'], '간부 진급 이력: 잘못된 기록 제외 · 날짜순');
+  eq(api.validOfficerPromotions(off, ['소위', '중위']).map((p) => p.rank), ['중위'], '간부 진급 이력: 허용 계급만');
+  eq(api.cadreCurrentRank(off), '중위', '간부 현재 계급: 지난 진급 기록 (예정은 아직)');
+  eq(api.currentRankLabel(off, null), '중위', '현재 계급 라벨: 간부는 진급 이력 우선');
+  eq(api.currentRankLabel({ ...off, officerPromotions: [] }, null), '소위', '현재 계급 라벨: 이력 없으면 고른 계급');
+  eq(api.currentRankLabel({ ...off, officerPromotions: undefined }, null), '소위', '현재 계급 라벨: 구버전 데이터(필드 없음)');
+  eq(api.nextCadrePromotion(off)?.rank, '대위', '간부 다음 진급: 예정 기록');
+  eq(api.cadreCurrentRank({ ...off, personnelType: 'soldier' }), null, '간부 현재 계급: 병사는 해당 없음');
+  const rm = api.buildRoadmap(off, null);
+  ok(rm.some((x) => x.key === 'op:중위' && x.label === '중위 진급' && x.done), '로드맵(간부): 지난 진급 마일스톤');
+  ok(rm.some((x) => x.key === 'op:대위' && !x.done), '로드맵(간부): 예정 진급 마일스톤');
+  ok(rm.every((x, i) => i === 0 || rm[i - 1].date <= x.date), '로드맵(간부): 정렬 유지');
+  ok(!api.buildRoadmap({ ...off, personnelType: 'social' }, null).some((x) => x.key.startsWith('op:')), '로드맵: 진급 이력은 간부만');
+  const outside = api.buildRoadmap({ ...off, officerPromotions: [{ rank: '중령', date: ymdOf(todayPlus(900)) }] }, null);
+  ok(!outside.some((x) => x.key.startsWith('op:')), '로드맵(간부): 복무 구간 밖 진급은 제외');
+
+  const ext = { personnelType: 'nco', enlistDate: enlist, months: 72,
+    extensions: [{ id: 'b', months: 12, date: '2026-02-01' }, { id: 'a', months: 12, date: '2025-02-01' }, { id: 'x', months: 0 }, { id: 'y', months: 1.5 }] };
+  eq(api.validExtensions(ext).map((e) => e.id), ['a', 'b'], '복무연장: 잘못된 기록 제외 · 결정일순');
+  eq(api.extensionMonths(ext), 24, '복무연장: 합계');
+  eq(api.baseServiceMonths(ext), 48, '복무연장: 원래 복무개월 = 총 − 연장');
+  eq(api.baseServiceMonths({ months: 36 }), 36, '복무연장: 이력 없음(구버전) → 총 그대로');
+  eq(api.baseServiceMonths({ months: 10, extensions: [{ months: 12 }] }), 1, '복무연장: 원래 개월은 최소 1');
+}
 
 /* ─── 결과 출력 ──────────────────────────────────────────────────────── */
 console.log('\n──────────── 계산 로직 테스트 ────────────');

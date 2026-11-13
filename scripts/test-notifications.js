@@ -34,7 +34,7 @@ let channels = {};
 const NotifMock = {
   getAllScheduledNotificationsAsync: async () => scheduled.slice(),
   cancelAllScheduledNotificationsAsync: async () => { scheduled = []; cancels += 1; },
-  scheduleNotificationAsync: async (o) => { scheduled.push({ title: o.content.title, trigger: o.trigger, data: o.content.data }); },
+  scheduleNotificationAsync: async (o) => { scheduled.push({ title: o.content.title, body: o.content.body, trigger: o.trigger, data: o.content.data }); },
   setNotificationHandler: () => {},
   setNotificationChannelAsync: async (id, o) => { channels[id] = o; },
   deleteNotificationChannelAsync: async (id) => { delete channels[id]; },
@@ -94,10 +94,10 @@ function ok(c, label) { eq(!!c, true, label); }
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const onDate = (s) => scheduled.filter((x) => x.trigger.date && ymd(x.trigger.date) === s);
 
-async function setup(prefs) {
+async function setup(prefs, mi = {}) {
   store = {};
   scheduled = [];
-  await S.saveMilitaryInfo({ enlistDate: '2025-04-01', branch: 'army', months: 18, personnelType: 'soldier' });
+  await S.saveMilitaryInfo({ enlistDate: '2025-04-01', branch: 'army', months: 18, personnelType: 'soldier', ...mi });
   await N.saveNotifPrefs({ master: true, discharge: true, milestone: true, streak: false, daily: false, ...prefs });
   await N.refreshScheduledNotifications({ force: true });
   return (await S.loadMilitaryInfo()).dischargeDate;
@@ -291,6 +291,55 @@ async function setup(prefs) {
   await N.disableNotifications();
   eq((await N.loadNotifPlan()).length, 0, '알림 끔: 예약 목록도 비움');
   eq(scheduled.length, 0, '알림 끔: 예약 전부 취소');
+
+  /* 대체복무 (v1.6) — 진급·10일 월급날이 없고, 문구에 '전역/입대'가 없어야 한다 */
+  NOW = new RealDate(2025, 4, 1, 10, 0, 0);   // 2025-05-01
+  for (const [type, end] of [['social', '소집해제'], ['research', '복무만료']]) {
+    await setup({ promotion: true, payday: true, daily: true }, { personnelType: type, branch: null, months: 21 });
+    eq(scheduled.filter((x) => /진급/.test(x.title)).length, 0, `${type}: 진급 알림 없음`);
+    eq(scheduled.filter((x) => /월급/.test(x.title)).length, 0, `${type}: 월급날 알림 없음`);
+    ok(scheduled.length > 0, `${type}: 다른 알림은 예약됨`);
+    eq(scheduled.filter((x) => /전역|입대/.test(`${x.title} ${x.body}`)).length, 0, `${type}: 제목·본문에 전역/입대 없음`);
+    ok(scheduled.some((x) => x.title.includes(end)), `${type}: '${end}' 문구 사용`);
+  }
+  {
+    const ev = N.notifEventsFor('social').map((e) => e.key);
+    ok(!ev.includes('promotion') && !ev.includes('payday'), '설정 목록(사회복무요원): 진급·월급날 숨김');
+    ok(N.notifEventsFor('nco').some((e) => e.key === 'payday'), '설정 목록(간부): 월급날 O');
+    eq(N.notifEventsFor('nco').find((e) => e.key === 'promotion')?.desc, '기록한 진급일 당일 오전 9시', '설정 목록(간부): 진급 = 기록한 진급일 (v1.6)');
+    eq(N.notifEventsFor('soldier').length, N.NOTIF_EVENTS.length, '설정 목록(병사): 전부');
+    eq(N.notifEventsFor('social').find((e) => e.key === 'discharge').title, '소집해제 D-day', '설정 목록(사회복무요원): 제목');
+  }
+  /* 간부 — 진급(병 계급) 없음, 월급날(10일) 있음, '입대' 대신 '임관' */
+  for (const type of ['nco', 'officer']) {
+    await setup({ promotion: true, payday: true }, { personnelType: type, officerRank: type === 'nco' ? '하사' : '소위', months: 36 });
+    eq(scheduled.filter((x) => /진급/.test(x.title)).length, 0, `${type}: 진급 알림 없음 (병 진급일을 만들지 않음)`);
+    ok(scheduled.some((x) => /월급/.test(x.title)), `${type}: 월급날 알림 있음`);
+    ok(scheduled.some((x) => x.title.startsWith('임관 100일')), `${type}: '임관 100일' 문구`);
+    eq(scheduled.filter((x) => /입대/.test(`${x.title} ${x.body}`)).length, 0, `${type}: '입대' 문구 없음`);
+  }
+  eq(N.notifEventsFor('officer').find((e) => e.key === 'milestone').desc.startsWith('임관 100일'), true, '설정 목록(간부): 임관 100일');
+
+  /* 간부 진급 이력 (v1.6) — 기록한 예정일에 당일 09시 알림, 지난 기록은 예약하지 않음 */
+  await setup({ promotion: true }, {
+    personnelType: 'officer', officerRank: '소위', months: 36,
+    officerPromotions: [{ rank: '중위', date: '2025-06-15' }, { rank: '대위', date: '2025-04-20' }],
+  });
+  {
+    const promo = scheduled.filter((x) => /진급 🎖️/.test(x.title));
+    eq(promo.map((x) => x.title), ['중위 진급 🎖️'], '간부 진급 이력: 예정일만 예약 (지난 기록 제외)');
+    eq(onDate('2025-06-15').filter((x) => /중위 진급/.test(x.title))[0]?.trigger.date.getHours(), 9, '간부 진급 이력: 당일 09시');
+    ok(scheduled.some((x) => x.title === '내일은 중위 진급! 🎖️'), '간부 진급 이력: 전야 마일스톤');
+  }
+  await setup({ promotion: false }, {
+    personnelType: 'officer', officerRank: '소위', months: 36, officerPromotions: [{ rank: '중위', date: '2025-06-15' }],
+  });
+  eq(scheduled.filter((x) => /진급 🎖️/.test(x.title) && !/^내일/.test(x.title)).length, 0, '간부 진급 이력: 진급 스위치 끄면 당일 알림 없음');
+
+  /* 병사 회귀 — 진급·월급날은 그대로 */
+  await setup({ promotion: true, payday: true });
+  ok(scheduled.some((x) => /진급/.test(x.title)), '병사: 진급 알림 유지');
+  ok(scheduled.some((x) => /월급/.test(x.title)), '병사: 월급날 알림 유지');
 
   /* 입대일 입력 후 알림 안내 — 한 번만, 켜져 있거나 OS 가 막았으면 묻지 않는다 */
   store = {};

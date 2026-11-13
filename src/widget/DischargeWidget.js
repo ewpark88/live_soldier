@@ -38,7 +38,7 @@ export function DischargeWidget(props = {}) {
       <FlexWidget style={rootStyle} clickAction="OPEN_APP">
         <TextWidget text="전역까지" style={{ fontSize: 13, color: t.text }} />
         <TextWidget
-          text="입대 정보를 입력하세요"
+          text="복무 정보를 입력하세요"
           style={{ fontSize: 13, color: t.muted, marginTop: 6 }}
         />
       </FlexWidget>

@@ -15,11 +15,14 @@ import { removeProfilePhoto } from '../utils/imagePicker';
 import { haptic } from '../utils/haptics';
 import { guardDelete, guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import {
-  loadNotifPrefs, refreshScheduledNotifications, getNotifPermission, NOTIF_EVENTS,
+  loadNotifPrefs, refreshScheduledNotifications, getNotifPermission, notifEventsFor,
 } from '../utils/notifications';
 import { calcDaysLeft, formatDateKo } from '../utils/dateUtils';
 import { currentRankLabel } from '../utils/roadmapUtils';
-import { BRANCHES, isOfficer } from '../constants/serviceTerms';
+import {
+  branchLabelOf, hasSoldierRanks, isAlternative, isOfficer, savingsEligible, termsFor,
+} from '../constants/serviceTerms';
+import { benefitsFor } from '../constants/benefits';
 import { backupAvailable, exportBackupFile, pickBackupFile } from '../utils/backupFile';
 import { backupErrorMessage } from '../utils/backup';
 import { emitProfilesChanged } from '../state/appEvents';
@@ -51,9 +54,10 @@ export default function SettingsScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      Promise.all([loadNotifPrefs(), getNotifPermission()]).then(([p, pm]) => {
+      Promise.all([loadNotifPrefs(), getNotifPermission(), loadMilitaryInfo().catch(() => null)]).then(([p, pm, mi]) => {
         if (!alive) return;
-        const on = NOTIF_EVENTS.filter((e) => p[e.key]).length;
+        // 신분에 없는 이벤트(대체복무의 진급·월급날 등)는 세지 않는다 — 알림 화면과 같은 목록
+        const on = notifEventsFor(mi?.personnelType).filter((e) => p[e.key]).length;
         setNotifSummary({
           master: p.master,
           blocked: p.master && pm.status !== 'granted' && pm.status !== 'unavailable',
@@ -68,30 +72,54 @@ export default function SettingsScreen({ navigation }) {
   /* 요약 한 줄 — 계급 · 군별 · 전역일 */
   const summary = useMemo(() => {
     if (!info) return null;
-    const rank = currentRankLabel(info, promotions);
-    const branch = BRANCHES.find((b) => b.key === info.branch)?.label ?? '';
+    const rank = currentRankLabel(info, promotions);   // 대체복무는 신분(세부 유형) 이름
+    const branch = branchLabelOf(info);                 // 대체복무는 null
     const left = calcDaysLeft(info.dischargeDate);
+    const t = termsFor(info.personnelType);
     return {
       line1: [branch, rank].filter(Boolean).join(' · '),
-      line2: `${formatDateKo(info.dischargeDate)} 전역 · ${left > 0 ? `D-${left}` : '전역 완료'}`,
+      line2: `${formatDateKo(info.dischargeDate)} ${t.end} · ${left > 0 ? `D-${left}` : t.endDone}`,
     };
   }, [info, promotions]);
 
-  /* 병사/간부에 따라 봉급표 행이 갈린다 (예전엔 햄버거 메뉴가 하던 분기) */
-  const payRow = isOfficer(info?.personnelType)
+  const pt = info?.personnelType;
+  const t = termsFor(pt);
+  const alt = isAlternative(pt);
+
+  /* 신분에 따라 봉급표 행이 갈린다 (예전엔 햄버거 메뉴가 하던 분기).
+     병사·사회복무요원 → 병사 월급표, 간부 → 간부 봉급, 그 외 대체복무 → 근무처 급여라 없음 */
+  const payRow = isOfficer(pt)
     ? { title: '간부 봉급 참고', subtitle: '초임(1호봉) 월 기본급', icon: 'list-outline', route: 'officerPay' }
-    : { title: '병사 월급 가이드', subtitle: '계급별 표준 월급', icon: 'list-outline', route: 'salaryGuide' };
+    : (!alt || pt === 'social')
+      ? { title: '병사 월급 가이드', subtitle: pt === 'social' ? '현역병 기준 참고 월급' : '계급별 표준 월급', icon: 'list-outline', route: 'salaryGuide' }
+      : null;
 
   const SHORTCUTS = [
-    { title: '전역 정보', subtitle: '입대일·군별·진급일 수정', icon: 'flag-outline', route: 'discharge' },
-    { title: '가족·곰신에게 공유', subtitle: '공유 코드·QR 로 전역일 함께 세기', icon: 'people-outline', route: 'shareProfile' },
-    { title: '전역 로드맵', subtitle: '진급·반환점·전역까지의 이정표', icon: 'map-outline', route: 'roadmap' },
+    {
+      title: t.infoScreen,
+      subtitle: alt ? '복무 시작일·유형 수정' : hasSoldierRanks(pt) ? '입대일·군별·진급일 수정' : `${t.startDate}·계급·복무개월 수정`,   // 간부: 임관일
+      icon: 'flag-outline',
+      route: 'discharge',
+    },
+    { title: `${t.familyAnd}에게 공유`, subtitle: `공유 코드·QR 로 ${t.endDate} 함께 세기`, icon: 'people-outline', route: 'shareProfile' },
+    {
+      title: t.roadmapTitle,
+      subtitle: hasSoldierRanks(pt) ? `진급·반환점·${t.end}까지의 이정표` : `반환점·${t.end}까지의 이정표`,
+      icon: 'map-outline',
+      route: 'roadmap',
+    },
     payRow,
     // 홈·급여 탭과 같은 아이콘 — 같은 기능이 화면마다 다른 아이콘이면 다른 기능처럼 보인다
-    { title: '장병내일적금', subtitle: '전역 시 받을 목돈 계산', icon: 'calculator-outline', route: 'savings' },
-    { title: '군인 혜택 모음', subtitle: '금융·교통·문화 할인', icon: 'gift-outline', route: 'benefits' },
+    savingsEligible(pt) ? { title: '장병내일적금', subtitle: `${t.end} 시 받을 목돈 계산`, icon: 'calculator-outline', route: 'savings' } : null,
+    benefitsFor(pt).length > 0 ? {
+      title: t.benefitsTitle,
+      // 간부·대체복무는 철도·버스 할인 등 병사 전용 항목이 빠진다 — '교통 할인'을 약속하지 않는다
+      subtitle: hasSoldierRanks(pt) ? '금융·교통·문화 할인' : alt ? '복무 중 받을 수 있는 지원' : '금융·문화·자기계발 지원',
+      icon: 'gift-outline',
+      route: 'benefits',
+    } : null,
     { title: '막대병 도감', subtitle: '홈 링 안 막대병 모습 바꾸기', icon: 'body-outline', route: 'soldierDex' },
-  ];
+  ].filter(Boolean);
 
 
   /* 데이터가 통째로 바뀐 뒤(삭제·복원) — 화면 밖에 남아 있는 것들까지 맞춘다.
@@ -255,7 +283,9 @@ export default function SettingsScreen({ navigation }) {
             title="알림"
             subtitle={notifSummary?.blocked
               ? '휴대폰 알림 권한이 꺼져 있어요'
-              : '전역·진급·휴가·일정·월급날 등 이벤트별 설정'}
+              : hasSoldierRanks(pt)
+                ? `${t.end}·진급·휴가·일정·월급날 등 이벤트별 설정`
+                : alt ? `${t.end}·휴가·일정 등 이벤트별 설정` : `${t.end}·휴가·일정·월급날 등 이벤트별 설정`}
             icon={notifSummary?.blocked ? 'alert-circle-outline' : 'notifications-outline'}
             iconTone={notifSummary?.blocked ? 'danger' : notifSummary?.master ? 'primary' : 'neutral'}
             value={notifSummary?.text}

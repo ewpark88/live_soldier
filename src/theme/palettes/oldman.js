@@ -10,7 +10,7 @@ export default {
   desc: '병장 진급 기념 · 차콜 금박',
   schemes: ['dark'],
   // altKey: 간부용 대체 조건 (steel.js 주석 참고)
-  lock: { by: 'milestone', key: 'r3', altKey: 'd100out', label: '병장 진급 시 해금 (간부는 전역 100일 전)' },
+  lock: { by: 'milestone', key: 'r3', altKey: 'd100out', label: '병장 진급 시 해금 (간부·대체복무는 복무 종료 100일 전)' },
   swatch: ['#2E2718', '#D9B45A', '#EFD9A0'],
   dark: {
     primary: '#D9B45A',

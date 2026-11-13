@@ -6,6 +6,7 @@ import { useThemeColors } from '../../theme/ThemeContext';
 import { space as sp } from '../../theme/tokens';
 import { canShareImage, shareViewAsImage } from '../../utils/shareImage';
 import { haptic } from '../../utils/haptics';
+import { termsFor } from '../../constants/serviceTerms';
 
 /**
  * 공유 시트 — 카드 미리보기 + [이미지로 공유] [텍스트로 공유] (+ 가족에게 코드 보내기).
@@ -65,7 +66,7 @@ export default function ShareSheet({ visible, onClose, card, onText, onFamily, t
           />
           {cur.onFamily ? (
             <Button
-              title="가족·곰신에게 공유 코드 보내기"
+              title={`${termsFor(cur.card?.data?.personnelType).familyAnd}에게 공유 코드 보내기`}
               icon="people-outline"
               variant="ghost"
               onPress={() => { const go = cur.onFamily; onClose?.(); go(); }}

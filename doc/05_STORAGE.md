@@ -39,7 +39,35 @@ salaryInfo, todos, rankPromotions, savingsPlan, celebrated`.
 
 `JY1-<base64url(JSON 배열)><체크섬 2자>` — `[이름, YYYYMMDD 입대일, 군별, 신분, 장교계급|0,
 복무개월, 일병|0, 상병|0, 병장|0]`. 받는 쪽은 `addSharedProfile` / `updateProfileFromShare`
-로 프로필을 만든다. 같은 사람 판정은 `입대일|군별|신분`.
+로 프로필을 만든다. 같은 사람 판정은 `입대일|군별|신분` (군별이 null 이면 빈 칸).
+
+**대체복무 (v1.6)** 는 `JY2-` 로 보낸다 — `[이름, YYYYMMDD 소집·편입일, 0, 신분, 세부유형|0, 복무개월]`.
+현역 코드는 계속 `JY1-` 이라 구버전 앱·이미 뿌려진 코드와 호환되고, 구버전 앱은 `JY2-` 를
+'앱 업데이트' 안내(`reason:'version'`)로 거절한다. 디코더는 둘 다 받는다.
+
+### militaryInfo 필드 (v1.6)
+
+| 필드 | 값 |
+|---|---|
+| `personnelType` | `soldier` · `nco` · `officer` · 대체복무 `social` · `industrial` · `research` · `professional` · `artsports` (`serviceTerms.PERSONNEL_TYPES`) |
+| `branch` | 현역만. 대체복무는 `null` |
+| `subType` | 대체복무 세부 유형 — `industrial`: `active`(34개월)/`reserve`(23개월), `professional`: `doctor`/`lawyer`/`vet`. 그 외 `null` |
+| `officerRank` | 간부만. 진급 이력이 있으면 저장 시점의 '오늘 기준 계급'으로 갱신 (구버전 앱·공유 코드가 이 값을 본다) |
+| `months` | 병사는 군별 자동, 간부·대체복무는 직접(대체복무는 기본값 채움). 간부는 **복무연장을 합친 총 개월** (상한 480) |
+| `extensions` | 간부 복무연장 이력 `[{ id, months(1~120), date(결정일), memo }]`. 원래 개월 = `months − Σmonths` |
+| `officerPromotions` | 간부 진급 이력 `[{ rank, date }]` (예정일 가능). 지금 계급 = 오늘까지 도달한 마지막 기록 (`roadmapUtils.cadreCurrentRank`) |
+
+**간부 복무연장·진급 이력 (v1.6) 구버전 호환.** 둘 다 `militaryInfo` 안의 새 필드라 구버전 앱은 무시한다.
+`months` 가 늘 총합이라 구버전·공유 코드(JY1)·`_withRecomputedDischarge` 가 같은 전역일을 계산하고,
+`officerRank` 도 현재 계급으로 적혀 있어 구버전에서도 계급이 맞게 보인다. 공유 코드 형식은 바꾸지 않았다
+(이력은 싣지 않고 현재 계급·총 개월만 간다). 한계: 구버전 앱에서 '전역 정보'를 다시 저장하면
+`militaryInfo` 를 새로 만들어 두 이력이 사라진다 (총 개월·계급은 남는다). 백업은 필드를 통과시킨다.
+연장으로 '전역 100일 전'·'전역' 이 다시 미래가 되면 `unmarkCelebrated` 로 축하 이력에서 빼서
+새 날짜에 다시 축하한다.
+
+대체복무 기본 연가는 사회복무요원 28일, 그 외 0(미설정 — 근무처 규정). 진급일(`rankPromotions`)은
+병사만 쓴다 — `loadRankPromotions` 는 병사가 아니면 null. 백업 스키마는 올리지 않았다
+(필드 내용을 통과시키므로). 단, 구버전 앱에서 대체복무 백업을 복원하면 병사 화면으로 보인다.
 
 ---
 

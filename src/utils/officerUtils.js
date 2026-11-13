@@ -69,3 +69,24 @@ export function nextHobongInfo(enlistDate) {
     daysLeft: calcDaysLeft(nextDateStr),
   };
 }
+
+/**
+ * 로드맵·홈에 보여줄 호봉 상태 — 전역일을 고려한다.
+ *
+ * nextHobongInfo 만 쓰면 전역일 뒤의 승급일('다음 4호봉 · D-200')을 그대로 보여주고,
+ * 전역한 뒤에도 호봉이 계속 올라간다. 복무 중 마지막 호봉이면 next 를 null 로 둔다.
+ *
+ * @returns {{ current, next: number|null, nextDate: string|null, daysLeft: number|null, last: boolean } | null}
+ *          전역했거나(전역일 ≤ 오늘) 날짜가 깨졌으면 null
+ */
+export function hobongStatus(enlistDate, dischargeDate) {
+  const info = nextHobongInfo(enlistDate);
+  if (!info) return null;
+  const left = calcDaysLeft(dischargeDate);
+  if (!Number.isFinite(left) || left <= 0) return null;
+  // 승급일이 전역일과 같거나 뒤면 복무 중에는 오지 않는다
+  if (info.nextDate >= dischargeDate) {
+    return { current: info.current, next: null, nextDate: null, daysLeft: null, last: true };
+  }
+  return { ...info, last: false };
+}

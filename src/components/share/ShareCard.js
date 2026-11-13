@@ -7,6 +7,7 @@ import { useThemeColors } from '../../theme/ThemeContext';
 import { radius as r, space as sp, type as ty, tabular } from '../../theme/tokens';
 import { formatDateKo } from '../../utils/dateUtils';
 import { getPhase } from '../../constants/phases';
+import { termsFor } from '../../constants/serviceTerms';
 
 /**
  * 공유용 이미지 카드 — 4:5 (인스타 피드·카톡 미리보기에서 안 잘리는 비율).
@@ -17,6 +18,8 @@ import { getPhase } from '../../constants/phases';
  *   · collapsable={false} — 안드로이드가 뷰를 최적화로 지우면 캡처가 빈다
  *
  * @param kind  'dday' | 'milestone' | 'streak'
+ * @param data.personnelType  (선택) 신분 — 대체복무면 '소집해제/복무만료' 문구. 없으면 현역 문구.
+ *                            상단 브랜드 '전역까지' 는 앱 이름이라 그대로 둔다.
  */
 export const CARD_W = 300;
 export const CARD_H = 375;
@@ -30,7 +33,8 @@ const ShareCard = forwardRef(function ShareCard({ kind = 'dday', data = {} }, re
   const who = [data.name, data.branchLabel, data.rank].filter(Boolean).join(' · ');
   const pct = Math.max(0, Math.min(100, Math.round(data.progress ?? 0)));
 
-  let eyebrow = '전역까지';
+  const t = termsFor(data.personnelType);
+  let eyebrow = `${t.end}까지`;
   let big = null;
   let unit = null;
   let caption = null;
@@ -49,8 +53,8 @@ const ShareCard = forwardRef(function ShareCard({ kind = 'dday', data = {} }, re
     caption = `최고 ${data.streak?.best ?? 0}일 · 누적 ${data.streak?.total ?? 0}일`;
   } else {
     const left = data.daysLeft ?? 0;
-    big = left > 0 ? `D-${left}` : left === 0 ? 'D-Day' : '전역 완료';
-    caption = data.dischargeDate ? `${formatDateKo(data.dischargeDate)} 전역` : null;
+    big = left > 0 ? `D-${left}` : left === 0 ? 'D-Day' : t.endDone;
+    caption = data.dischargeDate ? `${formatDateKo(data.dischargeDate)} ${t.end}` : null;
   }
 
   const bigLen = String(big).length;

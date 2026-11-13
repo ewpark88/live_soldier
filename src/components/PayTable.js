@@ -25,6 +25,7 @@ export default function PayTable({ rows = [], currentKey, note }) {
   const s = useMemo(() => makeStyles(tc), [tc]);
 
   const max = Math.max(...rows.map((x) => x.amount || 0), 1);
+  // amount 가 null 인 행(참고 자료 없는 계급)은 금액 대신 안내 문구, 막대 없음
 
   return (
     <View>
@@ -53,6 +54,12 @@ export default function PayTable({ rows = [], currentKey, note }) {
             </View>
 
             <View style={s.right}>
+              {typeof row.amount !== 'number' ? (
+                <Text style={[s.sub, isCurrent && { color: tc.primary }]} numberOfLines={1}>
+                  {row.emptyText ?? '자료 없음 · 직접 입력'}
+                </Text>
+              ) : (
+              <>
               <Text style={[s.amount, isCurrent && { color: tc.primary }]} numberOfLines={1}>
                 {formatMoney(row.amount)}원
               </Text>
@@ -64,6 +71,8 @@ export default function PayTable({ rows = [], currentKey, note }) {
                 fillColor={isCurrent ? tc.primary : tc.textLight}
                 style={s.bar}
               />
+              </>
+              )}
             </View>
           </Animated.View>
         );

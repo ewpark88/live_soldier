@@ -6,6 +6,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../../theme/ThemeContext';
 import { space as sp, tabular, type as ty } from '../../theme/tokens';
+import { termsFor } from '../../constants/serviceTerms';
 
 /**
  * 히어로가 스크롤로 올라간 뒤 나타나는 얇은 상단 바.
@@ -16,7 +17,7 @@ import { space as sp, tabular, type as ty } from '../../theme/tokens';
  * pointerEvents 는 항상 'none' 이다 — 터치 대상을 두지 않아서 스크롤을
  * 가로채는 사고가 구조적으로 불가능하다.
  */
-export default function HomeTopBar({ scrollY, daysLeft, name }) {
+export default function HomeTopBar({ scrollY, daysLeft, name, personnelType }) {
   const tc = useThemeColors();
   const insets = useSafeAreaInsets();
   const s = useMemo(() => makeStyles(tc), [tc]);
@@ -31,7 +32,7 @@ export default function HomeTopBar({ scrollY, daysLeft, name }) {
     };
   });
 
-  const label = daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-Day!' : '전역 완료';
+  const label = daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-Day!' : termsFor(personnelType).endDone;
 
   return (
     <Animated.View
@@ -40,6 +41,7 @@ export default function HomeTopBar({ scrollY, daysLeft, name }) {
     >
       <View style={s.row}>
         <Animated.Text style={s.title} numberOfLines={1}>
+          {/* 이름이 없을 때는 앱 이름 '전역까지' (신분과 무관한 고정 이름) */}
           {name ? `${name} 님` : '전역까지'}
         </Animated.Text>
         <Animated.Text style={s.dday}>{label}</Animated.Text>

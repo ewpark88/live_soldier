@@ -7,6 +7,8 @@
  * 화면 밖으로 뺀 이유: 예전엔 HomeScreen 안에 getPhase 가 박혀 있어서
  * 로드맵·알림·위젯이 각자 다른 기준으로 단계를 판정할 수밖에 없었다.
  */
+import { termsFor } from './serviceTerms';
+
 
 /** 남은 일수 → 단계 키 */
 export function getPhase(daysLeft) {
@@ -34,3 +36,22 @@ export const PHASE_META = {
   d100: { icon: 'barbell', text: '전역 100일 전! 보인다!', embers: null },
   normal: { icon: null, text: null, embers: null },
 };
+
+
+/**
+ * 신분에 맞는 단계 메타 (v1.6). 현역은 PHASE_META 그대로,
+ * 대체복무는 '전역' 대신 소집해제/복무만료 문구.
+ */
+export function phaseMetaFor(stage, personnelType) {
+  const base = PHASE_META[stage] ?? PHASE_META.normal;
+  const t = termsFor(personnelType);
+  if (t.end === '전역' || !base.text) return base;
+  const text = {
+    done: t.endCheer,
+    d3: `${t.end} 3일 전!! 거의 다 왔다!`,
+    d7: `${t.end}까지 일주일!`,
+    d30: `${t.end} 한 달 전! 조금만 더!`,
+    d100: `${t.end} 100일 전! 보인다!`,
+  }[stage] ?? base.text;
+  return { ...base, text };
+}

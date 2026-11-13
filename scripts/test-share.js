@@ -81,6 +81,22 @@ ok(/^JY1-[A-Za-z0-9_-]+$/.test(code), '인코딩: URL·QR 안전 문자만');
   eq(r.value.promotions, null, '왕복: 간부는 병 진급일을 싣지 않음');
 }
 {
+  // 부사관 — 계급·장기 복무개월이 그대로, 병 진급일은 싣지 않는다 (v1.6 간부 점검)
+  const nco = {
+    name: '박중사',
+    militaryInfo: { enlistDate: '2022-03-01', branch: 'navy', personnelType: 'nco', officerRank: '중사', months: 48 },
+    promotions: { 일병: '2022-05-01', 상병: '2022-11-01', 병장: '2023-05-01' },
+  };
+  const c = C.encodeShareCode(nco);
+  ok(c.startsWith('JY1-'), '왕복: 부사관은 JY1 (현역)');
+  const r = C.decodeShareCode(c);
+  eq([r.value.militaryInfo.personnelType, r.value.militaryInfo.officerRank, r.value.militaryInfo.branch, r.value.militaryInfo.months], ['nco', '중사', 'navy', 48], '왕복: 부사관 계급·군별·개월');
+  eq(r.value.promotions, null, '왕복: 부사관도 병 진급일을 싣지 않음');
+  const r2 = C.decodeShareCode(C.encodeShareCode({ ...nco, militaryInfo: { ...nco.militaryInfo, officerRank: null } }));
+  eq(r2.value.militaryInfo.officerRank, null, '왕복: 계급 미선택 간부는 null');
+  eq(C.decodeShareCode(C.encodeShareCode({ ...nco, militaryInfo: { ...nco.militaryInfo, months: 240 } })).value.militaryInfo.months, 240, '왕복: 간부 최대 복무개월(240)');
+}
+{
   const r = C.decodeShareCode(C.encodeShareCode({ ...soldier, name: '' }));
   eq(r.value.name, '', '왕복: 빈 이름 허용 (받는 쪽이 기본 이름을 붙인다)');
 }
@@ -119,7 +135,7 @@ eq(C.decodeShareCode(code.slice(0, -3)).ok, false, '손상: 끝이 잘림');
   }
   eq(caught, total, `손상: 한 글자 변조 ${total}곳 전부 거부`);
 }
-eq(C.decodeShareCode('JY2-abcdefghijk').reason, 'version', '손상: 다른 버전 코드는 업데이트 안내');
+eq(C.decodeShareCode('JY3-abcdefghijk').reason, 'version', '손상: 다른 버전 코드는 업데이트 안내');
 {
   // 체크섬은 맞지만 내용이 틀린 코드 (직접 조작)
   const forge = (arr) => {
@@ -137,6 +153,59 @@ eq(C.decodeShareCode('JY2-abcdefghijk').reason, 'version', '손상: 다른 버�
   eq(C.decodeShareCode(forge(['a', '20250310', 'army', 'soldier', 0, 18, '20250510'])).value.promotions, null, '내용: 진급일 일부만 있으면 무시');
 }
 eq(C.shareIdentity(soldier.militaryInfo), '2025-03-10|army|soldier', '동일인: 입대일|군별|신분');
+
+/* ── 4a. 준사관 (v1.6) — 구버전 호환을 위해 JY1 에 nco + '준위' 로 싣는다 ── */
+{
+  const mi = { enlistDate: '2020-03-01', branch: 'navy', personnelType: 'warrant', officerRank: '준위', months: 120 };
+  const c = C.encodeShareCode({ name: '최준위', militaryInfo: mi });
+  ok(c.startsWith('JY1-'), '준사관: JY1 (구버전도 읽는다)');
+  const arr = JSON.parse(Buffer.from(c.slice(4, -2).replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+  eq([arr[3], arr[4]], ['nco', '준위'], '준사관: 구버전이 아는 신분(nco)으로 실림');
+  const r = C.decodeShareCode(c);
+  eq([r.value.militaryInfo.personnelType, r.value.militaryInfo.officerRank, r.value.militaryInfo.months], ['warrant', '준위', 120], '준사관: 신버전은 warrant 로 복원');
+  const n = C.decodeShareCode(C.encodeShareCode({ name: '', militaryInfo: { ...mi, personnelType: 'nco', officerRank: '상사' } }));
+  eq(n.value.militaryInfo.personnelType, 'nco', '부사관: 그대로 nco');
+}
+
+/* ── 4b. 대체복무 (v1.6) — JY2 ── */
+{
+  const alts = [
+    ['social', null, 21], ['industrial', 'active', 34], ['industrial', 'reserve', 23],
+    ['research', null, 36], ['professional', 'doctor', 36], ['professional', 'lawyer', 36],
+    ['professional', 'vet', 36], ['artsports', null, 34],
+  ];
+  for (const [type, sub, months] of alts) {
+    const mi = { enlistDate: '2025-07-01', branch: null, personnelType: type, officerRank: null, subType: sub, months };
+    const c = C.encodeShareCode({ name: '박요원', militaryInfo: mi, promotions: { 일병: '2025-09-01', 상병: '2026-03-01', 병장: '2026-09-01' } });
+    ok(c && c.startsWith('JY2-'), `대체복무 ${type}/${sub}: JY2 접두사`);
+    const r = C.decodeShareCode(c);
+    eq(r.ok, true, `대체복무 ${type}/${sub}: 왕복 성공`);
+    eq(r.value.militaryInfo, mi, `대체복무 ${type}/${sub}: 신분·세부유형·개월 보존 (군별 null)`);
+    eq(r.value.promotions, null, `대체복무 ${type}/${sub}: 진급일은 싣지 않음`);
+  }
+  // 군별이 저장돼 있어도(유형을 현역→대체복무로 바꾼 프로필) 싣지 않는다
+  const r2 = C.decodeShareCode(C.encodeShareCode({ name: '', militaryInfo: { enlistDate: '2025-07-01', branch: 'army', personnelType: 'social', months: 21 } }));
+  eq(r2.value.militaryInfo.branch, null, '대체복무: 군별은 싣지 않음');
+  // 그 유형에 없는 세부유형은 버린다
+  const r3 = C.decodeShareCode(C.encodeShareCode({ name: '', militaryInfo: { enlistDate: '2025-07-01', personnelType: 'social', subType: 'doctor', months: 21 } }));
+  eq(r3.value.militaryInfo.subType, null, '대체복무: 맞지 않는 세부유형은 버림');
+  // 현역 코드는 여전히 JY1 — 이미 뿌려진 코드·구버전 앱과 호환
+  ok(C.encodeShareCode(soldier).startsWith('JY1-'), '현역: 여전히 JY1');
+  const msg2 = `받은 메시지\n${C.encodeShareCode({ name: 'x', militaryInfo: { enlistDate: '2025-07-01', personnelType: 'research', months: 36 } })}\n끝`;
+  ok(C.findShareCode(msg2)?.startsWith('JY2-'), '찾기: 메시지 속 JY2');
+  eq(C.shareIdentity({ enlistDate: '2025-07-01', branch: null, personnelType: 'social' }), '2025-07-01||social', '동일인: 대체복무는 군별 칸이 빈 문자열');
+
+  const forge2 = (arr, prefix = 'JY2-') => {
+    const bytes = []; for (const ch of Buffer.from(JSON.stringify(arr), 'utf8')) bytes.push(ch);
+    const body = C._b64urlEncode(bytes);
+    return prefix + body + C._check(body);
+  };
+  eq(C.decodeShareCode(forge2(['a', '20250701', 0, 'soldier', 0, 18])).reason, 'data', 'JY2 위조: 현역 신분');
+  eq(C.decodeShareCode(forge2(['a', '20250701', 0, 'space', 0, 18])).reason, 'data', 'JY2 위조: 모르는 신분');
+  eq(C.decodeShareCode(forge2(['a', '20250701', 0, 'industrial', 'ceo', 34])).reason, 'data', 'JY2 위조: 모르는 세부유형');
+  eq(C.decodeShareCode(forge2(['a', '20250701', 0, 'social', 0, 0])).reason, 'data', 'JY2 위조: 0개월');
+  eq(C.decodeShareCode(forge2(['a', '20250701', 'army', 'social', 0, 21], 'JY1-')).reason, 'data', 'JY1 에 대체복무 신분: 거부 (구버전과 같은 판정)');
+}
 ok(C.shareErrorMessage('checksum').length > 0, '문구: 체크섬');
 
 /* ── 5. 백업 형식 ── */

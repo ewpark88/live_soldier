@@ -6,7 +6,7 @@ import { loadMilitaryInfo, loadRankPromotions, listProfiles } from '../utils/sto
 import { shareMilestone } from '../utils/shareUtils';
 import { calcDaysLeft, calcProgress } from '../utils/dateUtils';
 import { currentRankLabel } from '../utils/roadmapUtils';
-import { BRANCHES } from '../constants/serviceTerms';
+import { branchLabelOf, hasSoldierRanks } from '../constants/serviceTerms';
 
 /**
  * 축하 오버레이 어댑터.
@@ -29,7 +29,7 @@ export default function CelebrationOverlay() {
     (async () => {
       const info = await loadMilitaryInfo();
       if (!info) return;
-      const promos = await loadRankPromotions(info.enlistDate);
+      const promos = hasSoldierRanks(info.personnelType) ? await loadRankPromotions(info.enlistDate) : null;
       const rank = currentRankLabel(info, promos);
 
       let name = '';
@@ -52,11 +52,12 @@ export default function CelebrationOverlay() {
       kind: 'milestone',
       data: {
         name: c.name,
-        branchLabel: BRANCHES.find((b) => b.key === c.info.branch)?.label ?? '',
+        branchLabel: branchLabelOf(c.info) ?? '',
         rank: c.rank,
         daysLeft: c.daysLeft,
         progress: calcProgress(c.info.enlistDate, c.info.dischargeDate),
         milestone: { label: milestone.label, icon: milestone.icon, date: milestone.dateStr ?? milestone.date },
+        personnelType: c.info.personnelType,
       },
       onText: () => shareMilestone(c.info, milestone, c.rank, c.name),
     });
@@ -71,6 +72,7 @@ export default function CelebrationOverlay() {
           milestone={pending}
           unlockedTheme={unlockedTheme}
           daysLeft={ctx.daysLeft}
+          personnelType={ctx.info.personnelType}
           onShare={brag}
           onClose={dismiss}
         />

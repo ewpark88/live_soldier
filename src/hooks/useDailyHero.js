@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { useStreak } from '../state/StreakContext';
 import { pickDaily, dayIndex } from '../utils/daily';
 import { getMessageForPhase } from '../utils/dateUtils';
-import { TIPS, TRIVIA, KIND_META } from '../constants/dailyContent';
+import { TIPS, TRIVIA, KIND_META, ALT_TIPS, ALT_TRIVIA, KIND_META_ALT, CADRE_TIPS, CADRE_TRIVIA } from '../constants/dailyContent';
+import { isAlternative, isOfficer, termsFor } from '../constants/serviceTerms';
 
 /**
  * 매일 바뀌는 히어로 콘텐츠.
@@ -15,23 +16,29 @@ import { TIPS, TRIVIA, KIND_META } from '../constants/dailyContent';
  */
 const ANGLES = ['diagonal', 'vertical', 'reverse'];
 
-export function useDailyHero(phase) {
+export function useDailyHero(phase, personnelType) {
   const { today } = useStreak();
 
   return useMemo(() => {
     const kind = dayIndex(today) % 2 === 0 ? 'tip' : 'trivia';
-    const pool = kind === 'tip' ? TIPS : TRIVIA;
+    // 대체복무는 현역 이야기(진급·부대·말출)가 틀린 말이라 전용 풀을 쓴다
+    const alt = isAlternative(personnelType);
+    // 간부는 병사 전용 이야기(진급일 수정·적금·말년·군사우편)를 뺀 풀
+    const cadre = isOfficer(personnelType);
+    const pool = alt ? (kind === 'tip' ? ALT_TIPS : ALT_TRIVIA)
+      : cadre ? (kind === 'tip' ? CADRE_TIPS : CADRE_TRIVIA)
+        : (kind === 'tip' ? TIPS : TRIVIA);
 
     return {
       dateStr: today,
-      message: getMessageForPhase(phase, today),
+      message: getMessageForPhase(phase, today, 0, alt ? termsFor(personnelType).end : null, cadre),
       subline: pickDaily(pool, today, 'sub'),
       sublineKind: kind,
-      sublineMeta: KIND_META[kind],
+      sublineMeta: (alt ? KIND_META_ALT : KIND_META)[kind],
       // 색을 새로 만들지 않고도 매일 다른 인상을 준다
       heroAngle: pickDaily(ANGLES, today, 'angle') ?? 'diagonal',
     };
-  }, [today, phase]);
+  }, [today, phase, personnelType]);
 }
 
 export default useDailyHero;

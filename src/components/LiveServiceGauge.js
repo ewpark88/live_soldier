@@ -68,6 +68,8 @@ export default function LiveServiceGauge({
   stroke = 14,
   glow = false,
   pulse = true,
+  // 복무를 마친 뒤 문구 — 신분 용어를 아는 쪽(HomeHero, termsFor)이 넘긴다
+  doneText = '복무를 마쳤습니다',
   children,
 }) {
   const tc = useThemeColors();
@@ -149,7 +151,7 @@ export default function LiveServiceGauge({
         <Animated.View style={[s.dot, { backgroundColor: cFill }, blinkStyle]} />
         <Text style={[s.sub, { color: cSub }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
           {done
-            ? '전역! 복무를 마쳤습니다'
+            ? doneText
             : `복무 ${clock.days.toLocaleString()}일  ${clock.hms} 흐르는 중`}
         </Text>
       </View>

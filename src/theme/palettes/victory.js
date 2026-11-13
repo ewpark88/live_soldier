@@ -9,7 +9,7 @@ export default {
   name: '개선',
   desc: '전역 기념 · 풀 메탈릭 골드',
   schemes: ['dark'],
-  lock: { by: 'milestone', key: 'discharge', label: '전역 시 해금' },
+  lock: { by: 'milestone', key: 'discharge', label: '전역(복무 종료) 시 해금' },
   swatch: ['#3A2E10', '#FFD24A', '#FFF0B8'],
   dark: {
     primary: '#FFD24A',

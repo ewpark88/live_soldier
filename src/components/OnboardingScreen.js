@@ -16,9 +16,20 @@ import Txt from './ui/Txt';
  */
 const DESC = {
   soldier: '이병~병장 진급·병사 봉급·휴가 관리',
-  nco: '하사~원사 · 복무개월/호봉 · 봉급 직접관리',
-  officer: '소위~ · 복무개월/호봉 · 봉급 직접관리',
+  nco: '하사~원사 · 임관일 기준 호봉 · 봉급 참고/직접 입력',
+  warrant: '준위 · 임관일 기준 호봉 · 봉급 참고/직접 입력',
+  officer: '소위~대령 · 임관일 기준 호봉 · 봉급 참고/직접 입력',
+  social: '21개월 · 소집해제까지 · 연가 28일',
+  industrial: '현역 대상 34개월 / 보충역 대상 23개월',
+  research: '지정 연구기관 · 36개월',
+  professional: '공중보건의사·공익법무관·공중방역수의사 · 36개월',
+  artsports: '34개월 · 544시간 공익복무 포함',
 };
+
+const GROUPS = [
+  { key: 'active', label: '현역' },
+  { key: 'alt', label: '대체복무 (보충역 등)' },
+];
 
 export default function OnboardingScreen({ name, onSelect }) {
   const tc = useThemeColors();
@@ -38,28 +49,31 @@ export default function OnboardingScreen({ name, onSelect }) {
         <Txt role="title" tone="primary" style={s.center}>
           {name ? `${name} 님,` : '환영합니다!'}
         </Txt>
-        <Txt role="subtitle" style={s.center}>어떤 신분으로 복무 중이신가요?</Txt>
+        <Txt role="subtitle" style={s.center}>어떤 형태로 복무 중이신가요?</Txt>
         <Txt role="bodySm" tone="secondary" style={s.center}>
-          선택에 따라 맞는 계급·봉급·계산이 적용돼요.{'\n'}나중에 ‘전역 정보’에서 변경할 수 있어요.
+          선택에 따라 맞는 복무기간·급여·계산이 적용돼요.{'\n'}나중에 ‘내 정보’의 복무 정보에서 변경할 수 있어요.
         </Txt>
       </Animated.View>
 
-      <View style={s.cards}>
-        {PERSONNEL_TYPES.map((t, i) => (
-          <Animated.View key={t.key} entering={m.enter(FadeInUp, i + 1)}>
-            <Card pad="none" style={s.card}>
-              <ListRow
-                title={t.label}
-                subtitle={DESC[t.key]}
-                icon={t.icon}
-                chevron
-                onPress={() => onSelect(t.key)}
-                style={s.row}
-              />
-            </Card>
-          </Animated.View>
-        ))}
-      </View>
+      {GROUPS.map((g, gi) => (
+        <View key={g.key} style={s.cards}>
+          <Txt role="label" tone="secondary">{g.label}</Txt>
+          {PERSONNEL_TYPES.filter((t) => t.group === g.key).map((t, i) => (
+            <Animated.View key={t.key} entering={m.enter(FadeInUp, gi * 3 + i + 1)}>
+              <Card pad="none" style={s.card}>
+                <ListRow
+                  title={t.label}
+                  subtitle={DESC[t.key]}
+                  icon={t.icon}
+                  chevron
+                  onPress={() => onSelect(t.key)}
+                  style={s.row}
+                />
+              </Card>
+            </Animated.View>
+          ))}
+        </View>
+      ))}
     </ScrollView>
   );
 }

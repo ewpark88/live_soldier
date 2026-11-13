@@ -149,6 +149,45 @@ function reset() { store = {}; failReads = false; failWrites = false; }
   await S.saveLeaveTotal(31);
   eq(await S.loadLeaveTotal(), 31, '연가: 사용자 설정값이 군종 기본값보다 우선');
 
+  /* ── 대체복무 (v1.6) ── */
+  reset();
+  // 군별이 남아 있어도(현역 → 사회복무요원으로 바꾼 프로필) 군종 기본값을 쓰지 않는다
+  await S.saveMilitaryInfo({ enlistDate: '2025-01-02', branch: 'airforce', months: 21, personnelType: 'social' });
+  eq(await S.loadLeaveTotal(), 28, '연가: 사회복무요원 28일');
+  reset();
+  await S.saveMilitaryInfo({ enlistDate: '2025-01-02', branch: null, months: 36, personnelType: 'research' });
+  eq(await S.loadLeaveTotal(), 0, '연가: 전문연구요원은 미설정(0) — 근무처 규정');
+  await S.saveLeaveTotal(15);
+  eq(await S.loadLeaveTotal(), 15, '연가: 대체복무도 직접 입력값 우선');
+  reset();
+  // 간부: 예전엔 공군 간부에게 병사용 28일이 '기본값'처럼 떴다 — 연가는 매년 부여라 미설정
+  await S.saveMilitaryInfo({ enlistDate: '2023-03-01', branch: 'airforce', months: 48, personnelType: 'nco', officerRank: '중사' });
+  eq(await S.loadLeaveTotal(), 0, '연가: 간부는 군종 기본값을 쓰지 않음 (미설정 0)');
+  await S.saveLeaveTotal(84);
+  eq(await S.loadLeaveTotal(), 84, '연가: 간부 직접 입력값 (100일 초과 허용 범위)');
+  reset();
+  await S.savePersonnelType('social');
+  await S.saveMilitaryInfo({ enlistDate: '2025-01-02', branch: null, months: 21, personnelType: 'social' });
+  eq(await S.loadRankPromotions('2025-01-02'), null, '진급일: 대체복무는 기본 진급일을 만들지 않음');
+  reset();
+  await S.savePersonnelType('officer');
+  eq(await S.loadRankPromotions('2025-01-02'), null, '진급일: 간부도 null');
+  reset();
+  ok(await S.loadRankPromotions('2025-01-02'), '진급일: 신분 미설정은 병사로 보고 기본값');
+  await S.savePersonnelType('hacker');
+  eq(await S.loadPersonnelType(), null, '신분: 모르는 키는 저장하지 않음');
+  reset();
+  await S.savePersonnelType('professional');
+  await S.saveMilitaryInfo({ enlistDate: '2025-06-02', branch: null, months: 36, personnelType: 'professional', subType: 'doctor' });
+  eq(await S.findProfileByShare({ enlistDate: '2025-06-02', branch: null, personnelType: 'professional' }),
+    (await S.listProfiles()).activeId, '공유: 대체복무(군별 null) 동일인 매칭');
+  {
+    const sid2 = await S.addSharedProfile({ name: '요원', militaryInfo: { enlistDate: '2025-07-01', branch: null, personnelType: 'industrial', officerRank: null, subType: 'reserve', months: 23 }, promotions: null });
+    const mi3 = await S.loadMilitaryInfo();
+    eq([mi3.personnelType, mi3.subType, mi3.branch, mi3.dischargeDate], ['industrial', 'reserve', null, '2027-05-31'], '공유: 대체복무 프로필 추가 (세부유형 보존·복무만료일 계산)');
+    ok(sid2, '공유: 대체복무 프로필 id');
+  }
+
   /* ── 진급일 ── */
   reset();
   await S.saveMilitaryInfo({ enlistDate: '2024-01-31', branch: 'army', months: 18 });
@@ -314,6 +353,35 @@ function reset() { store = {}; failReads = false; failWrites = false; }
     eq([src.name, src.militaryInfo.branch, !!src.promotions], ['민준이', 'navy', true], '공유: 내보낼 재료');
   }
 
+  /* ── v1.6: 간부 연 단위 연가 (leaveAnnual) — leaveTotal 은 건드리지 않는다 ── */
+  reset();
+  await S.savePersonnelType('officer');
+  await S.saveMilitaryInfo({ enlistDate: '2024-03-01', branch: 'army', months: 36, personnelType: 'officer', officerRank: '중위' });
+  eq(await S.loadLeaveAnnual(), null, '연가(간부): 기본은 미설정');
+  await S.saveLeaveAnnual(21);
+  eq(await S.loadLeaveAnnual(), 21, '연가(간부): 저장·로드');
+  eq(await S.loadLeaveTotal(), 0, '연가(간부): leaveTotal 은 그대로 (구버전이 읽는 값)');
+  await S.saveLeaveAnnual(0);
+  eq(await S.loadLeaveAnnual(), null, '연가(간부): 0 은 미설정으로');
+  await S.saveLeaveAnnual(25);
+  {
+    const bk = JSON.stringify(await S.exportAll());
+    reset();
+    await S.importAll(bk);
+    eq(await S.loadLeaveAnnual(), 25, '연가(간부): 백업 왕복');
+    await S.clearAllData();
+    eq(await S.loadLeaveAnnual(), null, '연가(간부): 모든 데이터 삭제 시 초기화');
+  }
+  /* 구버전 백업(leaveAnnual 없음)·깨진 값도 안전 */
+  reset();
+  await S.saveMilitaryInfo({ enlistDate: '2024-03-01', branch: 'army', months: 36, personnelType: 'nco' });
+  {
+    const st = JSON.parse(store['@profiles_v1']);
+    st.profiles[0].data.leaveAnnual = 'abc';
+    store['@profiles_v1'] = JSON.stringify(st);
+  }
+  eq(await S.loadLeaveAnnual(), null, '연가(간부): 깨진 저장값은 미설정으로');
+
   /* ── v1.3: 백업 → 복원 ── */
   reset();
   await S.saveMilitaryInfo({ enlistDate: '2025-01-02', branch: 'airforce', months: 21 });
@@ -388,6 +456,40 @@ function reset() { store = {}; failReads = false; failWrites = false; }
   await S.saveMilitaryInfo({ enlistDate: '2025-05-12', branch: 'navy', months: 20 });
   eq(await S.findProfileByShare({ enlistDate: '2025-05-12', branch: 'navy', personnelType: 'soldier' }),
     (await S.listProfiles()).activeId, '공유: data.personnelType 에만 있는 신분도 매칭');
+
+  /* 공유 코드 재료도 data.personnelType 을 우선한다 — 안 그러면 간부가 'soldier' 코드로 나간다 */
+  reset();
+  await S.savePersonnelType('officer');
+  await S.saveMilitaryInfo({ enlistDate: '2024-03-01', branch: 'army', months: 36, officerRank: '중위' });
+  eq((await S.loadShareSource()).militaryInfo.personnelType, 'officer', '공유 재료: data.personnelType 병합 (간부)');
+
+  /* 간부 복무연장·진급 이력 (v1.6) — militaryInfo 안의 새 필드. 백업 왕복, 전역일은 총 개월로 계산 */
+  reset();
+  await S.savePersonnelType('nco');
+  await S.saveMilitaryInfo({
+    enlistDate: '2022-03-01', branch: 'army', personnelType: 'nco', officerRank: '중사', months: 60,
+    extensions: [{ id: 'e1', months: 12, date: '2025-01-10', memo: null }],
+    officerPromotions: [{ rank: '중사', date: '2024-03-01' }],
+  });
+  {
+    const mi = await S.loadMilitaryInfo();
+    eq(mi.dischargeDate, '2027-02-28', '복무연장: 전역일 = 임관일 + 총 개월(연장 포함)');
+    eq([mi.extensions.length, mi.officerPromotions[0].rank], [1, '중사'], '복무연장·진급 이력: 저장·로드');
+    const bk = JSON.stringify(await S.exportAll());
+    reset();
+    await S.importAll(bk);
+    const mi2 = await S.loadMilitaryInfo();
+    eq([mi2.months, mi2.extensions[0].id, mi2.officerPromotions[0].date], [60, 'e1', '2024-03-01'], '복무연장·진급 이력: 백업 왕복');
+    eq((await S.loadShareSource()).militaryInfo.months, 60, '공유 재료: 총 개월 (구버전·받는 쪽이 같은 전역일)');
+  }
+  /* 축하 이력 되돌리기 — 연장으로 다시 미래가 된 마일스톤용 */
+  reset();
+  await S.markCelebrated(['d100out', 'discharge', 'half']);
+  await S.unmarkCelebrated(['d100out', 'discharge']);
+  eq(await S.loadCelebrated(), ['half'], '축하 이력: 지정한 key 만 뺀다');
+  reset();
+  await S.unmarkCelebrated(['discharge']);
+  eq(await S.loadCelebrated(), null, '축하 이력: 미시딩(null)은 건드리지 않는다');
 
   /* ── v1.5: 막대병 저장 ── */
   reset();

@@ -14,6 +14,8 @@ import { encodeShareCode, shareCodeUrl } from '../utils/shareCode';
 import { buildFamilyShareMessage } from '../utils/shareUtils';
 import { calcDaysLeft, formatDateKo } from '../utils/dateUtils';
 import { haptic } from '../utils/haptics';
+import { hasSoldierRanks, josa, termsFor } from '../constants/serviceTerms';
+import { cadreCurrentRank } from '../utils/roadmapUtils';
 
 let Clipboard = null;
 try { Clipboard = require('expo-clipboard'); } catch (e) {}
@@ -49,11 +51,16 @@ export default function ShareProfileScreen({ navigation }) {
 
   const code = useMemo(() => {
     if (!src?.militaryInfo) return null;
-    // 기본 진급일과 같으면 싣지 않는다 — 받는 쪽도 같은 값을 계산하고, 코드가 짧아진다
-    const def = calcDefaultPromotions(src.militaryInfo.enlistDate);
-    const p = src.promotions;
+    // 기본 진급일과 같으면 싣지 않는다 — 받는 쪽도 같은 값을 계산하고, 코드가 짧아진다.
+    // 진급 체계는 병사만 — 간부·대체복무는 진급일을 비교조차 하지 않는다.
+    const soldier = hasSoldierRanks(src.militaryInfo.personnelType);
+    const def = soldier ? calcDefaultPromotions(src.militaryInfo.enlistDate) : null;
+    const p = soldier ? src.promotions : null;
     const custom = p && def && (p.일병 !== def.일병 || p.상병 !== def.상병 || p.병장 !== def.병장) ? p : null;
-    return encodeShareCode({ name: name.trim(), militaryInfo: src.militaryInfo, promotions: custom });
+    // 간부 진급 이력(v1.6)은 코드에 싣지 않는다 — 대신 '오늘 기준 계급'을 officerRank 로 보낸다
+    const now = cadreCurrentRank(src.militaryInfo);
+    const mi = now ? { ...src.militaryInfo, officerRank: now } : src.militaryInfo;
+    return encodeShareCode({ name: name.trim(), militaryInfo: mi, promotions: custom });
   }, [src, name]);
 
   const left = src?.militaryInfo ? calcDaysLeft(src.militaryInfo.dischargeDate) : null;
@@ -76,7 +83,14 @@ export default function ShareProfileScreen({ navigation }) {
     }
   };
 
-  const header = <AppHeader title="가족·곰신에게 공유" subtitle="공유 코드·QR 로 전역일 함께 세기" back />;
+  const terms = termsFor(src?.militaryInfo?.personnelType);
+  const header = (
+    <AppHeader
+      title={`${terms.familyAnd}에게 공유`}
+      subtitle={`공유 코드·QR 로 ${terms.endDate} 함께 세기`}
+      back
+    />
+  );
 
   if (src === undefined) return <Screen standalone scroll={false} header={header} />;
 
@@ -85,10 +99,10 @@ export default function ShareProfileScreen({ navigation }) {
       <Screen standalone header={header}>
         <EmptyState
           icon="people-outline"
-          title="먼저 입대 정보를 입력해 주세요"
-          desc="입대일과 군별이 있어야 공유 코드를 만들 수 있어요."
+          title={`먼저 ${josa(terms.info, '을/를')} 입력해 주세요`}
+          desc={`${terms.startDate}과 복무 기간이 있어야 공유 코드를 만들 수 있어요.`}
           action={{
-            label: '입대 정보 입력하기',
+            label: `${terms.info} 입력하기`,
             icon: 'create-outline',
             onPress: () => navigation.navigate('discharge'),
           }}
@@ -107,10 +121,10 @@ export default function ShareProfileScreen({ navigation }) {
             </View>
             <View style={{ flex: 1, gap: sp.xxs }}>
               <Txt role="bodyLg" style={{ fontWeight: '800' }}>
-                {formatDateKo(src.militaryInfo.dischargeDate)} 전역{left > 0 ? ` · D-${left}` : ''}
+                {formatDateKo(src.militaryInfo.dischargeDate)} {terms.end}{left > 0 ? ` · D-${left}` : ''}
               </Txt>
               <Txt role="caption" tone="secondary">
-                받는 사람의 앱에 이 전역일이 프로필로 추가돼요. 위젯·알림도 그쪽에서 그대로 동작해요.
+                받는 사람의 앱에 이 {terms.endDate}이 프로필로 추가돼요. 위젯·알림도 그쪽에서 그대로 동작해요.
               </Txt>
             </View>
           </View>
@@ -165,7 +179,9 @@ export default function ShareProfileScreen({ navigation }) {
           {[
             ['1', '받는 사람이 Play 스토어에서 \'전역까지\'를 설치해요.'],
             ['2', '프로필 바의 \'추가\' → \'공유 코드로 추가\'를 눌러요.'],
-            ['3', '받은 메시지를 붙여넣으면 끝! 진급일을 고쳤다면 코드를 다시 보내 주세요.'],
+            ['3', hasSoldierRanks(src.militaryInfo.personnelType)
+              ? '받은 메시지를 붙여넣으면 끝! 진급일을 고쳤다면 코드를 다시 보내 주세요.'
+              : '받은 메시지를 붙여넣으면 끝! 복무 정보를 고쳤다면 코드를 다시 보내 주세요.'],
           ].map(([n, t]) => (
             <View key={n} style={s.step}>
               <View style={s.stepNum}><Txt role="label" tone="primary">{n}</Txt></View>

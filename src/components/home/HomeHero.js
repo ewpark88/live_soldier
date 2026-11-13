@@ -16,6 +16,7 @@ import { useThemeColors } from '../../theme/ThemeContext';
 import { useMotion } from '../../hooks/useMotion';
 import { useDaypart } from '../../hooks/useDaypart';
 import { formatDateKo } from '../../utils/dateUtils';
+import { PERSONNEL_TYPES, termsFor } from '../../constants/serviceTerms';
 import { motion, radius as r, space as sp, type as ty } from '../../theme/tokens';
 
 /**
@@ -43,8 +44,10 @@ export default function HomeHero({
   daysLeft,
   servedDays,
   leaveLeft,
+  leaveLabel = '남은 휴가',   // 간부(v1.6): '남은 연가' — 올해 연가 기준
   months,
   promo,
+  hobong,       // 간부 — officerUtils.hobongStatus 결과 (없으면 null)
   progress = 0,   // 0..1 — 배경 광원 세기 (calcProgress 기준)
   cfg,          // tc.phase[stage] — { gradient, accent, glow }
   meta,         // PHASE_META[stage] — { icon, text, embers }
@@ -68,7 +71,10 @@ export default function HomeHero({
   const isFocused = useIsFocused();
   const s = useMemo(() => makeStyles(tc), [tc]);
 
-  const ddayText = daysLeft > 0 ? null : daysLeft === 0 ? 'D-Day!' : '전역 완료!';
+  const t = termsFor(info.personnelType);
+  const ddayText = daysLeft > 0 ? null : daysLeft === 0 ? 'D-Day!' : `${t.endDone}!`;
+  // 계급장이 없을 때의 아이콘 — 신분 아이콘 (부사관 ribbon · 장교 star · 대체복무 각자)
+  const typeIcon = PERSONNEL_TYPES.find((p) => p.key === info.personnelType)?.icon ?? 'ribbon';
 
   /* 링 지름. 좁은 기기(360dp)에서도 네 자리 D-Day 가 안 잘리도록 하한을 둔다.
      **짧은 변** 기준인 이유: 가로 모드(예: 800×360)에서 width 로 재면 링이
@@ -134,12 +140,13 @@ export default function HomeHero({
               <Image source={crest} style={s.crest} resizeMode="contain" />
             ) : (
               <Ionicons
-                name={info.personnelType === 'officer' ? 'star' : 'ribbon'}
+                name={typeIcon}
                 size={26}
                 color={cfg.accent}
               />
             )}
-            <Txt role="micro" tone="hero" style={s.rankText}>{rank}</Txt>
+            {/* 대체복무는 '산업기능요원(보충역)' 처럼 길 수 있다 — 한 줄로 줄인다 */}
+            <Txt role="micro" tone="hero" style={s.rankText} numberOfLines={1}>{rank}</Txt>
           </View>
         </View>
       </View>
@@ -161,6 +168,7 @@ export default function HomeHero({
           glow={cfg.glow}
           /* 선단 맥박 대신 졸라맨이 루프 예산을 쓴다 (§4) — 점은 그대로 남는다 */
           pulse={false}
+          doneText={`${t.end}! 복무를 마쳤습니다`}
         >
           {/* 막대병 — 눌러도 도감으로 간다. 모습은 도감에서 고른다 (skin 이 바뀌면 리마운트). */}
           <PressScale
@@ -179,7 +187,7 @@ export default function HomeHero({
               active={isFocused}
             />
           </PressScale>
-          <Txt role="label" tone="heroMuted" style={s.eyebrow}>전역까지</Txt>
+          <Txt role="label" tone="heroMuted" style={s.eyebrow}>{t.end}까지</Txt>
 
           <PressScale onPress={onTapDday} haptic={null} style={s.ddayTap}>
             {ddayText ? (
@@ -219,7 +227,7 @@ export default function HomeHero({
           haptic="light"
           style={[s.shareBtn, { borderColor: tc.heroBorder }]}
           accessibilityRole="button"
-          accessibilityLabel="전역일 자랑하기 — 이미지·텍스트·가족 공유"
+          accessibilityLabel={`${t.endDate} 자랑하기 — 이미지·텍스트·가족 공유`}
         >
           <Ionicons name="share-social" size={15} color={tc.heroText} />
           <Txt role="label" tone="hero" maxFontSizeMultiplier={1.3}>자랑하기</Txt>
@@ -240,7 +248,12 @@ export default function HomeHero({
 
       <View style={s.statRow}>
         <StatTile label="복무 일수" value={servedDays} unit="일" onHero countUp />
-        <StatTile label="남은 휴가" value={leaveLeft} unit="일" onHero countUp onPress={onPressLeave} />
+        {/* 총 휴가 미설정(null) — 숫자 대신 '설정' (간부 연가는 연 단위라 기본값이 없다) */}
+        {leaveLeft == null ? (
+          <StatTile label={leaveLabel} value="설정" onHero onPress={onPressLeave} />
+        ) : (
+          <StatTile label={leaveLabel} value={leaveLeft} unit="일" onHero countUp onPress={onPressLeave} />
+        )}
         {promo ? (
           <StatTile
             label={`다음 진급 · ${promo.rank}`}
@@ -248,8 +261,17 @@ export default function HomeHero({
             onHero
             onPress={onPressPromo}
           />
+        ) : hobong ? (
+          <StatTile
+            label={hobong.last ? '현재 호봉' : `다음 승급 D-${hobong.daysLeft}`}
+            value={hobong.current}
+            unit="호봉"
+            onHero
+            onPress={onPressPromo}
+          />
         ) : (
-          <StatTile label="복무 개월" value={months} unit="개월" onHero countUp />
+          /* info.months 는 '지난 개월'이 아니라 총 복무기간이다 — 예전 라벨 '복무 개월'은 헷갈렸다 */
+          <StatTile label="총 복무" value={months} unit="개월" onHero countUp />
         )}
       </View>
     </HeroCard>
@@ -273,7 +295,7 @@ const makeStyles = (tc) =>
     ddayRow: { flexDirection: 'row', alignItems: 'baseline', gap: sp.xxs },
     glow: { textShadowRadius: 18, textShadowOffset: { width: 0, height: 0 } },
 
-    crestWrap: { alignItems: 'center', gap: 1, minWidth: 52 },
+    crestWrap: { alignItems: 'center', gap: 1, minWidth: 52, maxWidth: 120 },
     crest: { width: 36, height: 36 },
     crestGlow: {
       position: 'absolute',

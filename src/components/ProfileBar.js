@@ -298,7 +298,7 @@ export default function ProfileBar({ onChange, onDark = false }) {
             </View>
             <View style={{ flex: 1 }}>
               <Txt role="bodyLg" style={{ fontWeight: '700' }}>공유 코드로 추가</Txt>
-              <Txt role="caption" tone="secondary">장병에게 받은 코드로 전역일을 바로 불러와요</Txt>
+              <Txt role="caption" tone="secondary">받은 공유 코드로 복무 일정을 바로 불러와요</Txt>
             </View>
             <Ionicons name="chevron-forward" size={18} color={tc.textLight} />
           </PressScale>

@@ -10,7 +10,7 @@ export default {
   desc: '상병 진급 기념 · 건메탈',
   schemes: ['dark'],
   // altKey: 간부는 로드맵에 진급 마일스톤이 없다. 대체 조건이 없으면 영영 안 열린다.
-  lock: { by: 'milestone', key: 'r2', altKey: 'half', label: '상병 진급 시 해금 (간부는 복무 반환점)' },
+  lock: { by: 'milestone', key: 'r2', altKey: 'half', label: '상병 진급 시 해금 (간부·대체복무는 복무 반환점)' },
   swatch: ['#1E2C38', '#8FB4CC', '#C7D6E0'],
   dark: {
     primary: '#8FB4CC',

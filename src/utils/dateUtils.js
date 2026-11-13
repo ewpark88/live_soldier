@@ -380,14 +380,82 @@ export const PHASE_MESSAGES = {
 };
 
 /**
+ * 간부에게 보여주지 않을 병사 전용 표현 (v1.6).
+ * '말출'(병사 마지막 휴가)·'곰신'(병사 연인)·'용사'(병사의 공식 호칭)는 직업군인인
+ * 부사관·장교에게 틀린 말이다. 걸러도 단계마다 3개 이상 남는다 (test-clock 이 확인).
+ */
+export const CADRE_SKIP_MESSAGE = /말출|곰신|용사/;
+
+/**
+ * 대체복무용 응원 메시지 (v1.6) — '전역·말출·용사·훈련' 같은 군 문구를 뺐다.
+ * end: 종료 용어('소집해제' | '복무만료'). 둘 다 받침이 없어 조사(는/가/에)가 고정이다.
+ * PHASE_MESSAGES 와 단계 키·개수 규칙을 맞춘다 (test-calc 가 대조).
+ */
+export function altPhaseMessages(end) {
+  return {
+    done: [
+      `🎉 ${end}! 진심으로 축하해, 정말 고생 많았어!`,
+      '드디어 자유다! 그동안 정말 수고 많았어 🫡',
+      '병역의 의무를 마친 당신, 자랑스럽습니다!',
+      '이제 진짜 시작이다. 새로운 출발을 응원해!',
+    ],
+    d3: [
+      `${end}까지 3일! 마지막까지 무사히 마무리하자 🎖️`,
+      '딱 3일! 설레서 잠이 안 오지? 😆',
+      '거의 다 왔어. 며칠만 잘 보내면 끝!',
+      '마지막까지 건강하게, 무사고로 가자!',
+    ],
+    d7: [
+      `${end}까지 일주일! 손에 잡힐 듯 가깝다 🏆`,
+      '카운트다운 일주일. 이젠 정말 실감 나지?',
+      '7일이면 끝! 끝까지 컨디션 관리하자.',
+      '한 주만 더! 끝나고 할 계획은 다 세웠어?',
+    ],
+    d30: [
+      `${end} 한 달 전! 가장 설레는 시기야 🔥`,
+      '30일 남았어. 마지막 한 달, 후회 없이!',
+      '한 달만 더 버티면 끝이다.',
+      '한 달이면 자유인이다. 조금만 더 힘내!',
+    ],
+    d100: [
+      `${end} 100일 전! 이제 보인다 💪`,
+      '세 자리 수 진입! 여기서부터는 금방 가.',
+      '백일 남았어. 가족도 함께 기다리는 중!',
+      '100일의 기적, 이제 시작이다!',
+    ],
+    normal: [
+      '오늘도 수고했어! 조금만 더 버텨봐 💪',
+      `${end}는 반드시 온다. 믿어!`,
+      `하루하루가 ${end}에 가까워지고 있어!`,
+      '포기하지 마. 넌 할 수 있어!',
+      '병역의 의무를 다하는 중, 자랑스러워!',
+      '오늘 하루도 무사히! 건강이 최우선이야.',
+      `힘내! ${end} 후의 자유가 기다리고 있어!`,
+      '지금 이 시간도 나중엔 웃으며 얘기할 거야.',
+      '오늘의 고생이 내일의 추억이 된다!',
+      '카운트다운 시작! 넌 잘 하고 있어.',
+      '부모님도 응원하고 있어. 파이팅!',
+      `${end}하는 날 먹을 치킨 생각하며 버텨!`,
+      '한 걸음씩, 천천히. 넌 잘 해낼 거야.',
+      '오늘도 성실 복무! 최고야!',
+    ],
+  };
+}
+
+/**
  * 복무 단계에 맞는 응원 메시지 1개.
  *
  * 예전엔 Math.random() 이라 렌더할 때마다 바뀌었다 — 탭을 왔다갔다하면 문구가
  * 춤췄다. 이제 날짜에 고정된다: 같은 날엔 몇 번을 불러도 같고, 자정에 정확히
  * 한 칸 넘어간다. 인자를 안 넘기면 오늘 기준이라 기존 호출부는 그대로 둬도 된다.
  */
-export function getMessageForPhase(phase, dateStr = todayStr(), offset = 0) {
-  const pool = PHASE_MESSAGES[phase] ?? PHASE_MESSAGES.normal;
+export function getMessageForPhase(phase, dateStr = todayStr(), offset = 0, altEnd = null, cadre = false) {
+  // altEnd: 대체복무면 종료 용어(termsFor(pt).end), 현역이면 null.
+  // cadre: 간부(부사관·장교)면 true — 병사에게만 맞는 줄('말출'·'곰신'·'용사')을 뺀다.
+  // dateUtils 는 serviceTerms 를 import 하지 않는다 (test-clock 이 이 파일만 로드한다).
+  const table = altEnd ? altPhaseMessages(altEnd) : PHASE_MESSAGES;
+  const all = table[phase] ?? table.normal;
+  const pool = cadre && !altEnd ? all.filter((m) => !CADRE_SKIP_MESSAGE.test(m)) : all;
   const base = pickDaily(pool, dateStr, `msg:${phase}`) ?? pool[0];
   if (!offset) return base;
   // '다른 메시지 보기' — 오늘의 메시지에서 offset 칸 이동 (풀을 한 바퀴 돌면 원위치)
@@ -397,8 +465,8 @@ export function getMessageForPhase(phase, dateStr = todayStr(), offset = 0) {
 }
 
 /** 단계 무관 응원 메시지 (fallback) */
-export function getRandomMessage(dateStr = todayStr()) {
-  return getMessageForPhase('normal', dateStr);
+export function getRandomMessage(dateStr = todayStr(), altEnd = null, cadre = false) {
+  return getMessageForPhase('normal', dateStr, 0, altEnd, cadre);
 }
 
 /**

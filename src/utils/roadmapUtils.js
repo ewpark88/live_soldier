@@ -4,7 +4,7 @@
  */
 // 한 줄로 둔다 — scripts/test-calc.js 는 import 를 줄 단위로 지워서 여러 줄 import 를 못 읽는다
 import { calcDaysLeft, calcRankByEnlistDate, calcRankFromPromotions, formatDate, parseDate } from './dateUtils';
-import { isOfficer, personnelLabel } from '../constants/serviceTerms';
+import { hasSoldierRanks, isOfficer, isAlternative, personnelLabel, serviceLabel, termsFor } from '../constants/serviceTerms';
 
 /**
  * 지금 계급 라벨 — 홈·설정·급여·월급표·축하·위젯이 모두 이것을 쓴다.
@@ -14,8 +14,62 @@ import { isOfficer, personnelLabel } from '../constants/serviceTerms';
  */
 export function currentRankLabel(info, promotions) {
   if (!info) return null;
-  if (isOfficer(info.personnelType)) return info.officerRank ?? personnelLabel(info.personnelType);
+  // 간부: 진급 이력(v1.6)에서 오늘까지 도달한 마지막 계급 → 없으면 직접 고른 계급
+  if (isOfficer(info.personnelType)) return cadreCurrentRank(info) ?? info.officerRank ?? personnelLabel(info.personnelType);
+  // 대체복무는 계급이 없다 — 신분(세부 유형) 이름을 계급 자리에 쓴다
+  if (isAlternative(info.personnelType)) return serviceLabel(info);
   return calcRankFromPromotions(promotions) ?? calcRankByEnlistDate(info.enlistDate);
+}
+
+/* ─── 간부 진급 이력 · 복무연장 (v1.6) ──────────────────────────────────
+ * 둘 다 militaryInfo 안에 산다 (officerPromotions / extensions). 구버전 앱은 모르는
+ * 필드를 무시하고, mi.months 는 늘 '연장을 합친 총 개월'이라 전역일·공유 코드가
+ * 구버전과 똑같이 계산된다.
+ */
+
+/** 유효한 간부 진급 기록만, 날짜 오름차순. allowedRanks 를 주면 그 계급만 남긴다. */
+export function validOfficerPromotions(info, allowedRanks) {
+  const list = Array.isArray(info?.officerPromotions) ? info.officerPromotions : [];
+  return list
+    .filter((p) => p && typeof p.rank === 'string' && p.rank && parseDate(p.date))
+    .filter((p) => !allowedRanks || allowedRanks.includes(p.rank))
+    .slice()
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+/** 간부의 지금 계급 — 오늘까지 도달한 마지막 진급 기록 (없으면 null) */
+export function cadreCurrentRank(info) {
+  if (!info || !isOfficer(info.personnelType)) return null;
+  const reached = validOfficerPromotions(info).filter((p) => calcDaysLeft(p.date) <= 0);
+  return reached.length ? reached[reached.length - 1].rank : null;
+}
+
+/** 아직 오지 않은 가장 가까운 간부 진급 기록 (없으면 null) */
+export function nextCadrePromotion(info) {
+  if (!info || !isOfficer(info.personnelType)) return null;
+  const next = validOfficerPromotions(info).find((p) => calcDaysLeft(p.date) > 0);
+  return next ? { rank: next.rank, date: next.date, daysLeft: calcDaysLeft(next.date) } : null;
+}
+
+/** 유효한 복무연장 기록만 (1~120개월 정수), 결정일 오름차순 */
+export function validExtensions(info) {
+  const list = Array.isArray(info?.extensions) ? info.extensions : [];
+  return list
+    .filter((e) => e && Number.isInteger(e.months) && e.months >= 1 && e.months <= 120)
+    .slice()
+    .sort((a, b) => String(a.date ?? '').localeCompare(String(b.date ?? '')));
+}
+
+/** 연장으로 늘어난 개월 합 */
+export function extensionMonths(info) {
+  return validExtensions(info).reduce((n, e) => n + e.months, 0);
+}
+
+/** 연장 전 원래 복무개월 (mi.months 는 총합이다). 최소 1. */
+export function baseServiceMonths(info) {
+  const total = Number(info?.months);
+  if (!Number.isFinite(total)) return null;
+  return Math.max(1, total - extensionMonths(info));
 }
 
 function addDays(dateStr, n) {
@@ -58,7 +112,8 @@ export function buildRoadmap(info, promotions) {
   if (!info?.enlistDate || !info?.dischargeDate) return [];
   // 날짜가 깨져 있으면 조각난 타임라인을 그리느니 비운다 (화면은 빈 상태를 처리한다)
   if (!parseDate(info.enlistDate) || !parseDate(info.dischargeDate)) return [];
-  const officer = isOfficer(info.personnelType);
+  const ranks = hasSoldierRanks(info.personnelType);
+  const t = termsFor(info.personnelType);
   const list = [];
 
   /* emoji 는 위젯·공유 텍스트용으로 남겨두고, 화면은 icon(Ionicons) 을 쓴다. */
@@ -69,18 +124,29 @@ export function buildRoadmap(info, promotions) {
   const totalDays = daySpan(info.enlistDate, info.dischargeDate);
   const showD100 = totalDays >= 100;
 
-  list.push({ key: 'enlist', label: '입대', emoji: '🪖', icon: 'flag', date: parseDate(info.enlistDate) });
-  if (showD100) list.push({ key: 'd100in', label: '입대 100일', emoji: '💯', icon: 'calendar-number', date: addDays(info.enlistDate, 99) });
+  list.push({ key: 'enlist', label: t.start, emoji: t.emoji, icon: 'flag', date: parseDate(info.enlistDate) });
+  if (showD100) list.push({ key: 'd100in', label: `${t.start} 100일`, emoji: '💯', icon: 'calendar-number', date: addDays(info.enlistDate, 99) });
 
-  if (!officer && promotions) {
+  if (ranks && promotions) {
     if (promotions.일병) list.push({ key: 'r1', label: '일병 진급', emoji: '🎖️', icon: 'chevron-up-circle', date: parseDate(promotions.일병) });
     if (promotions.상병) list.push({ key: 'r2', label: '상병 진급', emoji: '🎖️', icon: 'chevron-up-circle', date: parseDate(promotions.상병) });
     if (promotions.병장) list.push({ key: 'r3', label: '병장 진급', emoji: '👑', icon: 'star', date: parseDate(promotions.병장) });
   }
 
+  // 간부 진급 기록 (v1.6) — 복무 구간 안의 것만. key 는 축하 이력에 남으니 계급명으로 고정.
+  if (isOfficer(info.personnelType)) {
+    const s0 = parseDate(info.enlistDate);
+    const e0 = parseDate(info.dischargeDate);
+    for (const p of validOfficerPromotions(info)) {
+      const d = parseDate(p.date);
+      if (d < s0 || d > e0) continue;
+      list.push({ key: `op:${p.rank}`, label: `${p.rank} 진급`, emoji: '🎖️', icon: 'chevron-up-circle', date: d });
+    }
+  }
+
   list.push({ key: 'half', label: '반환점 (복무 절반)', emoji: '⚖️', icon: 'hourglass', date: midpoint(info.enlistDate, info.dischargeDate) });
-  if (showD100) list.push({ key: 'd100out', label: '전역 100일 전', emoji: '🔥', icon: 'flame', date: addDays(info.dischargeDate, -100) });
-  list.push({ key: 'discharge', label: '전역', emoji: '🎉', icon: 'trophy', date: parseDate(info.dischargeDate) });
+  if (showD100) list.push({ key: 'd100out', label: `${t.end} 100일 전`, emoji: '🔥', icon: 'flame', date: addDays(info.dischargeDate, -100) });
+  list.push({ key: 'discharge', label: t.end, emoji: '🎉', icon: 'trophy', date: parseDate(info.dischargeDate) });
 
   return list
     .filter((m) => m.date instanceof Date && !isNaN(m.date.getTime()))  // 날짜 파싱 실패분 제외

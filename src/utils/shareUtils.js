@@ -4,9 +4,14 @@
  */
 import { Share } from 'react-native';
 import { calcDaysLeft, calcProgress, calcServedDays, formatDateKo } from './dateUtils';
+import { branchLabelOf, josa, termsFor } from '../constants/serviceTerms';
 
 const STORE_URL = 'https://play.google.com/store/apps/details?id=com.jeonryeokkami.app';
-const BRANCH_LABEL = { army: '육군', navy: '해군', airforce: '공군', marines: '해병대' };
+
+/** '육군 병장' · '사회복무요원' — 군별이 없으면(대체복무) 신분 라벨만 */
+function _whoLine(info, rank) {
+  return [branchLabelOf(info), rank].filter(Boolean).join(' ');
+}
 
 /**
  * 공유 메시지 생성
@@ -19,14 +24,14 @@ export function buildShareMessage(info, rank, name) {
   const progress = calcProgress(info.enlistDate, info.dischargeDate);
   const served = calcServedDays(info.enlistDate, info.dischargeDate);
   const who = name ? `${name} · ` : '';
-  const branch = BRANCH_LABEL[info.branch] ?? '';
-  const ddayText = dleft > 0 ? `전역까지 D-${dleft}` : dleft === 0 ? '오늘 전역! 🎉' : '전역 완료! 🎉';
+  const t = termsFor(info.personnelType);
+  const ddayText = dleft > 0 ? `${t.end}까지 D-${dleft}` : dleft === 0 ? `오늘 ${t.end}! 🎉` : `${t.endDone}! 🎉`;
 
   return (
     `🎖️ ${ddayText}\n` +
-    `${who}${branch} ${rank}\n` +
+    `${who}${_whoLine(info, rank)}\n` +
     `복무 ${served}일째 · 진행률 ${progress}%\n` +
-    `${formatDateKo(info.dischargeDate)} 전역\n\n` +
+    `${formatDateKo(info.dischargeDate)} ${t.end}\n\n` +
     `'전역까지' 앱에서 함께 카운트다운 🪖\n${STORE_URL}`
   );
 }
@@ -49,12 +54,12 @@ export function buildMilestoneMessage(info, milestone, rank, name) {
   const dleft = calcDaysLeft(info.dischargeDate);
   const served = calcServedDays(info.enlistDate, info.dischargeDate);
   const who = name ? `${name} · ` : '';
-  const branch = BRANCH_LABEL[info.branch] ?? '';
-  const ddayText = dleft > 0 ? `전역까지 D-${dleft}` : '전역 완료! 🎉';
+  const t = termsFor(info.personnelType);
+  const ddayText = dleft > 0 ? `${t.end}까지 D-${dleft}` : `${t.endDone}! 🎉`;
 
   return (
     `${milestone.emoji ?? '🎖️'} ${milestone.label}!\n` +
-    `${who}${branch} ${rank}\n` +
+    `${who}${_whoLine(info, rank)}\n` +
     `복무 ${served}일째 · ${ddayText}\n\n` +
     `'전역까지' 앱에서 함께 카운트다운 🪖\n${STORE_URL}`
   );
@@ -73,7 +78,7 @@ export async function shareMilestone(info, milestone, rank, name) {
 export function buildStreakMessage(streak, info, name) {
   const who = name ? `${name} · ` : '';
   const dleft = info?.dischargeDate ? calcDaysLeft(info.dischargeDate) : null;
-  const dday = dleft != null && dleft > 0 ? `\n전역까지 D-${dleft}` : '';
+  const dday = dleft != null && dleft > 0 ? `\n${termsFor(info?.personnelType).end}까지 D-${dleft}` : '';
 
   return (
     `🔥 ${streak.current}일 연속 출석!\n` +
@@ -99,9 +104,10 @@ export function buildFamilyShareMessage(name, info, code) {
   const who = name ? `${name} 님의` : '제';
   const dleft = info?.dischargeDate ? calcDaysLeft(info.dischargeDate) : null;
   const dday = dleft != null && dleft > 0 ? ` (D-${dleft})` : '';
+  const t = termsFor(info?.personnelType);
   return (
-    `🪖 ${who} 전역일을 같이 세어요!\n` +
-    (info?.dischargeDate ? `${formatDateKo(info.dischargeDate)} 전역${dday}\n\n` : '\n') +
+    `${t.emoji} ${who} ${josa(t.endDate, '을/를')} 같이 세어요!\n` +
+    (info?.dischargeDate ? `${formatDateKo(info.dischargeDate)} ${t.end}${dday}\n\n` : '\n') +
     `① '전역까지' 앱 설치\n${STORE_URL}\n` +
     `② 프로필 '추가' → '공유 코드로 추가'에 이 메시지를 붙여넣기\n\n` +
     `${code}`

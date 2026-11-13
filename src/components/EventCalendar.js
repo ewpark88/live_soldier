@@ -15,7 +15,9 @@ import useToday from '../hooks/useToday';
  * 날짜를 탭하면 그 날의 휴가·일정 상세가 아래에 표시된다.
  */
 
-export default function EventCalendar({ records = [], bonusRecords = [], todos = [], fill = false }) {
+/* bonusLabel: '포상휴가' (현역) | '추가 휴가' (대체복무 — termsFor(pt).bonusLeave) */
+export default function EventCalendar({ records = [], bonusRecords = [], todos = [], fill = false, bonusLabel = '포상휴가' }) {
+  const bonusShort = bonusLabel === '포상휴가' ? '포상' : '추가';
   const tc = useThemeColors();
   const s = useMemo(() => makeStyles(tc), [tc]);
   // 캘린더 탭은 언마운트되지 않는다 — 자정을 넘기면 '오늘'도 넘어가야 한다
@@ -91,7 +93,7 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
     });
     bonusRecords.forEach((rec) => {
       if (rec.date === selected) {
-        out.push({ type: 'bonus', label: `포상휴가 +${rec.days}일`, memo: rec.memo, icon: 'star', color: tc.accentText });
+        out.push({ type: 'bonus', label: `${bonusLabel} +${rec.days}일`, memo: rec.memo, icon: 'star', color: tc.accentText });
       }
     });
     todos.forEach((t) => {
@@ -103,7 +105,7 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
       }
     });
     return out;
-  }, [selected, records, bonusRecords, todos, tc]);
+  }, [selected, records, bonusRecords, todos, tc, bonusLabel]);
 
   const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
   const usedThisMonth = [...usedSet].filter((d) => d.startsWith(monthPrefix)).length;
@@ -145,7 +147,7 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
                 `${month + 1}월 ${cell.day}일`,
                 isToday && '오늘',
                 isUsed && '연가',
-                isBonus && '포상휴가',
+                isBonus && bonusLabel,
                 isTodo && '일정 있음',
               ].filter(Boolean).join(', ');
               return (
@@ -198,7 +200,7 @@ export default function EventCalendar({ records = [], bonusRecords = [], todos =
         </View>
         <View style={s.legendItem}>
           <Ionicons name="star" size={13} color={tc.accentText} />
-          <Text style={s.legendText}>포상</Text>
+          <Text style={s.legendText}>{bonusShort}</Text>
         </View>
         <View style={s.legendItem}>
           <View style={[s.legendDotSm, { backgroundColor: tc.accent }]} />

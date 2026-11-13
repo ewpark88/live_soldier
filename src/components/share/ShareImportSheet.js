@@ -10,7 +10,9 @@ import {
   addSharedProfile, updateProfileFromShare, findProfileByShare, listProfiles, MAX_PROFILES,
 } from '../../utils/storage';
 import { calcDischargeDate, calcDaysLeft, formatDate, formatDateKo } from '../../utils/dateUtils';
-import { BRANCHES, isOfficer, personnelLabel } from '../../constants/serviceTerms';
+import {
+  BRANCHES, PERSONNEL_TYPES, branchLabelOf, hasSoldierRanks, isAlternative, isOfficer, personnelLabel, serviceLabel, termsFor,
+} from '../../constants/serviceTerms';
 import { guardSave, SAVE_FAILED } from '../../utils/saveGuard';
 import { haptic } from '../../utils/haptics';
 import { updateDischargeWidget } from '../../widget/updateWidget';
@@ -21,7 +23,7 @@ let Clipboard = null;
 try { Clipboard = require('expo-clipboard'); } catch (e) { /* 미설치 빌드 — 붙여넣기 버튼만 숨김 */ }
 
 /**
- * '공유 코드로 추가' 시트 — 곰신·부모님 쪽 화면.
+ * '공유 코드로 추가' 시트 — 곰신·부모님 쪽 화면 (대체복무 코드 JY2 도 받는다, v1.6).
  *
  * 루트에 하나만 떠 있다. 여는 경로는 셋이고 모두 requestShareImport() 로 모인다:
  *   · 프로필 바 '추가' → '공유 코드로 추가'
@@ -54,11 +56,18 @@ export default function ShareImportSheet() {
     const d = calcDischargeDate(mi.enlistDate, mi.months);
     const disc = d ? formatDate(d) : null;
     const left = disc ? calcDaysLeft(disc) : null;
-    const branch = BRANCHES.find((b) => b.key === mi.branch);
+    const alt = isAlternative(mi.personnelType);
+    const branch = alt ? null : BRANCHES.find((b) => b.key === mi.branch);
+    const who = isOfficer(mi.personnelType)
+      ? (mi.officerRank || personnelLabel(mi.personnelType))
+      : alt ? serviceLabel(mi) : '병사';
     return {
-      branch: branch?.label ?? '',
-      icon: branch?.icon ?? 'shield-half',
-      who: isOfficer(mi.personnelType) ? (mi.officerRank || personnelLabel(mi.personnelType)) : '병사',
+      // '해군 · 병사' / 대체복무는 군별이 없어 '공중보건의사' 만
+      title: [branchLabelOf(mi), who].filter(Boolean).join(' · '),
+      icon: alt
+        ? (PERSONNEL_TYPES.find((p) => p.key === mi.personnelType)?.icon ?? 'business')
+        : (branch?.icon ?? 'shield-half'),
+      t: termsFor(mi.personnelType),
       disc,
       left,
     };
@@ -125,7 +134,7 @@ export default function ShareImportSheet() {
       setError(shareErrorMessage(decoded?.reason));
       return;
     }
-    const payload = { ...value, name: name.trim() || value.name || '장병' };
+    const payload = { ...value, name: name.trim() || value.name || termsFor(value.militaryInfo.personnelType).member };
     setSaving(true);
     try {
       if (match && !asNew) {
@@ -174,7 +183,7 @@ export default function ShareImportSheet() {
       submitDisabled={!value}
     >
       <Txt role="bodySm" tone="secondary">
-        장병에게 받은 메시지를 통째로 붙여넣어도 돼요. 'JY1-' 로 시작하는 코드를 찾아 읽어요.
+        받은 메시지를 통째로 붙여넣어도 돼요. 'JY1-' 또는 'JY2-' 로 시작하는 코드를 찾아 읽어요.
       </Txt>
 
       <View style={s.pasteRow}>
@@ -202,14 +211,14 @@ export default function ShareImportSheet() {
             </View>
             <View style={{ flex: 1, gap: sp.xxs }}>
               <Txt role="bodyLg" style={{ fontWeight: '800' }}>
-                {preview.branch} · {preview.who}
+                {preview.title}
               </Txt>
               <Txt role="caption" tone="secondary">
-                입대 {formatDateKo(value.militaryInfo.enlistDate)} · {value.militaryInfo.months}개월
+                {preview.t.start} {formatDateKo(value.militaryInfo.enlistDate)} · {value.militaryInfo.months}개월
               </Txt>
               {preview.disc ? (
                 <Txt role="label" tone="primary">
-                  {formatDateKo(preview.disc)} 전역 · {preview.left > 0 ? `D-${preview.left}` : preview.left === 0 ? 'D-Day' : '전역 완료'}
+                  {formatDateKo(preview.disc)} {preview.t.end} · {preview.left > 0 ? `D-${preview.left}` : preview.left === 0 ? 'D-Day' : preview.t.endDone}
                 </Txt>
               ) : null}
             </View>
@@ -227,8 +236,8 @@ export default function ShareImportSheet() {
             <View style={s.matchNote}>
               <Ionicons name="sync-outline" size={16} color={tc.textSecondary} />
               <Txt role="caption" tone="secondary" style={{ flex: 1 }}>
-                같은 입대 정보의 프로필이 이미 있어요. 갱신하면 그 프로필의 휴가·일정 기록은 그대로 두고
-                입대 정보와 진급일만 바꿔요.
+                같은 {preview.t.info}의 프로필이 이미 있어요. 갱신하면 그 프로필의 휴가·일정 기록은 그대로 두고
+                {hasSoldierRanks(value.militaryInfo.personnelType) ? '입대 정보와 진급일만' : `${preview.t.info}만`} 바꿔요.
               </Txt>
             </View>
           ) : null}

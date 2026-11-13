@@ -6,6 +6,7 @@ import LeaveScreen from './LeaveScreen';
 import TodoScreen from './TodoScreen';
 import Card from '../components/Card';
 import EventCalendar from '../components/EventCalendar';
+import { termsFor } from '../constants/serviceTerms';
 import SetupRequired from '../components/SetupRequired';
 import { AppHeader, SegmentedControl, AdFooter } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
@@ -126,6 +127,7 @@ export default function CalendarScreen({ route }) {
                         records={records}
                         bonusRecords={bonus}
                         todos={todos}
+                        bonusLabel={termsFor(info?.personnelType).bonusLeave}
                       />
                     </View>
                   </Card>

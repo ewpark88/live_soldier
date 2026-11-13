@@ -11,14 +11,15 @@ import { loadMilitaryInfo } from '../utils/storage';
 import { haptic } from '../utils/haptics';
 import { guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import {
-  NOTIF_EVENTS, DEFAULT_NOTIF_PREFS,
+  NOTIF_EVENTS, DEFAULT_NOTIF_PREFS, notifEventsFor,
   enableNotifications, disableNotifications, isNotifAvailable, getNotifPermission,
   loadNotifPrefs, saveNotifPrefs, loadNotifPlan, refreshScheduledNotifications,
 } from '../utils/notifications';
-import { isOfficer } from '../constants/serviceTerms';
+import { paydayEligible, termsFor } from '../constants/serviceTerms';
 import { WEEKDAYS_KO } from '../utils/dateUtils';
 import { space as sp } from '../theme/tokens';
 
+/* 라벨은 신분에 따라 바뀐다 (groupLabel) — 대체복무는 '소집해제·복무', 월급날 없음 */
 const GROUPS = [
   { key: 'service', label: '전역·복무' },
   { key: 'life', label: '휴가·일정·월급' },
@@ -69,7 +70,7 @@ export default function NotificationSettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [perm, setPerm] = useState({ status: 'undetermined', canAskAgain: true });
   const [plan, setPlan] = useState([]);
-  const [officer, setOfficer] = useState(false);
+  const [personnelType, setPersonnelType] = useState(null);
   const [hasInfo, setHasInfo] = useState(true);
   const alive = useRef(true);
 
@@ -88,11 +89,19 @@ export default function NotificationSettingsScreen() {
     setPrefs(p);
     setPerm(pm);
     setPlan(p.master ? pl : []);
-    setOfficer(isOfficer(mi?.personnelType));
+    setPersonnelType(mi?.personnelType ?? null);
     setHasInfo(!!(mi?.enlistDate && mi?.dischargeDate));
   }, []);
 
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
+
+  const terms = termsFor(personnelType);
+  const events = useMemo(() => notifEventsFor(personnelType), [personnelType]);
+  const groupLabel = (g) => {
+    if (g.key === 'service') return `${terms.end}·복무`;
+    if (g.key === 'life' && !paydayEligible(personnelType)) return '휴가·일정';
+    return g.label;
+  };
 
   /* 설정 앱에서 권한을 켜고 돌아오면 바로 반영하고 예약을 다시 잡는다 */
   useEffect(() => {
@@ -241,7 +250,7 @@ export default function NotificationSettingsScreen() {
       {/* ── 마스터 ── */}
       <Section index={0} gap={sp.xl}>
         <ListGroup
-          footnote={hasInfo ? undefined : '* 전역 정보를 먼저 입력해야 알림을 예약할 수 있어요.'}
+          footnote={hasInfo ? undefined : `* ${terms.info}를 먼저 입력해야 알림을 예약할 수 있어요.`}
         >
           <ListRow
             title="알림 받기"
@@ -272,9 +281,10 @@ export default function NotificationSettingsScreen() {
       {/* ── 이벤트별 ── */}
       {GROUPS.map((g, gi) => (
         <Section key={g.key} index={gi + 1} gap={sp.xl}>
-          <ListGroup label={g.label}>
-            {NOTIF_EVENTS
-              .filter((ev) => ev.group === g.key && !(ev.soldierOnly && officer))
+          <ListGroup label={groupLabel(g)}>
+            {/* 신분에 없는 이벤트(진급·월급날)는 notifEventsFor 가 거르고 문구도 맞춘다 */}
+            {events
+              .filter((ev) => ev.group === g.key)
               .map(renderEvent)}
             {g.key === 'life' && master && prefs.todo ? (
               <View key="todoTiming" style={styles.optionRow}>

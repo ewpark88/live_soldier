@@ -167,6 +167,20 @@ for (const [label, today, enlist, discharge, expected] of [
   const next = api.getMessageForPhase('normal', '2026-05-05', 1);
   ok(base !== next, '응원 메시지: offset 1 은 오늘 문구와 다르다');
   eq(api.getMessageForPhase('normal', '2026-05-05', api.PHASE_MESSAGES.normal.length), base, '응원 메시지: 한 바퀴 돌면 원위치');
+
+  // 간부(v1.6): 병사 전용 표현('말출'·'곰신'·'용사')을 거른 풀에서 고른다
+  const phases = Object.keys(api.PHASE_MESSAGES);
+  const days = Array.from({ length: 40 }, (_, i) => `2026-05-${String((i % 28) + 1).padStart(2, '0')}`);
+  let leaked = 0;
+  for (const ph of phases) {
+    for (let k = 0; k < 20; k++) {
+      if (api.CADRE_SKIP_MESSAGE.test(api.getMessageForPhase(ph, days[k], k, null, true))) leaked++;
+    }
+  }
+  eq(leaked, 0, '응원 메시지(간부): 병사 전용 표현 없음 (단계·날짜·offset 전부)');
+  ok(phases.every((ph) => api.PHASE_MESSAGES[ph].filter((m) => !api.CADRE_SKIP_MESSAGE.test(m)).length >= 3), '응원 메시지(간부): 단계마다 3개 이상 남는다');
+  ok(api.PHASE_MESSAGES.d30.some((m) => api.CADRE_SKIP_MESSAGE.test(m)), '응원 메시지(병사): 원래 풀에는 병사 표현이 있다 (필터가 실제로 일한다)');
+  eq(api.getMessageForPhase('normal', '2026-05-05'), base, '응원 메시지(병사): 간부 인자 없으면 기존 그대로');
 }
 
 /* ── 7. 다가오는 일정 — 다음 휴가 · 월급날 · 적금 만기 (v1.3) ── */
