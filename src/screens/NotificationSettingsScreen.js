@@ -18,6 +18,7 @@ import {
 import { paydayEligible, termsFor } from '../constants/serviceTerms';
 import { WEEKDAYS_KO } from '../utils/dateUtils';
 import { space as sp } from '../theme/tokens';
+import { HelpButton } from '../components/help';
 
 /* 라벨은 신분에 따라 바뀐다 (groupLabel) — 대체복무는 '소집해제·복무', 월급날 없음 */
 const GROUPS = [
@@ -245,7 +246,7 @@ export default function NotificationSettingsScreen() {
     <Screen
       standalone
       ad={AD_UNITS.REFERENCE_BOTTOM}
-      header={<AppHeader title="알림" subtitle="이벤트마다 따로 켜고 끕니다" back />}
+      header={<AppHeader title="알림" subtitle="이벤트마다 따로 켜고 끕니다" back right={<HelpButton topic="notifications" />} />}
     >
       {/* ── 마스터 ── */}
       <Section index={0} gap={sp.xl}>

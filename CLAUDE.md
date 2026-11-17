@@ -64,7 +64,7 @@ eas build --platform android --profile production
   (조사는 `josa()`). 앱 이름 '전역까지' 만 고정이다.
 - 네비게이션은 루트 native-stack + 4탭이다. **라우트 이름은 트리 전체에서 유일**해야
   하고, `navigate` 버블링은 위로만 간다 — 여러 곳에서 진입하는 화면은 루트 스택에 둔다.
-- `npm test` 는 9개 스위트를 돌린다. 순수 로직을 고쳤으면 반드시 돌린다.
+- `npm test` 는 10개 스위트를 돌린다. 순수 로직을 고쳤으면 반드시 돌린다.
   - `test-calc.js` (359) 날짜·계급·로드맵·적금·스트릭·축하
   - `test-clock.js` (64) **시계를 특정 날짜로 고정**해야만 드러나는 것
     (윤일 임관자 호봉, DST 전환, 월말 입대자 복무개월, 다음 휴가·월급날)
@@ -74,6 +74,7 @@ eas build --platform android --profile production
   - `test-share.js` (118) 공유 코드 왕복·변조 검출, 백업 파일 검증
   - `test-review.js` (39) 인앱 리뷰 요청 조건 (사용 기간·광고 겹침 방지·90일 간격·누적 한도)
   - `test-skins.js` (74) 막대병 도감 — 보유·장착 상태, 리그 포즈('worklet' 정적 검사 포함), 보상형 광고 흐름
+  - `test-guides.js` 사용 가이드 문구(신분별 용어 누수) · [?] 주제 · 위젯 네이티브 등록 대조
   - `test-tz.js` 계산·시계 스위트를 **10개 시간대**에서 반복
 - **테스트가 통과한다고 끝이 아니다.** 화면 파일은 계산 테스트가 로드하지 않으므로
   `npx expo export --platform android` 로 번들까지 확인한다. 실제로 문자열 파손이
@@ -109,6 +110,28 @@ eas build --platform android --profile production
   포즈 함수는 전부 `'worklet'` (test-skins 가 정적 검사).
 - 보유·장착은 `@soldier_skins_v1`(기기 범위, `SkinContext`). '모든 데이터 삭제'로 지우지
   않고, 백업에는 싣고, 복원 때는 **합친다**(광고로 얻은 것을 잃지 않게).
+
+## 홈 화면 위젯 (v1.7)
+
+- 위젯 종류는 `src/widget/widgetCatalog.js` 의 `WIDGETS` 가 소유한다 (`DdaySimple` 2×1 · `Discharge` 3×2).
+  `name` 은 안드로이드 receiver 클래스 이름이라 **바꾸거나 지우지 않는다** — 이미 홈 화면에 깔려 있다.
+- **bare 라 config plugin 이 돌지 않는다.** app.json 의 `react-native-android-widget` 항목은 문서일 뿐이고,
+  실제 등록은 손으로 둔 파일이다: `android/.../app/widget/<Name>.java` · `res/xml/widgetprovider_<name>.xml` ·
+  `AndroidManifest.xml` receiver · `res/layout/widget_preview_<name>.xml`(API 31+ 목록 미리보기).
+  v1.6 까지 이 등록이 없어서 위젯 코드가 있어도 런처 목록에 나타나지 않았다. 새 위젯은 넷 다 만든다
+  (`test-guides.js` 가 대조한다).
+- 앱 안 '홈 화면에 추가'는 `WidgetPinModule.kt`(requestPinAppWidget) → `src/widget/widgetPin.js`.
+  런처가 지원하지 않으면 위젯 화면(`widgets`)이 수동 추가 단계를 보여준다.
+- 갱신은 여전히 `updateDischargeWidget()` 하나 — 이제 카탈로그의 모든 위젯을 다시 그린다.
+
+## 사용 가이드 · [?] 도움말 (v1.7)
+
+- 본문은 `src/constants/guides.js` 한 곳 (순수 데이터, `termsFor(pt)` 로 신분별 문구).
+  화면 우상단 `<HelpButton topic="…" />` → 시트, '내 정보 → 사용 가이드' → `guide` 화면.
+- **새 화면을 만들면 `AppHeader right={<HelpButton topic=… />}` 를 단다.** 주제가 없으면 guides.js 에 먼저 쓴다.
+- 신분에 없는 기능은 주제에서 빼고(`return null`), 문구에 '전역·입대·진급'을 하드코딩하지 않는다
+  — `test-guides.js` 가 대체복무 문구의 현역 용어 누수를 잡는다.
+- 홈 '처음이세요?' 카드는 `@guide_intro_seen_v1`(기기 범위). 닫거나 가이드를 한 번 열면 다시 안 뜬다.
 
 ## 서버 없는 공유 (v1.3)
 

@@ -15,6 +15,7 @@ import {
 } from '../utils/storage';
 import { useThemeColors } from '../theme/ThemeContext';
 import { space as sp } from '../theme/tokens';
+import { HelpButton } from '../components/help';
 
 /* 달력을 남은 공간에 꽉 채우는(fill) 데 필요한 최소 높이.
    헤더 ~52 + 요일 20 + 6주 × 44 + 범례 ~45 + 선택일 상세 ~70 + 카드 패딩·여백 ~80.
@@ -95,7 +96,10 @@ export default function CalendarScreen({ route }) {
 
   const header = (
     <View style={{ paddingTop: insets.top }}>
-      <AppHeader title="캘린더" />
+      <AppHeader
+        title="캘린더"
+        right={<HelpButton topic={section === 'month' ? 'calendar' : section} />}
+      />
       {/* 예전엔 칩 3개를 탭처럼 썼다 — 칩은 '필터'로 읽혀서 화면이 바뀐다는 신호가
           약했다. 보기 전환은 세그먼트 컨트롤이 맡는다. */}
       <View style={s.segments}>

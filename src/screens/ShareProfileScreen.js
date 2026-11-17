@@ -16,6 +16,7 @@ import { calcDaysLeft, formatDateKo } from '../utils/dateUtils';
 import { haptic } from '../utils/haptics';
 import { hasSoldierRanks, josa, termsFor } from '../constants/serviceTerms';
 import { cadreCurrentRank } from '../utils/roadmapUtils';
+import { HelpButton } from '../components/help';
 
 let Clipboard = null;
 try { Clipboard = require('expo-clipboard'); } catch (e) {}
@@ -89,6 +90,7 @@ export default function ShareProfileScreen({ navigation }) {
       title={`${terms.familyAnd}에게 공유`}
       subtitle={`공유 코드·QR 로 ${terms.endDate} 함께 세기`}
       back
+      right={<HelpButton topic="share" />}
     />
   );
 

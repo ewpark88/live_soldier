@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 '기본' (3×2). react-native-android-widget config plugin 이 만들던 파일을
+     bare 워크플로라 손으로 둔다 — app.json 의 widgets 항목과 값을 맞춰 둘 것. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="140dp"
+    android:minResizeHeight="90dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:maxResizeWidth="360dp"
+    android:maxResizeHeight="240dp"
+    android:resizeMode="horizontal|vertical"
+    android:description="@string/widget_discharge_description"
+    android:initialLayout="@layout/rn_widget"
+    android:previewImage="@mipmap/ic_launcher"
+    android:previewLayout="@layout/widget_preview_discharge"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen">
+</appwidget-provider>

@@ -106,6 +106,7 @@ const makeStyles = (tc) => {
 | `SegmentedControl` (v1.3) | 같은 화면 안의 보기 전환. 칩을 탭처럼 쓰지 않는다 (칩은 필터로 읽힌다) |
 | `Checkbox` (v1.3) | 할 일 완료. 보이는 24 / 누르는 44, `accessibilityRole="checkbox"` |
 | `Chip` 변경 (v1.3) | `sm` 28 → 32, `onHero` prop (히어로 위 칩은 반드시 이것) |
+| `HelpButton` (v1.7, `components/help`) | 헤더 `right` 의 [?] 44×44. 누르면 `HelpSheet`(guides.js 주제). 히어로 위는 `onHero` |
 
 모션: `src/components/motion/` — `AnimatedNumber`(카운트업), `BottomSheet`.
 
@@ -131,6 +132,7 @@ NavigationContainer
 └─ RootStack (native-stack, headerShown:false)
    ├─ tabs → 홈 / 캘린더 / 급여 / 내 정보
    └─ discharge · roadmap · savings · benefits · salaryGuide · officerPay · theme · shareProfile
+      · notifications · soldierDex · guide(사용 가이드, v1.7) · widgets(홈 화면 위젯, v1.7)
 ```
 
 - **라우트 이름은 트리 전체에서 유일해야 한다.** 크로스 네비게이터 `navigate` 가

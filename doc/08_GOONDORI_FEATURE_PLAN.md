@@ -101,6 +101,7 @@
 - **Sprint 2 (코어 차별화):** C 멀티 프로필 · D 프로필 사진 — ✅ 완료
 - **Sprint 3 (보강):** G 휴가 캘린더 · F 간부 지원 — ✅ 완료
 - **Sprint 4 (네이티브):** H 홈 위젯 — ✅ 완료 (실기기 표시는 리빌드 필요)
+  - v1.7: bare 라 prebuild 가 돌지 않아 receiver 가 실제로는 등록돼 있지 않았다 → 손으로 등록, '심플' 위젯 추가, 앱 안 원탭 추가(`widgets` 화면)
 
 ### 구현 메모
 - Sprint1: 전역일 off-by-one 교정(`calcDischargeDate` -1일), `nextPromotion`, `getMessageForPhase`(단계별 응원).

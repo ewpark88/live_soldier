@@ -11,6 +11,7 @@ import { loadMilitaryInfo, loadRankPromotions, unlockTheme } from '../utils/stor
 import { buildRoadmap } from '../utils/roadmapUtils';
 import { haptic } from '../utils/haptics';
 import { space as sp } from '../theme/tokens';
+import { HelpButton } from '../components/help';
 
 const BRIGHTNESS = [
   { key: 'system', label: '시스템', icon: 'phone-portrait-outline' },
@@ -100,7 +101,7 @@ export default function ThemeScreen() {
     <Screen
       standalone
       ad={AD_UNITS.REFERENCE_BOTTOM}
-      header={<AppHeader title="테마" subtitle="앱 전체 색을 바꿉니다" back />}
+      header={<AppHeader title="테마" subtitle="앱 전체 색을 바꿉니다" back right={<HelpButton topic="theme" />} />}
     >
       {/* 밝기 */}
       <Section index={0}>

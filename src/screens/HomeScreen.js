@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { Alert, Linking, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Platform, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useThemeColors } from '../theme/ThemeContext';
@@ -13,6 +13,9 @@ import Upcoming, { won } from '../components/home/Upcoming';
 import StreakSheet from '../components/home/StreakSheet';
 import NotifPromptSheet from '../components/home/NotifPromptSheet';
 import QuickActions from '../components/home/QuickActions';
+import GuideIntroCard from '../components/home/GuideIntroCard';
+import { HelpButton } from '../components/help';
+import { isGuideIntroSeen, markGuideIntroSeen } from '../utils/guideFlags';
 import ShareSheet from '../components/share/ShareSheet';
 import { Screen, Section, EmptyState } from '../components/ui';
 import { AD_UNITS } from '../constants/adUnits';
@@ -82,6 +85,7 @@ export default function HomeScreen({ navigation }) {
   const [shareCard, setShareCard] = useState(null);   // { title, kind, data, onText, family } | null
   const [notifPrompt, setNotifPrompt] = useState(false);
   const [notifBusy, setNotifBusy] = useState(false);
+  const [guideIntro, setGuideIntro] = useState(false);   // '처음이세요?' 카드
   const promptTimer = useRef(null);
   const focused = useRef(false);   // 다른 탭에 있을 때 프로필 변경 신호로 시트가 뜨지 않게
 
@@ -137,6 +141,7 @@ export default function HomeScreen({ navigation }) {
     setPromotions(await loadRankPromotions(mi?.enlistDate));
     setSavingsPlan(await loadSavingsPlan());
     setSalaryInfo(await loadSalaryInfo());
+    setGuideIntro(!(await isGuideIntroSeen()));
 
     if (mi) maybeOfferNotif();
   };
@@ -224,6 +229,7 @@ export default function HomeScreen({ navigation }) {
           <View style={{ flex: 1 }}>
             <ProfileBar onChange={loadData} />
           </View>
+          <HelpButton topic="start" />
         </View>
         <OnboardingScreen name={profileName} onSelect={handleSelectType} />
       </Screen>
@@ -239,6 +245,7 @@ export default function HomeScreen({ navigation }) {
           <View style={{ flex: 1 }}>
             <ProfileBar onChange={loadData} />
           </View>
+          <HelpButton topic="start" />
         </View>
         <EmptyState
           icon="shield-half"
@@ -375,7 +382,12 @@ export default function HomeScreen({ navigation }) {
     { key: 'roadmap', icon: 'map-outline', label: t.roadmapTitle, tone: 'accent', onPress: () => navigation.navigate('roadmap') },
     // 해당하는 혜택이 하나도 없는 신분이면 바로가기를 두지 않는다
     benefitsFor(pt).length > 0 ? { key: 'benefits', icon: 'gift-outline', label: t.benefitsShort, tone: 'neutral', onPress: () => navigation.navigate('benefits') } : null,
+    // 바탕화면 위젯 — 위젯이 있어도 아무도 못 찾던 기능이다. 안드로이드만.
+    Platform.OS === 'android' ? { key: 'widget', icon: 'apps-outline', label: '홈 화면 위젯', tone: 'accent', onPress: () => navigation.navigate('widgets') } : null,
+    { key: 'guide', icon: 'book-outline', label: '사용 가이드', tone: 'neutral', onPress: () => navigation.navigate('guide') },
   ].filter(Boolean);
+
+  const closeGuideIntro = () => { setGuideIntro(false); markGuideIntroSeen(); };
 
   const openDdayShare = () => setShareCard({
     title: `${t.endDate} 자랑하기`,
@@ -453,6 +465,15 @@ export default function HomeScreen({ navigation }) {
         />
 
         <View style={s.body}>
+          {guideIntro ? (
+            <Section index={0}>
+              <GuideIntroCard
+                onOpenGuide={() => { closeGuideIntro(); navigation.navigate('guide', { topic: 'start' }); }}
+                onOpenWidgets={() => { closeGuideIntro(); navigation.navigate('widgets'); }}
+                onClose={closeGuideIntro}
+              />
+            </Section>
+          ) : null}
           <Section index={0}>
             <Upcoming items={upcoming} />
           </Section>

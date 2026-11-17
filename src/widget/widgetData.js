@@ -79,6 +79,7 @@ export async function getWidgetData() {
       progress,
       rank,
       dischargeText: formatDateKo(mi.dischargeDate),
+      endText: termsFor(mi.personnelType).end,   // 심플 위젯 캡션 ('전역까지 68%' / '소집해제까지 …')
       leaveText,
       theme,
     };

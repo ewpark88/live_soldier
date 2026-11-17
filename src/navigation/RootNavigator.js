@@ -13,6 +13,8 @@ import ThemeScreen from '../screens/ThemeScreen';
 import ShareProfileScreen from '../screens/ShareProfileScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import SoldierDexScreen from '../screens/SoldierDexScreen';
+import GuideScreen from '../screens/GuideScreen';
+import WidgetScreen from '../screens/WidgetScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -61,6 +63,10 @@ export default function RootNavigator() {
       <Stack.Screen name="notifications" component={NotificationSettingsScreen} />
       {/* 홈 히어로·링 안 막대병·설정 세 곳에서 들어온다 */}
       <Stack.Screen name="soldierDex" component={SoldierDexScreen} />
+      {/* 모든 화면의 [?] 시트 · 홈 · 설정에서 들어온다 */}
+      <Stack.Screen name="guide" component={GuideScreen} />
+      {/* 홈 바로가기 · 설정 · 가이드에서 들어온다 */}
+      <Stack.Screen name="widgets" component={WidgetScreen} />
     </Stack.Navigator>
   );
 }

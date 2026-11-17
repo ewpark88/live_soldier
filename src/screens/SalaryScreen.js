@@ -34,6 +34,7 @@ import useShowInterstitial from '../hooks/useShowInterstitial';
 import { useSaving } from '../hooks/useSaving';
 import { useThemeColors } from '../theme/ThemeContext';
 import { space as sp, type as ty } from '../theme/tokens';
+import { HelpButton } from '../components/help';
 
 export default function SalaryScreen({ navigation }) {
   const tc = useThemeColors();
@@ -134,7 +135,7 @@ ${back}`, [
   if (!militaryInfo) {
     // 헤더·안전영역 없이 맨 컴포넌트만 그리던 분기 — 다른 탭과 같은 껍데기를 쓴다
     return (
-      <Screen scroll={false} header={<AppHeader title="급여 계산" />}>
+      <Screen scroll={false} header={<AppHeader title="급여 계산" right={<HelpButton topic="salary" />} />}>
         <SetupRequired />
       </Screen>
     );
@@ -195,7 +196,7 @@ ${back}`, [
   return (
     <Screen
       ad={AD_UNITS.SALARY_BOTTOM}
-      header={<AppHeader title="급여 계산" />}
+      header={<AppHeader title="급여 계산" right={<HelpButton topic="salary" />} />}
     >
       {/* ① 이번 달 예상 급여 */}
       <Section index={0}>

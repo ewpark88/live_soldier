@@ -43,6 +43,7 @@ import {
 } from '../constants/serviceTerms';
 import { getPhase } from '../constants/phases';
 import { updateDischargeWidget } from '../widget/updateWidget';
+import { HelpButton } from '../components/help';
 import { refreshScheduledNotifications } from '../utils/notifications';
 import { motion, radius as r, space as sp, type as ty } from '../theme/tokens';
 
@@ -515,7 +516,7 @@ export default function DischargeScreen({ navigation }) {
       <Screen
         standalone
         ad={AD_UNITS.DISCHARGE_BOTTOM}
-        header={<AppHeader title={editing ? t.infoScreen : ti.infoScreen} back />}
+        header={<AppHeader title={editing ? t.infoScreen : ti.infoScreen} back right={<HelpButton topic="discharge" />} />}
       >
         {editing ? (
           /* ── 입력 폼 ── */

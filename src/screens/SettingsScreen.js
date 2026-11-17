@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback, useRef } from 'react';
-import { Alert, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Switch, View } from 'react-native';
 import { switchProps } from '../components/ui/switchProps';
 import { useFocusEffect } from '@react-navigation/native';
 import Card from '../components/Card';
@@ -30,6 +30,7 @@ import { updateDischargeWidget } from '../widget/updateWidget';
 import { expo as appInfo } from '../../app.json';
 import { CONTACT_EMAIL, openContactEmail, openStoreReview } from '../utils/feedback';
 import { space as sp } from '../theme/tokens';
+import { HelpButton } from '../components/help';
 
 export default function SettingsScreen({ navigation }) {
   const tc = useThemeColors();
@@ -226,7 +227,7 @@ export default function SettingsScreen({ navigation }) {
   return (
     <Screen
       ad={AD_UNITS.SETTINGS_BOTTOM}
-      header={<AppHeader title="내 정보" />}
+      header={<AppHeader title="내 정보" right={<HelpButton topic="start" />} />}
     >
       {/* ── 프로필 ── */}
       <Section index={0} gap={sp.xl}>
@@ -256,6 +257,30 @@ export default function SettingsScreen({ navigation }) {
               onPress={() => navigation.navigate(row.route)}
             />
           ))}
+        </ListGroup>
+      </Section>
+
+      {/* ── 도움말 · 위젯 ──
+          [?] 버튼은 화면마다 그 화면 사용법만 보여준다. 전체 가이드와 위젯 추가는 여기서. */}
+      <Section index={1} gap={sp.xl}>
+        <ListGroup label="도움말">
+          <ListRow
+            title="사용 가이드"
+            subtitle="기능별 사용법을 차근차근 알려드려요"
+            icon="book-outline"
+            chevron
+            onPress={() => navigation.navigate('guide')}
+          />
+          {Platform.OS === 'android' ? (
+            <ListRow
+              title="홈 화면 위젯"
+              subtitle="바탕화면에 D-Day 위젯 놓기"
+              icon="apps-outline"
+              iconTone="accent"
+              chevron
+              onPress={() => navigation.navigate('widgets')}
+            />
+          ) : null}
         </ListGroup>
       </Section>
 

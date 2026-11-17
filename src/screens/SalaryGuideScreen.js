@@ -12,6 +12,7 @@ import { currentRankLabel } from '../utils/roadmapUtils';
 import { calcServedMonths, rankFromServedMonths } from '../utils/dateUtils';
 import { termsFor } from '../constants/serviceTerms';
 import { space as sp } from '../theme/tokens';
+import { HelpButton } from '../components/help';
 
 export default function SalaryGuideScreen({ navigation }) {
   const [info, setInfo] = useState(null);
@@ -53,7 +54,7 @@ export default function SalaryGuideScreen({ navigation }) {
       standalone
       ad={AD_UNITS.REFERENCE_BOTTOM}
       header={
-        <AppHeader title="병사 월급 가이드" back />
+        <AppHeader title="병사 월급 가이드" back right={<HelpButton topic="salary" />} />
       }
     >
       <Section index={0}>

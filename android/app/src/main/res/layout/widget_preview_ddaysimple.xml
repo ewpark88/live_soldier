@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 목록 미리보기(정적). 숫자는 예시 값이다. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_preview_bg"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="8dp">
+
+  <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="D-123"
+      android:textColor="#3DE0B8"
+      android:textSize="28sp"
+      android:textStyle="bold"/>
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="5dp"
+      android:layout_marginTop="4dp"
+      android:background="@drawable/widget_preview_track"
+      android:orientation="horizontal">
+    <FrameLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="68"
+        android:background="@drawable/widget_preview_fill"/>
+    <FrameLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="32"/>
+  </LinearLayout>
+</LinearLayout>

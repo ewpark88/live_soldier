@@ -24,6 +24,7 @@ import { nextPromotion, formatDateKo, calcProgress, calcServedMonths, calcDaysLe
 import { hasSoldierRanks, isAlternative, isOfficer, termsFor } from '../constants/serviceTerms';
 import { useThemeColors } from '../theme/ThemeContext';
 import { space as sp, type as ty } from '../theme/tokens';
+import { HelpButton } from '../components/help';
 
 export default function RoadmapScreen({ navigation }) {
   const tc = useThemeColors();
@@ -55,7 +56,7 @@ export default function RoadmapScreen({ navigation }) {
 
   const t = termsFor(info?.personnelType);
   const header = (
-    <AppHeader title={t.roadmapTitle} back />
+    <AppHeader title={t.roadmapTitle} back right={<HelpButton topic="roadmap" />} />
   );
 
   if (info === undefined) {

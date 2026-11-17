@@ -2,4 +2,7 @@
   <string name="app_name">전역까지</string>
   <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
   <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
+  <!-- 홈 위젯 설명 (위젯 고르기 목록에 보인다) -->
+  <string name="widget_discharge_description" translatable="false">D-Day·복무 진행률·다음 휴가를 한눈에</string>
+  <string name="widget_ddaysimple_description" translatable="false">큰 D-Day 숫자와 진행 막대만 깔끔하게</string>
 </resources>

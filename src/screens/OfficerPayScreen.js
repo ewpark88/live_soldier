@@ -10,6 +10,7 @@ import { OFFICER_RANK_IMAGES } from '../constants/rankImages';
 import { loadMilitaryInfo } from '../utils/storage';
 import { isOfficer } from '../constants/serviceTerms';
 import { space as sp } from '../theme/tokens';
+import { HelpButton } from '../components/help';
 
 export default function OfficerPayScreen({ navigation }) {
   const [officerRank, setOfficerRank] = useState(null);
@@ -47,7 +48,7 @@ export default function OfficerPayScreen({ navigation }) {
       standalone
       ad={AD_UNITS.REFERENCE_BOTTOM}
       header={
-        <AppHeader title="간부 봉급 참고" back />
+        <AppHeader title="간부 봉급 참고" back right={<HelpButton topic="salary" />} />
       }
     >
       <Section index={0}>

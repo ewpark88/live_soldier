@@ -19,6 +19,7 @@ import { loadPersonnelType } from '../utils/storage';
 import { useThemeColors } from '../theme/ThemeContext';
 import { space as sp } from '../theme/tokens';
 import { haptic } from '../utils/haptics';
+import { HelpButton } from '../components/help';
 
 export default function BenefitsScreen({ navigation }) {
   const tc = useThemeColors();
@@ -70,6 +71,7 @@ export default function BenefitsScreen({ navigation }) {
                 ? '간부 적용 여부가 애매한 항목은 판매처 문의 표시'
                 : '금융·교통·문화·자기계발 할인과 지원'}
           back
+          right={<HelpButton topic="benefits" />}
         />
       }
     >

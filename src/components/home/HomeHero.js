@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import LiveServiceGauge from '../LiveServiceGauge';
 import ProfileBar from '../ProfileBar';
+import HelpButton from '../help/HelpButton';
 import StreakBadge from '../StreakBadge';
 import EmberField from '../motion/EmberField';
 import AuroraWash from '../motion/AuroraWash';
@@ -125,6 +126,8 @@ export default function HomeHero({
         <View style={{ flex: 1 }}>
           <ProfileBar onChange={onReloadProfiles} onDark />
         </View>
+        {/* [?] 홈 화면 보는 법 — 히어로 위라 heroText 색 (라이트 히어로는 밝다) */}
+        <HelpButton topic="home" onHero />
         {/* 연속출석 아래에 계급장 — 예전엔 링 우상단에 absolute 로 얹혀
             진행률 7~21% 구간의 호와 선단 맥박 점을 가렸다. */}
         <View style={s.sideCol}>

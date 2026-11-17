@@ -20,6 +20,7 @@ import { formatMoney } from '../constants/salaryGuide';
 import { calcSavings, recommendedSavingMonths, SAVINGS } from '../utils/savingsUtils';
 import { useThemeColors } from '../theme/ThemeContext';
 import { space as sp, type as ty } from '../theme/tokens';
+import { HelpButton } from '../components/help';
 
 
 /** 상세 내역 한 줄 */
@@ -138,6 +139,7 @@ export default function SavingsScreen({ navigation }) {
           title="장병내일적금"
           subtitle={`${terms.end} 시 받을 목돈을 미리 계산`}
           back
+          right={<HelpButton topic="savings" />}
         />
       }
     >

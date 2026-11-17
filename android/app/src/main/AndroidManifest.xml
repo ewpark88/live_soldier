@@ -41,5 +41,24 @@
         <data android:scheme="jeonryeokkami" android:host="add"/>
       </intent-filter>
     </activity>
+    <!-- 홈 화면 위젯 (react-native-android-widget).
+         bare 워크플로라 config plugin 이 돌지 않는다 — 플러그인이 넣던 receiver·service 를
+         여기서 직접 관리한다. 예전엔 이 항목이 없어서 위젯 코드가 있어도 런처 위젯 목록에
+         나타나지 않았다. receiver 이름(.widget.X)의 X 가 JS 의 widgetName 이다. -->
+    <receiver android:name=".widget.Discharge" android:exported="false" android:label="전역까지 · 기본">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="com.jeonryeokkami.app.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_discharge"/>
+    </receiver>
+    <receiver android:name=".widget.DdaySimple" android:exported="false" android:label="전역까지 · 심플">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="com.jeonryeokkami.app.WIDGET_CLICK"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_ddaysimple"/>
+    </receiver>
+    <service android:name="com.reactnativeandroidwidget.RNWidgetCollectionService" android:permission="android.permission.BIND_REMOTEVIEWS"/>
   </application>
 </manifest>

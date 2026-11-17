@@ -14,6 +14,7 @@ import useRewardedAd from '../hooks/useRewardedAd';
 import { guardSave, SAVE_FAILED } from '../utils/saveGuard';
 import { haptic } from '../utils/haptics';
 import { radius as r, space as sp } from '../theme/tokens';
+import { HelpButton } from '../components/help';
 
 /**
  * 막대병 도감 — 홈 링 안 캐릭터의 모습을 모으고 고른다.
@@ -99,7 +100,7 @@ export default function SoldierDexScreen() {
     <Screen
       standalone
       ad={AD_UNITS.DEX_BOTTOM}
-      header={<AppHeader title="막대병 도감" subtitle="홈 링 안에서 달릴 막대병을 골라요" back />}
+      header={<AppHeader title="막대병 도감" subtitle="홈 링 안에서 달릴 막대병을 골라요" back right={<HelpButton topic="dex" />} />}
     >
       {/* 지금 장착한 막대병 */}
       <Section index={0}>
